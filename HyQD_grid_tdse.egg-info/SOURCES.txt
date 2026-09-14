@@ -1,0 +1,9 @@
+LICENSE
+README.md
+pyproject.toml
+HyQD_grid_tdse.egg-info/PKG-INFO
+HyQD_grid_tdse.egg-info/SOURCES.txt
+HyQD_grid_tdse.egg-info/dependency_links.txt
+HyQD_grid_tdse.egg-info/requires.txt
+HyQD_grid_tdse.egg-info/top_level.txt
+grid_tdse/__init__.py
