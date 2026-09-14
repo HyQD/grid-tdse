@@ -1,1 +1,12 @@
 /workspaces/
+
+# Python bytecode and cache directories
+__pycache__/
+*.py[cod]
+
+# Numba cache artifacts
+*.nbc
+*.nbi
+
+# Packaging metadata
+*.egg-info/
