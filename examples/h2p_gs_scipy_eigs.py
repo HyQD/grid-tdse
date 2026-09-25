@@ -17,7 +17,6 @@ from matter_field_params.particle_params_manager import (
 from grid_lib.spherical_coordinates.angular_momentum import (
     number_of_lm_states,
     LM_to_I,
-    setup_y_and_ybar_sympy,
     get_y,
     get_ybar,
 )
@@ -93,15 +92,15 @@ w_r = rDVR.weights
 
 R_max = 5.0
 n_Rpoints = 50
-RDVR = RadialSincDVR(R_max / 2, n_Rpoints)
+RDVR = RadialSincDVR(R_max, n_Rpoints)
 R = RDVR.r
 D1_R = RDVR.D1
 D2_R = RDVR.D2
 w_R = RDVR.weights
 
 # Define angular momentum cut-offs
-l_max_e = 2
-l_max_p = 2
+l_max_e = 4
+l_max_p = 4
 
 m_max_e = l_max_e
 m_max_p = l_max_p
@@ -116,6 +115,10 @@ particles = predefined_3body_systems("H2+")
 mu_p, mu_e, xi_p, xi_e, M_ref, m_p, m_e, Q_ref, q_p, q_e = (
     get_reduced_masses_and_charges_3body(particles=particles, codata_set="2022")
 )
+Mn = M_ref + m_p
+cR_1 = m_p / Mn
+cR_2 = (Mn - m_p) / Mn
+print(f"c1: {cR_1}, c2: {cR_2}")
 
 # Setup system
 
@@ -130,8 +133,8 @@ for m in range(-m_max_p, m_max_p + 1):
     for l in range(abs(m), l_max_p + 1):
         nabla_sq_R = D2_R - np.diag(l * (l + 1) / R**2)
         Hp[LM_to_I(l, m, l_max_p, m_max_p)] = -1 / (
-            8 * mu_p
-        ) * nabla_sq_R + np.diag(1 / (2 * R))
+            2 * mu_p
+        ) * nabla_sq_R + np.diag(1 / R)
 
 L_max = l_max_e + l_max_p
 M_max = L_max
@@ -139,11 +142,26 @@ M_max = L_max
 L_vec = np.arange(L_max + 1)[:, None, None]
 r_grid = r[:, None]
 R_grid = R[None, :]
-r_min = np.minimum(r_grid, R_grid)[None, :, :]
-r_max = np.maximum(r_grid, R_grid)[None, :, :]
 
-W_rR = (4 * np.pi / (2 * L_vec + 1)) * (r_min**L_vec) / (r_max ** (L_vec + 1))
-W = W_rR + (-1) ** L_vec * W_rR
+r_min_1 = np.minimum(r_grid, cR_1 * R_grid)[None, :, :]
+r_max_grid_1 = np.maximum(r_grid, cR_1 * R_grid)[None, :, :]
+
+r_min_2 = np.minimum(r_grid, cR_2 * R_grid)[None, :, :]
+r_max_grid_2 = np.maximum(r_grid, cR_2 * R_grid)[None, :, :]
+
+W1_rR = (
+    (4 * np.pi / (2 * L_vec + 1))
+    * (r_min_1**L_vec)
+    / (r_max_grid_1 ** (L_vec + 1))
+)
+
+W2_rR = (
+    (4 * np.pi / (2 * L_vec + 1))
+    * (r_min_2**L_vec)
+    / (r_max_grid_2 ** (L_vec + 1))
+)
+
+W = (-1) ** L_vec * W1_rR + W2_rR
 W *= w_R[None, None, :]
 
 W_LM = np.zeros((number_of_lm_states(L_max, M_max), n_rpoints, n_Rpoints))
@@ -158,8 +176,6 @@ for M in range(-M_max, M_max + 1):
 # for L in range(0, L_max + 1, 2):
 #     print(np.linalg.norm(W[L].ravel()))
 
-import time
-
 tic = time.time()
 yp, ye_bar = get_y(l_max_p, m_max_p, L_max, M_max), get_ybar(
     l_max_e, m_max_e, L_max, M_max
@@ -167,11 +183,16 @@ yp, ye_bar = get_y(l_max_p, m_max_p, L_max, M_max), get_ybar(
 toc = time.time()
 print("Time setup y and ybar:", toc - tic, flush=True)
 
-Psi = np.random.random((n_lm_e, n_lm_p, n_rpoints, n_Rpoints))
-norm_Psi = np.sqrt(contract("IJab,IJab,a,b", Psi.conj(), Psi, w_r, w_R))
+Psi = np.zeros((n_lm_e, n_lm_p, n_rpoints, n_Rpoints))
+Psi[
+    LM_to_I(0, 0, l_max_e, m_max_e),
+    LM_to_I(0, 0, l_max_p, m_max_p),
+] = np.random.random((n_rpoints, n_Rpoints))
+norm_Psi = np.sqrt(contract("IJab,IJab,a,b->", Psi.conj(), Psi, w_r, w_R).real)
 Psi /= norm_Psi
-norm_Psi = np.sqrt(contract("IJab,IJab,a,b", Psi.conj(), Psi, w_r, w_R))
-print(f"norm_psi: {norm_Psi}")
+norm_Psi = np.sqrt(contract("IJab,IJab,a,b->", Psi.conj(), Psi, w_r, w_R).real)
+print(f"Initial norm: {norm_Psi:.15f}", flush=True)
+print(f"Size of Psi: {Psi.size * Psi.itemsize / 1e9:.2g} GB", flush=True)
 
 
 # Allow running this example directly from the examples/ folder.
