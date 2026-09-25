@@ -3,5 +3,5 @@ numba>=0.67.0,<0.68
 scipy>=1.18.0,<1.19
 opt_einsum>=3.4.0,<3.5
 sympy>=1.14.0,<1.15
-grid-lib @ git+https://github.com/hyqd/grid-lib.git
-electromagnetic-fields @ git+https://github.com/HyQD/electromagnetic-fields.git
+hyqd-grid-lib @ git+https://github.com/hyqd/grid-lib.git
+hyqd-electromagnetic-fields @ git+https://github.com/HyQD/electromagnetic-fields.git
