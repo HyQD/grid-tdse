@@ -18,6 +18,7 @@ class GroundStateIteration:
     imaginary_time: float
     energy: float
     energy_change: float
+    state_change: float
     residual_norm: float
     norm: float
     linear_iterations: int
@@ -30,6 +31,7 @@ class GroundStateResult:
 
     state: np.ndarray
     energy: float
+    state_change: float
     residual_norm: float
     converged: bool
     iterations: int
@@ -50,6 +52,12 @@ class GroundStateResult:
         return np.asarray([record.residual_norm for record in self.history])
 
     @property
+    def state_change_history(self) -> np.ndarray:
+        """Phase-invariant state change after every accepted step."""
+
+        return np.asarray([record.state_change for record in self.history])
+
+    @property
     def norm(self) -> float:
         """Physical norm of the returned state."""
 
@@ -65,8 +73,8 @@ class ImaginaryTimeGroundStateSolver:
     physical inner product.
 
     Each iteration advances ``d psi / d tau = -H psi`` by one matrix-free
-    Crank--Nicolson step, normalizes the result, and evaluates both the energy
-    change and the normalized eigenstate residual.
+    Crank--Nicolson step, normalizes the result, and evaluates the energy
+    change, phase-invariant state change, and normalized eigenstate residual.
     """
 
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
@@ -77,6 +85,7 @@ class ImaginaryTimeGroundStateSolver:
         time_step: float = 0.1,
         max_iterations: int = 1_000,
         energy_tolerance: float = 1.0e-10,
+        state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
         linear_solver: str = "gmres",
         linear_rtol: float = 1.0e-10,
@@ -90,6 +99,7 @@ class ImaginaryTimeGroundStateSolver:
         self.energy_tolerance = _positive_real(
             energy_tolerance, "energy_tolerance"
         )
+        self.state_tolerance = _positive_real(state_tolerance, "state_tolerance")
         self.residual_tolerance = _positive_real(
             residual_tolerance, "residual_tolerance"
         )
@@ -165,6 +175,7 @@ class ImaginaryTimeGroundStateSolver:
         converged = False
         for iteration in range(1, self.max_iterations + 1):
             imaginary_time = iteration * self.time_step
+            previous_state = state
             state = integrator(
                 state,
                 imaginary_time - self.time_step,
@@ -172,6 +183,9 @@ class ImaginaryTimeGroundStateSolver:
                 imaginary_time_rhs,
             )
             state = self._normalize(state, inner_product)
+            state_change = self._state_change(
+                previous_state, state, inner_product
+            )
             action = _hamiltonian_action(hamiltonian, state, shape)
             energy = self._energy(state, action, inner_product)
             energy_change = abs(energy - previous_energy)
@@ -183,6 +197,7 @@ class ImaginaryTimeGroundStateSolver:
                 imaginary_time=imaginary_time,
                 energy=energy,
                 energy_change=energy_change,
+                state_change=state_change,
                 residual_norm=residual_norm,
                 norm=norm,
                 linear_iterations=int(integrator.last_iterations),
@@ -192,6 +207,7 @@ class ImaginaryTimeGroundStateSolver:
 
             if (
                 energy_change <= self.energy_tolerance
+                and state_change <= self.state_tolerance
                 and residual_norm <= self.residual_tolerance
             ):
                 converged = True
@@ -202,6 +218,7 @@ class ImaginaryTimeGroundStateSolver:
         return GroundStateResult(
             state=state.copy(),
             energy=final.energy,
+            state_change=final.state_change,
             residual_norm=final.residual_norm,
             converged=converged,
             iterations=final.iteration,
@@ -232,6 +249,14 @@ class ImaginaryTimeGroundStateSolver:
             raise ValueError("state must have positive norm")
         numerator = _inner_product_value(inner_product, state, action)
         return self._real_value(numerator / denominator, "energy")
+
+    def _state_change(self, previous, current, inner_product) -> float:
+        overlap = _inner_product_value(inner_product, previous, current)
+        if abs(overlap) == 0.0:
+            aligned = current
+        else:
+            aligned = current * overlap.conjugate() / abs(overlap)
+        return self._norm(aligned - previous, inner_product)
 
     def _real_value(self, value: complex, name: str) -> float:
         scale = max(1.0, abs(value.real))
