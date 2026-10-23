@@ -35,6 +35,21 @@ The electron--particle attractions are translated into the signed
 multipoles are evaluated by the two-grid Poisson implementation in
 `grid-lib`.
 
+The same reduced parameters determine the coefficients required by a future
+velocity-gauge interaction. `DiatomicIonParameters` exposes
+
+$$
+\nu_R=\frac{\xi_R}{\mu_R},
+\qquad
+\nu_e=\frac{\xi_e}{\mu_e}
+$$
+
+as `internuclear_velocity_coupling` and
+`electronic_velocity_coupling`. They are derived from the reduced charges and
+masses supplied by `matter-field-params`, rather than calculated from a
+second independent set of formulas. The internuclear coefficient vanishes
+for homonuclear H2+ and D2+.
+
 ## Symmetry inputs
 
 The native interface uses numerical physical parities rather than compact

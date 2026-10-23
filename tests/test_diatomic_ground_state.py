@@ -192,6 +192,53 @@ def test_supported_systems_take_particle_data_from_matter_field_params(
     assert calculation.parameters.electron_charge == -1.0
 
 
+@pytest.mark.parametrize("system", ["H2+", "HD+", "D2+"])
+def test_velocity_couplings_are_derived_from_reduced_charges_and_masses(system):
+    pair_parity = None if system == "HD+" else 1
+    parameters = _calculation(
+        system,
+        inversion_parity=1,
+        pair_exchange_parity=pair_parity,
+    ).parameters
+
+    assert parameters.internuclear_velocity_coupling == pytest.approx(
+        parameters.internuclear_reduced_charge / parameters.internuclear_reduced_mass
+    )
+    assert parameters.electronic_velocity_coupling == pytest.approx(
+        parameters.electronic_reduced_charge / parameters.electronic_reduced_mass
+    )
+
+    expected_internuclear = (
+        parameters.partner_charge / parameters.partner_mass
+        - parameters.reference_charge / parameters.reference_mass
+    )
+    pair_mass = parameters.reference_mass + parameters.partner_mass
+    pair_charge = parameters.reference_charge + parameters.partner_charge
+    expected_electronic = (
+        parameters.electron_charge / parameters.electron_mass - pair_charge / pair_mass
+    )
+    assert parameters.internuclear_velocity_coupling == pytest.approx(
+        expected_internuclear
+    )
+    assert parameters.electronic_velocity_coupling == pytest.approx(expected_electronic)
+
+
+@pytest.mark.parametrize("system", ["H2+", "D2+"])
+def test_homonuclear_internuclear_velocity_coupling_vanishes(system):
+    parameters = _calculation(system).parameters
+
+    assert parameters.internuclear_velocity_coupling == pytest.approx(0.0, abs=0.0)
+
+
+def test_hd_has_a_nonzero_internuclear_velocity_coupling():
+    parameters = _calculation(
+        "HD+",
+        pair_exchange_parity=None,
+    ).parameters
+
+    assert parameters.internuclear_velocity_coupling != pytest.approx(0.0)
+
+
 def test_custom_array_is_projected_and_normalized_in_the_full_basis():
     template = _calculation(
         inversion_parity=1,

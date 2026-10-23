@@ -64,6 +64,18 @@ class DiatomicIonParameters:
 
         return self.particles[0] == self.particles[1]
 
+    @property
+    def internuclear_velocity_coupling(self) -> float:
+        r"""Return the velocity-gauge coefficient ``nu_R = xi_R / mu_R``."""
+
+        return self.internuclear_reduced_charge / self.internuclear_reduced_mass
+
+    @property
+    def electronic_velocity_coupling(self) -> float:
+        r"""Return the velocity-gauge coefficient ``nu_e = xi_e / mu_e``."""
+
+        return self.electronic_reduced_charge / self.electronic_reduced_mass
+
 
 @dataclass(frozen=True)
 class DiatomicIonGroundStateResult:
