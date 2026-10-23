@@ -74,6 +74,15 @@ def lowest_weighted_eigenstate(
 ) -> tuple[float, np.ndarray]:
     """Return the lowest eigenpair of a quadrature-weighted Hermitian matrix."""
 
+    eigenvalues, eigenstates = weighted_eigenstates(matrix, weights)
+    return float(eigenvalues[0]), eigenstates[:, 0]
+
+
+def weighted_eigenstates(
+    matrix: np.ndarray, weights: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Diagonalize a matrix in its quadrature-weighted representation."""
+
     matrix = np.asarray(matrix)
     weights = np.asarray(weights, dtype=float)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
@@ -85,11 +94,13 @@ def lowest_weighted_eigenstate(
     transformed = sqrt_weights[:, None] * matrix / sqrt_weights[None, :]
     transformed = 0.5 * (transformed + transformed.T.conj())
     eigenvalues, eigenvectors = np.linalg.eigh(transformed)
-    state = eigenvectors[:, 0] / sqrt_weights
-    pivot = int(np.argmax(np.abs(state)))
-    if state[pivot].real < 0.0:
-        state = -state
-    return float(eigenvalues[0]), np.real_if_close(state)
+    states = eigenvectors / sqrt_weights[:, None]
+    for column in range(states.shape[1]):
+        pivot = int(np.argmax(np.abs(states[:, column])))
+        phase = states[pivot, column]
+        if abs(phase) != 0.0:
+            states[:, column] *= phase.conjugate() / abs(phase)
+    return eigenvalues, np.real_if_close(states)
 
 
 def _weighted_eigensystems(blocks: np.ndarray, sqrt_weights: np.ndarray):

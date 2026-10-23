@@ -18,6 +18,12 @@ from grid_tdse.ground_state import (
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
 from .coulomb import CoulombTerm
 from .grids import FEMDVRGridSpec
+from .observables import (
+    AngularMomentumExpectations,
+    angular_momentum_expectations,
+    diagonal_angular_expectation,
+    validated_state,
+)
 from .preconditioner import (
     TwoRadialOneBodyPreconditioner,
     lowest_weighted_eigenstate,
@@ -57,14 +63,6 @@ class DiatomicIonParameters:
         """Whether the two particles defining the internuclear coordinate match."""
 
         return self.particles[0] == self.particles[1]
-
-
-@dataclass(frozen=True)
-class AngularMomentumExpectations:
-    """Total orbital-angular-momentum expectations in atomic units."""
-
-    total_l_squared: float
-    total_l_z: float
 
 
 @dataclass(frozen=True)
@@ -358,48 +356,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         self, state: np.ndarray
     ) -> AngularMomentumExpectations:
         """Return ``<L_total**2>`` and ``<L_total,z>`` for a state."""
-
-        state = self._validated_state(state)
-        norm_squared = self.representation.inner_product(state, state).real
-        if norm_squared <= 0.0:
-            raise ValueError("state has zero norm")
-
-        action = np.zeros_like(state, dtype=np.result_type(state.dtype, float))
-        basis1 = self.representation.basis1
-        basis2 = self.representation.basis2
-        for i, (l_e, m_e) in enumerate(basis1.states):
-            for j, (l_R, m_R) in enumerate(basis2.states):
-                action[i, j] += (
-                    l_e * (l_e + 1) + l_R * (l_R + 1) + 2 * m_e * m_R
-                ) * state[i, j]
-
-                if m_e < l_e and m_R > -l_R:
-                    out_i = basis1.index(l_e, m_e + 1)
-                    out_j = basis2.index(l_R, m_R - 1)
-                    coefficient = np.sqrt(l_e * (l_e + 1) - m_e * (m_e + 1)) * np.sqrt(
-                        l_R * (l_R + 1) - m_R * (m_R - 1)
-                    )
-                    action[out_i, out_j] += coefficient * state[i, j]
-
-                if m_e > -l_e and m_R < l_R:
-                    out_i = basis1.index(l_e, m_e - 1)
-                    out_j = basis2.index(l_R, m_R + 1)
-                    coefficient = np.sqrt(l_e * (l_e + 1) - m_e * (m_e - 1)) * np.sqrt(
-                        l_R * (l_R + 1) - m_R * (m_R + 1)
-                    )
-                    action[out_i, out_j] += coefficient * state[i, j]
-
-        total_l_squared = (
-            self.representation.inner_product(state, action).real / norm_squared
-        )
-        total_l_z = self._diagonal_angular_expectation(
-            state,
-            lambda l_e, l_R, m_e, m_R: m_e + m_R,
-        )
-        return AngularMomentumExpectations(
-            total_l_squared=float(total_l_squared),
-            total_l_z=float(total_l_z),
-        )
+        return angular_momentum_expectations(self.representation, state)
 
     def _coordinate_parities(self):
         if not self.basis_is_reduced:
@@ -464,35 +421,10 @@ class NonBornOppenheimerDiatomicIonGroundState:
         return state
 
     def _validated_state(self, state: np.ndarray) -> np.ndarray:
-        state = np.asarray(state)
-        if state.shape != self.representation.psi_shape:
-            raise ValueError(
-                f"state has shape {state.shape}; "
-                f"expected {self.representation.psi_shape}"
-            )
-        if not np.issubdtype(state.dtype, np.number):
-            raise TypeError("state must contain numeric values")
-        if not np.isfinite(state).all():
-            raise ValueError("state must contain only finite values")
-        return state
+        return validated_state(self.representation, state)
 
     def _diagonal_angular_expectation(self, state, value):
-        state = self._validated_state(state)
-        weights = np.empty(
-            (
-                self.representation.basis1.n_channels,
-                self.representation.basis2.n_channels,
-            )
-        )
-        for i, (l_e, m_e) in enumerate(self.representation.basis1.states):
-            for j, (l_R, m_R) in enumerate(self.representation.basis2.states):
-                weights[i, j] = value(l_e, l_R, m_e, m_R)
-        norm_squared = self.representation.inner_product(state, state).real
-        if norm_squared <= 0.0:
-            raise ValueError("state has zero norm")
-        action = weights[:, :, None, None] * state
-        expectation = self.representation.inner_product(state, action)
-        return float(expectation.real / norm_squared)
+        return diagonal_angular_expectation(self.representation, state, value)
 
 
 def _diatomic_parameters(system: str, codata_set: str) -> DiatomicIonParameters:

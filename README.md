@@ -26,6 +26,7 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Two-radial spherical foundation](docs/two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](docs/ground_state_iteration.md)
 - [Non-Born--Oppenheimer diatomic-ion ground states](docs/non_bo_diatomic_ground_state.md)
+- [Two-electron atomic ground states](docs/two_electron_atomic_ground_state.md)
 
 Feature documentation will be added alongside each implemented and tested
 solver.
