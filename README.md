@@ -23,6 +23,7 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Documentation overview](docs/index.md)
 - [Runtime dependencies](docs/runtime_dependencies.md)
 - [Installation](docs/installation.md)
+- [Two-radial spherical foundation](docs/two_radial_foundation.md)
 
 Feature documentation will be added alongside each implemented and tested
 solver.
