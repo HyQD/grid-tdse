@@ -11,6 +11,13 @@ __pycache__/
 # Packaging metadata
 *.egg-info/
 /build/
+/dist/
+
+# Local environments, tests, and coverage
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Editor settings
 .vscode/
