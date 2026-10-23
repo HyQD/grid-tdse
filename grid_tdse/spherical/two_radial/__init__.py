@@ -1,6 +1,11 @@
 """Two-radial spherical-coordinate Hamiltonian foundation."""
 
 from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .atomic import (
+    TwoElectronAtomGroundState,
+    TwoElectronAtomGroundStateResult,
+    TwoElectronAtomParameters,
+)
 from .coulomb import (
     CoulombTerm,
     RadialCoulombMultipoles,
@@ -8,13 +13,13 @@ from .coulomb import (
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
 from .diatomic import (
-    AngularMomentumExpectations,
     DiatomicIonGroundStateResult,
     DiatomicIonParameters,
     NonBornOppenheimerDiatomicIonGroundState,
 )
 from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
 from .hamiltonian import TwoRadialHamiltonian
+from .observables import AngularMomentumExpectations
 from .preconditioner import TwoRadialOneBodyPreconditioner
 from .system import (
     AngularRadialPotential,
@@ -46,6 +51,9 @@ __all__ = [
     "TwoRadialOneBodyPreconditioner",
     "TwoRadialSystem",
     "TwoRadialSystemSpec",
+    "TwoElectronAtomGroundState",
+    "TwoElectronAtomGroundStateResult",
+    "TwoElectronAtomParameters",
     "angular_radial_potential",
     "build_coulomb_couplings",
     "build_radial_coulomb_multipoles",
