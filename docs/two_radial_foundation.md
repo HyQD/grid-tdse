@@ -9,7 +9,7 @@ $$
 
 where $i$ and $j$ enumerate explicit, uncoupled spherical-harmonic states
 $(l_1,m_1)$ and $(l_2,m_2)$. It is the shared numerical foundation for the
-planned two-electron atomic and non-Born--Oppenheimer diatomic interfaces. A
+two-electron atomic and non-Born--Oppenheimer diatomic interfaces. A
 ground-state iteration driver is not part of this layer.
 
 ## Radial grids
@@ -74,7 +74,7 @@ system = TwoRadialSystemSpec(
 hamiltonian = system.hamiltonian()
 ```
 
-The future atomic and molecular-ion interfaces will own physical validation,
-particle parameters, symmetry defaults, initial states, and imaginary-time
+The atomic and molecular-ion interfaces own physical validation, particle
+parameters, symmetry defaults, initial states, and imaginary-time
 ground-state propagation. This foundation owns only the reusable
 discretization and Hamiltonian action.

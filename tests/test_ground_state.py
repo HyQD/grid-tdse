@@ -191,6 +191,7 @@ def test_itp_rejects_invalid_representation_operations(
         ("residual_tolerance", 0.0, ValueError),
         ("linear_solver", "invalid", ValueError),
         ("linear_rtol", 0.0, ValueError),
+        ("progress_interval", 0, ValueError),
     ],
 )
 def test_itp_validates_solver_options(keyword, value, error):
@@ -199,3 +200,43 @@ def test_itp_validates_solver_options(keyword, value, error):
         options["linear_atol"] = 0.0
     with pytest.raises(error):
         ImaginaryTimeGroundStateSolver(**options)
+
+
+def test_itp_reports_progress_at_requested_interval_and_final_step(capsys):
+    assert ImaginaryTimeGroundStateSolver().progress_interval == 10
+
+    solver = ImaginaryTimeGroundStateSolver(
+        time_step=0.1,
+        max_iterations=7,
+        energy_tolerance=1.0e-30,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0e-30,
+        linear_rtol=1.0e-13,
+        linear_atol=1.0e-15,
+        progress_interval=3,
+    )
+    solver.solve(
+        np.ones(2),
+        lambda state: np.array([0.5, 2.0]) * state,
+        np.vdot,
+    )
+
+    lines = capsys.readouterr().out.splitlines()
+    assert [int(line.split()[1].removesuffix(":")) for line in lines] == [3, 6, 7]
+    assert all("E=" in line for line in lines)
+    energy_fields = [line.split("E=")[1].split()[0] for line in lines]
+    assert all("." in field for field in energy_fields)
+    assert all("e" not in field.lower() for field in energy_fields)
+    assert all("|dE|=" in line for line in lines)
+    assert all("dPsi=" in line for line in lines)
+    assert all("residual=" in line for line in lines)
+
+
+def test_itp_progress_can_be_disabled(capsys):
+    solver = ImaginaryTimeGroundStateSolver(
+        max_iterations=1,
+        progress_interval=None,
+    )
+    solver.solve(np.ones(2), lambda state: state, np.vdot)
+
+    assert capsys.readouterr().out == ""

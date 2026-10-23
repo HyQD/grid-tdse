@@ -12,5 +12,6 @@ foundation:
 - [Installation](installation.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](ground_state_iteration.md)
+- [Non-Born--Oppenheimer diatomic-ion ground states](non_bo_diatomic_ground_state.md)
 
 Runnable calculations are kept in the [`examples`](../examples) directory.
