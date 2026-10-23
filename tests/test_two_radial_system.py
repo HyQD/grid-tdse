@@ -40,6 +40,14 @@ def test_sinc_system_uses_l_dependent_kinetic_blocks_and_analytic_coulomb():
     assert result.shape == system.psi_shape
     assert np.isfinite(result).all()
 
+    expected_norm_squared = (
+        system.basis1.n_channels
+        * system.basis2.n_channels
+        * system.grid1.weights.sum()
+        * system.grid2.weights.sum()
+    )
+    assert system.inner_product(psi, psi) == pytest.approx(expected_norm_squared)
+
 
 def test_femdvr_system_uses_two_grid_poisson_coulomb():
     grid1 = FEMDVRGridSpec([0.0, 2.0, 5.0], [4, 4])
