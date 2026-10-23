@@ -93,12 +93,11 @@ class ImaginaryTimeGroundStateSolver:
         linear_max_iterations: int | None = None,
         gmres_restart: int | None = None,
         reality_tolerance: float = 1.0e-10,
+        progress_interval: int | None = 10,
     ) -> None:
         self.time_step = _positive_real(time_step, "time_step")
         self.max_iterations = _positive_integer(max_iterations, "max_iterations")
-        self.energy_tolerance = _positive_real(
-            energy_tolerance, "energy_tolerance"
-        )
+        self.energy_tolerance = _positive_real(energy_tolerance, "energy_tolerance")
         self.state_tolerance = _positive_real(state_tolerance, "state_tolerance")
         self.residual_tolerance = _positive_real(
             residual_tolerance, "residual_tolerance"
@@ -114,11 +113,12 @@ class ImaginaryTimeGroundStateSolver:
         self.linear_max_iterations = _optional_positive_integer(
             linear_max_iterations, "linear_max_iterations"
         )
-        self.gmres_restart = _optional_positive_integer(
-            gmres_restart, "gmres_restart"
-        )
+        self.gmres_restart = _optional_positive_integer(gmres_restart, "gmres_restart")
         self.reality_tolerance = _nonnegative_real(
             reality_tolerance, "reality_tolerance"
+        )
+        self.progress_interval = _optional_positive_integer(
+            progress_interval, "progress_interval"
         )
 
     def solve(
@@ -183,9 +183,7 @@ class ImaginaryTimeGroundStateSolver:
                 imaginary_time_rhs,
             )
             state = self._normalize(state, inner_product)
-            state_change = self._state_change(
-                previous_state, state, inner_product
-            )
+            state_change = self._state_change(previous_state, state, inner_product)
             action = _hamiltonian_action(hamiltonian, state, shape)
             energy = self._energy(state, action, inner_product)
             energy_change = abs(energy - previous_energy)
@@ -205,12 +203,18 @@ class ImaginaryTimeGroundStateSolver:
             )
             history.append(record)
 
-            if (
+            converged = (
                 energy_change <= self.energy_tolerance
                 and state_change <= self.state_tolerance
                 and residual_norm <= self.residual_tolerance
+            )
+            if self.progress_interval is not None and (
+                iteration % self.progress_interval == 0
+                or converged
+                or iteration == self.max_iterations
             ):
-                converged = True
+                self._print_progress(record)
+            if converged:
                 break
             previous_energy = energy
 
@@ -261,10 +265,18 @@ class ImaginaryTimeGroundStateSolver:
     def _real_value(self, value: complex, name: str) -> float:
         scale = max(1.0, abs(value.real))
         if abs(value.imag) > self.reality_tolerance * scale:
-            raise ValueError(
-                f"{name} has a significant imaginary part: {value.imag}"
-            )
+            raise ValueError(f"{name} has a significant imaginary part: {value.imag}")
         return float(value.real)
+
+    @staticmethod
+    def _print_progress(record: GroundStateIteration) -> None:
+        print(
+            f"ITP {record.iteration:6d}: "
+            f"E={record.energy:.12f}  "
+            f"|dE|={record.energy_change:.3e}  "
+            f"dPsi={record.state_change:.3e}  "
+            f"residual={record.residual_norm:.3e}"
+        )
 
 
 def _state_array(state) -> np.ndarray:
@@ -281,9 +293,7 @@ def _state_array(state) -> np.ndarray:
 def _hamiltonian_action(hamiltonian, state, shape) -> np.ndarray:
     action = np.asarray(hamiltonian(state))
     if action.shape != shape:
-        raise ValueError(
-            f"hamiltonian returned shape {action.shape}; expected {shape}"
-        )
+        raise ValueError(f"hamiltonian returned shape {action.shape}; expected {shape}")
     if not np.issubdtype(action.dtype, np.number):
         raise TypeError("hamiltonian must return numeric values")
     if not np.isfinite(action).all():
@@ -322,9 +332,7 @@ def _nonnegative_real(value, name: str) -> float:
 
 
 def _positive_integer(value, name: str) -> int:
-    if isinstance(value, (bool, np.bool_)) or not isinstance(
-        value, (int, np.integer)
-    ):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
         raise TypeError(f"{name} must be a positive integer")
     result = int(value)
     if result <= 0:
