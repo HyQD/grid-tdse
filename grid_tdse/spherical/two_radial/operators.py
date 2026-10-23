@@ -59,9 +59,3 @@ class KineticEnergy:
             return np.matmul(Psi, self.TT)
         else:
             raise ValueError("Invalid coordinate axis.")
-
-
-
-
-
-        

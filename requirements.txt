@@ -1,7 +1,12 @@
+HyQD-electromagnetic-fields
+HyQD-grid-lib>=1.1.0
+HyQD-integrator-lib>=0.2.0
+HyQD-matter-field-params
 numpy>=2.5.2,<2.6
-numba>=0.67.0,<0.68
 scipy>=1.18.0,<1.19
-opt_einsum>=3.4.0,<3.5
+opt-einsum>=3.4.0,<3.5
+numba>=0.67.0,<0.68
 sympy>=1.14.0,<1.15
-hyqd-grid-lib @ git+https://github.com/hyqd/grid-lib.git
-hyqd-electromagnetic-fields @ git+https://github.com/HyQD/electromagnetic-fields.git
+packaging
+tqdm
+matplotlib

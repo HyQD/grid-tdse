@@ -18,10 +18,10 @@ from grid_lib.spherical_coordinates.angular_momentum import (
     number_of_lm_states,
 )
 
-from grid_tdse.coordinates.spherical.two_radial.hamiltonians import (
+from grid_tdse.spherical.two_radial.hamiltonian import (
     Hamiltonian,
 )
-from grid_tdse.coordinates.spherical.two_radial.system import TwoRadialSystem
+from grid_tdse.spherical.two_radial.system import TwoRadialSystem
 
 from matter_field_params.particle_params_manager import (
     get_reduced_masses_and_charges_3body,
@@ -224,7 +224,7 @@ for m in range(-m_max_p, m_max_p + 1):
             2 * mu_p
         ) * nabla_sq_R + np.diag(1 / R)
 
-from grid_tdse.coordinates.spherical.two_radial.coulomb_operator import (
+from grid_tdse.spherical.two_radial.coulomb import (
     CoulombInteraction,
 )
 from matplotlib import pyplot as plt

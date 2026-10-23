@@ -1,5 +1,5 @@
 import numpy as np
-from grid_tdse.coordinates.spherical.two_radial.radialangularbasis import (
+from grid_tdse.spherical.two_radial.basis import (
     RadialCoupledYlm,
     RadialUcYlm,
 )
