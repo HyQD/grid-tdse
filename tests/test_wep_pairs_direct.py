@@ -1,7 +1,7 @@
 import numpy as np
 
 from grid_lib.spherical_coordinates.angular_momentum import get_y, get_ybar
-from grid_tdse.coordinates.spherical.two_radial.hamiltonians import (
+from grid_tdse.spherical.two_radial.hamiltonian import (
     wep_pairs_ij,
     wep_pairs_ij_direct,
 )
