@@ -136,6 +136,28 @@ class TwoRadialSystem:
             tile_size=tile_size,
         )
 
+    def inner_product(self, left: np.ndarray, right: np.ndarray) -> complex:
+        """Return the quadrature-weighted two-radial inner product."""
+
+        left = np.asarray(left)
+        right = np.asarray(right)
+        if left.shape != self.psi_shape:
+            raise ValueError(
+                f"left state has shape {left.shape}; expected {self.psi_shape}"
+            )
+        if right.shape != self.psi_shape:
+            raise ValueError(
+                f"right state has shape {right.shape}; expected {self.psi_shape}"
+            )
+        return np.einsum(
+            "ijab,ijab,a,b->",
+            left.conj(),
+            right,
+            self.grid1.weights,
+            self.grid2.weights,
+            optimize=True,
+        )
+
 
 def radial_potential(
     values: float | np.ndarray | Callable[[np.ndarray], np.ndarray],
