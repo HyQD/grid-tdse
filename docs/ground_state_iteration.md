@@ -48,7 +48,7 @@ E
 \frac{\left\|H\Psi-E\Psi\right\|}{\left\|\Psi\right\|}.
 ```
 
-Convergence requires both
+The energy and residual convergence conditions are
 
 ```math
 |E_n-E_{n-1}|\leq\epsilon_E
@@ -57,11 +57,39 @@ Convergence requires both
 and
 
 ```math
-\epsilon_r\leq\epsilon_{mathrm{res}}.
+\epsilon_r\leq\epsilon_{\mathrm{res}}.
 ```
 
 The energy criterion alone is insufficient because it can become stationary
 before the wavefunction is an accurate eigenstate.
+
+The normalized state change is evaluated after aligning the arbitrary global
+phase of consecutive states:
+
+```math
+\Delta_\Psi
+=
+\min_\phi
+\left\|e^{i\phi}\Psi_{n+1}-\Psi_n\right\|.
+```
+
+For normalized states this is equivalently
+
+```math
+\Delta_\Psi
+=
+\sqrt{2-2\left|\langle\Psi_n|\Psi_{n+1}\rangle\right|}.
+```
+
+For real states, phase alignment reduces to invariance under a global sign
+change. For complex states it provides invariance under the complete global
+phase. The implementation evaluates the norm of the aligned state difference
+using the supplied physical inner product.
+
+Convergence requires the energy change, state change, and eigenstate residual
+to satisfy their respective tolerances. State change is not used alone
+because a sufficiently small time step can make consecutive states nearly
+identical before the eigenstate residual is small.
 
 ## Basic usage
 
@@ -81,6 +109,7 @@ solver = ImaginaryTimeGroundStateSolver(
     time_step=0.2,
     max_iterations=500,
     energy_tolerance=1.0e-12,
+    state_tolerance=1.0e-10,
     residual_tolerance=1.0e-10,
     linear_solver="gmres",
     linear_rtol=1.0e-12,
@@ -93,7 +122,7 @@ result = solver.solve(
 )
 ```
 
-`result.converged` reports whether both tolerances were met. Reaching the
+`result.converged` reports whether all three tolerances were met. Reaching the
 maximum number of iterations returns a result with
 `termination_reason == "maximum_iterations"`; it does not silently label the
 state as converged.
@@ -138,11 +167,11 @@ future atomic and molecular high-level interfaces.
 `GroundStateResult` contains:
 
 - the normalized final `state`;
-- its `energy` and `residual_norm`;
+- its `energy`, `state_change`, and `residual_norm`;
 - `converged`, `iterations`, `imaginary_time`, and `termination_reason`;
 - a tuple of `GroundStateIteration` records;
-- convenience `energy_history` and `residual_history` arrays.
+- convenience energy, state-change, and residual history arrays.
 
-Each iteration record includes the energy, energy change, eigenstate residual,
-normalized state norm, and the iteration count and final residual reported by
-the inner Krylov solve.
+Each iteration record includes the energy, energy change, phase-invariant
+state change, eigenstate residual, normalized state norm, and the iteration
+count and final residual reported by the inner Krylov solve.

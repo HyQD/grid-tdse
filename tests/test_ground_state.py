@@ -37,12 +37,14 @@ def test_itp_converges_to_lowest_represented_eigenstate_with_weighted_norm(
     assert result.converged
     assert result.termination_reason == "converged"
     assert result.energy == pytest.approx(eigenvalues[0], abs=1.0e-12)
+    assert result.state_change <= solver.state_tolerance
     assert result.residual_norm <= solver.residual_tolerance
     assert inner_product(result.state, result.state) == pytest.approx(1.0)
     assert abs(result.state[0]) == pytest.approx(1.0 / np.sqrt(weights[0]))
     assert np.linalg.norm(result.state[1:]) < 1.0e-10
     assert result.iterations == len(result.history)
     assert result.energy_history.shape == (result.iterations,)
+    assert result.state_change_history.shape == (result.iterations,)
     assert result.residual_history.shape == (result.iterations,)
 
 
@@ -114,12 +116,13 @@ def test_itp_supports_complex_shaped_states_and_a_shaped_preconditioner():
     assert set(calls) == {initial.shape}
 
 
-def test_convergence_requires_energy_and_residual_tolerances():
+def test_convergence_requires_energy_state_and_residual_tolerances():
     solver = ImaginaryTimeGroundStateSolver(
         time_step=0.1,
         max_iterations=1,
         energy_tolerance=1.0,
-        residual_tolerance=1.0e-16,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0,
         linear_rtol=1.0e-13,
         linear_atol=1.0e-15,
     )
@@ -130,8 +133,29 @@ def test_convergence_requires_energy_and_residual_tolerances():
     )
 
     assert result.history[0].energy_change < solver.energy_tolerance
-    assert result.history[0].residual_norm > solver.residual_tolerance
+    assert result.history[0].state_change > solver.state_tolerance
+    assert result.history[0].residual_norm < solver.residual_tolerance
     assert not result.converged
+
+
+def test_state_change_is_invariant_to_a_global_sign_flip():
+    solver = ImaginaryTimeGroundStateSolver(
+        time_step=1.0,
+        max_iterations=1,
+        energy_tolerance=1.0e-14,
+        state_tolerance=1.0e-14,
+        residual_tolerance=1.0e-14,
+        linear_rtol=1.0e-13,
+        linear_atol=1.0e-15,
+    )
+    initial = np.array([1.0, -2.0])
+
+    result = solver.solve(initial, lambda state: 3.0 * state, np.vdot)
+
+    assert result.converged
+    assert result.state_change == pytest.approx(0.0, abs=1.0e-14)
+    normalized = initial / np.linalg.norm(initial)
+    np.testing.assert_allclose(result.state, -normalized, atol=1.0e-13)
 
 
 @pytest.mark.parametrize(
@@ -163,6 +187,7 @@ def test_itp_rejects_invalid_representation_operations(
         ("time_step", 0.0, ValueError),
         ("max_iterations", 1.5, TypeError),
         ("energy_tolerance", -1.0, ValueError),
+        ("state_tolerance", 0.0, ValueError),
         ("residual_tolerance", 0.0, ValueError),
         ("linear_solver", "invalid", ValueError),
         ("linear_rtol", 0.0, ValueError),
