@@ -213,7 +213,7 @@ class TwoRadialSystem:
         )
 
     def hamiltonian(self, OPT_SWITCH: bool = True):
-        from .hamiltonians import Hamiltonian
+        from .hamiltonian import Hamiltonian
 
         return Hamiltonian(
             self.h1,

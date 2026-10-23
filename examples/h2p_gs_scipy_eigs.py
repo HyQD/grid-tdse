@@ -197,7 +197,7 @@ print(f"Size of Psi: {Psi.size * Psi.itemsize / 1e9:.2g} GB", flush=True)
 
 # Allow running this example directly from the examples/ folder.
 try:
-    from grid_tdse.coordinates.spherical.two_radial.hamiltonians import (
+    from grid_tdse.spherical.two_radial.hamiltonian import (
         Hamiltonian,
     )
 except ModuleNotFoundError:
@@ -207,7 +207,7 @@ except ModuleNotFoundError:
         sys.path.insert(0, str(repo_root))
     if nonbo_src.exists() and str(nonbo_src) not in sys.path:
         sys.path.insert(0, str(nonbo_src))
-    from grid_tdse.coordinates.spherical.two_radial.hamiltonians import (
+    from grid_tdse.spherical.two_radial.hamiltonian import (
         Hamiltonian,
     )
 
