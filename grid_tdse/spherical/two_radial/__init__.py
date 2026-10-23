@@ -1,29 +1,41 @@
-"""Two-radial spherical-coordinate Hamiltonians and system builders."""
+"""Two-radial spherical-coordinate Hamiltonian foundation."""
 
-from .hamiltonian import Hamiltonian
+from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .coulomb import (
+    CoulombTerm,
+    RadialCoulombMultipoles,
+    build_radial_coulomb_multipoles,
+)
+from .couplings import CoulombCouplings, build_coulomb_couplings
+from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
+from .hamiltonian import TwoRadialHamiltonian
 from .system import (
-    AngularBasisSpec,
+    AngularRadialPotential,
     CoordinateSpec,
-    CoulombCenter,
-    RadialGrid,
-    RadialGridSpec,
+    RadialPotential,
     TwoRadialSystem,
     TwoRadialSystemSpec,
-    coulomb_w_lm,
-    lm_radial_potential,
+    angular_radial_potential,
     radial_potential,
 )
 
 __all__ = [
     "AngularBasisSpec",
+    "AngularRadialPotential",
     "CoordinateSpec",
-    "CoulombCenter",
-    "Hamiltonian",
+    "CoulombCouplings",
+    "CoulombMultipoleSpec",
+    "CoulombTerm",
+    "FEMDVRGridSpec",
+    "RadialCoulombMultipoles",
     "RadialGrid",
-    "RadialGridSpec",
+    "RadialPotential",
+    "RadialSincDVRGridSpec",
+    "TwoRadialHamiltonian",
     "TwoRadialSystem",
     "TwoRadialSystemSpec",
-    "coulomb_w_lm",
-    "lm_radial_potential",
+    "angular_radial_potential",
+    "build_coulomb_couplings",
+    "build_radial_coulomb_multipoles",
     "radial_potential",
 ]
