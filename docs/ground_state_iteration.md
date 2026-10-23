@@ -160,7 +160,7 @@ result = solver.solve(
 ```
 
 The construction of `psi0` and a two-radial preconditioner belongs to the
-future atomic and molecular high-level interfaces.
+atomic and molecular high-level interfaces.
 
 ## Diagnostics
 
@@ -175,3 +175,21 @@ future atomic and molecular high-level interfaces.
 Each iteration record includes the energy, energy change, phase-invariant
 state change, eigenstate residual, normalized state norm, and the iteration
 count and final residual reported by the inner Krylov solve.
+
+## Progress reporting
+
+By default, the solver prints the current energy and three convergence
+measures every ten accepted steps. The converged step or final allowed step
+is also printed:
+
+```text
+ITP     10: E=-0.590000000000  |dE|=1.234e-05  dPsi=2.345e-04  residual=3.456e-04
+```
+
+Set a different interval with `progress_interval`, or disable printing with
+`progress_interval=None`:
+
+```python
+solver = ImaginaryTimeGroundStateSolver(progress_interval=25)
+quiet_solver = ImaginaryTimeGroundStateSolver(progress_interval=None)
+```
