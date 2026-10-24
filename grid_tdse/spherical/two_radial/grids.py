@@ -29,6 +29,7 @@ class RadialGrid:
     """Prepared radial grid with boundary points removed where appropriate."""
 
     family: GridFamily
+    specification: RadialGridSpec
     dvr: object
     r: np.ndarray
     weights: np.ndarray
@@ -88,6 +89,7 @@ class FEMDVRGridSpec:
         )
         return RadialGrid(
             family=self.family,
+            specification=self,
             dvr=dvr,
             r=dvr.r[1:-1],
             weights=dvr.weights[1:-1],
@@ -115,6 +117,7 @@ class RadialSincDVRGridSpec:
         dvr = RadialSincDVR(self.r_max, self.n_points, l_max=l_max)
         return RadialGrid(
             family=self.family,
+            specification=self,
             dvr=dvr,
             r=dvr.r,
             weights=dvr.weights,
