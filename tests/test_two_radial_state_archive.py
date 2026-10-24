@@ -12,6 +12,7 @@ from grid_tdse.spherical.two_radial import (
     TwoRadialSystemSpec,
     load_two_radial_state,
     save_two_radial_state,
+    two_radial_compatibility_metadata,
 )
 
 
@@ -198,3 +199,28 @@ def test_archive_rejects_inconsistent_angular_metadata(tmp_path):
 
     with pytest.raises(ValueError, match="angular state table is inconsistent"):
         load_two_radial_state(path)
+
+
+def test_two_radial_checkpoint_metadata_identifies_representation():
+    system = _system(parity=1)
+    metadata = two_radial_compatibility_metadata(
+        system,
+        physical_state=_physical_state(),
+    )
+
+    assert metadata["physical_state"] == _physical_state()
+    assert metadata["state_shape"] == list(system.psi_shape)
+    assert len(metadata["representation_id"]) == 64
+    assert metadata["representation"]["coordinate1"]["grid"] == {
+        "family": "femdvr",
+        "nodes": [0.0, 2.0, 5.0],
+        "n_points": [4, 4],
+    }
+    assert metadata == two_radial_compatibility_metadata(
+        system,
+        physical_state=_physical_state(),
+    )
+    assert metadata != two_radial_compatibility_metadata(
+        _system(parity=1, second_nodes=(0.0, 1.6, 4.0)),
+        physical_state=_physical_state(),
+    )

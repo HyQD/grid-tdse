@@ -1,5 +1,6 @@
 """Propagate helium in a one-cycle, z-polarized sine-square laser pulse."""
 
+from dataclasses import asdict
 from typing import Literal
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ from grid_tdse.spherical.two_radial import (
     TwoElectronAtomGroundState,
     TwoRadialAxialDipoleInteraction,
     TwoRadialRealTimePreconditioner,
+    two_radial_compatibility_metadata,
 )
 
 
@@ -57,6 +59,9 @@ REAL_TIME_LINEAR_ATOL = 1.0e-10
 REAL_TIME_LINEAR_MAX_ITERATIONS = None
 REAL_TIME_GMRES_RESTART = None
 REAL_TIME_PROGRESS_INTERVAL = 10
+CHECKPOINT_PATH = "tdse_he_atom.chkpt"
+CHECKPOINT_INTERVAL = 10
+CHECKPOINT_OVERWRITE = True
 
 # Ground-state imaginary-time propagation controls.
 GROUND_STATE_TIME_STEP = 0.25
@@ -170,12 +175,40 @@ real_time_preconditioner = TwoRadialRealTimePreconditioner(
     ground_state.representation,
     propagator.time_step,
 )
+compatibility_metadata = two_radial_compatibility_metadata(
+    ground_state.representation,
+    physical_state={
+        "system_family": "two_electron_atom",
+        "system": ground_state.parameters.name,
+        "parameters": asdict(ground_state.parameters),
+    },
+)
+dynamics_metadata = {
+    "interaction": "electric_dipole",
+    "polarization_axis": "z",
+    "gauge": FIELD_GAUGE,
+    "field": {
+        "type": "SineSquareLaser",
+        "field_strength": FIELD_STRENGTH,
+        "angular_frequency": OMEGA,
+        "wavelength_nm": WAVELENGTH_NM,
+        "frequency_codata_set": FREQUENCY_CODATA_SET,
+        "n_cycles": N_CYCLES,
+        "phase": PHASE,
+        "start_time": PULSE_START,
+    },
+}
 result = propagator.propagate(
     ground_state.state,
     time_dependent_hamiltonian,
     ground_state.representation.inner_product,
     preconditioner=real_time_preconditioner,
     samplers={"expec_z": total_z_expectation},
+    checkpoint_path=CHECKPOINT_PATH,
+    checkpoint_interval=CHECKPOINT_INTERVAL,
+    checkpoint_overwrite=CHECKPOINT_OVERWRITE,
+    compatibility_metadata=compatibility_metadata,
+    dynamics_metadata=dynamics_metadata,
 )
 
 # Both arrays include the initial time and every accepted propagation step.
@@ -194,6 +227,7 @@ print(f"Pulse duration:           {PULSE_DURATION:.12f} a.u.")
 print(f"Final propagation time:   {result.final_time:.12f} a.u.")
 print(f"Time step:                {result.time_step:.12f} a.u.")
 print(f"Number of steps:          {result.n_steps}")
+print(f"Checkpoint path:          {CHECKPOINT_PATH}")
 print(f"Initial norm:             {result.initial_norm:.12f}")
 print(f"Final norm:               {result.norm:.12f}")
 print(f"Final <z1 + z2>:          {expec_z[-1]:.12f} bohr")
