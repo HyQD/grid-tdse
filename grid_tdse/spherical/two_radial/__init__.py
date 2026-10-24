@@ -34,6 +34,7 @@ from .state_archive import (
     TwoRadialState,
     load_two_radial_state,
     save_two_radial_state,
+    two_radial_compatibility_metadata,
 )
 from .system import (
     AngularRadialPotential,
@@ -80,4 +81,5 @@ __all__ = [
     "load_two_radial_state",
     "radial_potential",
     "save_two_radial_state",
+    "two_radial_compatibility_metadata",
 ]

@@ -20,3 +20,9 @@ def test_package_exports_spherical_two_radial_namespace():
     assert real_time.RealTimePropagator.__module__ == (
         "grid_tdse.real_time.propagation"
     )
+    assert real_time.RealTimeCheckpoint.__module__ == (
+        "grid_tdse.real_time.checkpoint"
+    )
+    assert two_radial.two_radial_compatibility_metadata.__module__ == (
+        "grid_tdse.spherical.two_radial.state_archive"
+    )
