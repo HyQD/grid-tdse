@@ -14,5 +14,6 @@ foundation:
 - [Imaginary-time ground-state iteration](ground_state_iteration.md)
 - [Non-Born--Oppenheimer diatomic-ion ground states](non_bo_diatomic_ground_state.md)
 - [Two-electron atomic ground states](two_electron_atomic_ground_state.md)
+- [Two-radial state archives](two_radial_state_archives.md)
 
 Runnable calculations are kept in the [`examples`](../examples) directory.

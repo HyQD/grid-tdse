@@ -5,6 +5,7 @@ from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialOneBodyPreconditioner,
+    load_two_radial_state,
 )
 
 
@@ -296,3 +297,25 @@ def test_high_level_solve_returns_physical_metadata_and_preserves_symmetry():
     assert result.inversion_expectation == pytest.approx(1.0, abs=1.0e-12)
     assert result.pair_exchange_expectation == pytest.approx(1.0, abs=1.0e-12)
     assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1e-10)
+
+
+def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
+    result = _calculation().solve()
+    path = tmp_path / "user-selected-diatomic-state"
+
+    assert result.save(path) == path
+    stored = load_two_radial_state(path)
+
+    np.testing.assert_array_equal(stored.coefficients, result.state)
+    assert stored.physical_state["system_family"] == "non_bo_diatomic_ion"
+    assert stored.physical_state["system"] == "H2+"
+    assert stored.physical_state["parameters"]["particles"] == [
+        "proton",
+        "proton",
+        "electron",
+    ]
+    assert stored.physical_state["symmetry"]["pair_exchange_parity"] == 1
+    assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["residual_norm"] == pytest.approx(
+        result.residual_norm
+    )

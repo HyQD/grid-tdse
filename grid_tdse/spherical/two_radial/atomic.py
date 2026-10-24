@@ -1,6 +1,8 @@
 """High-level ground states for infinite-mass two-electron atoms."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from os import PathLike
+from pathlib import Path
 from numbers import Integral
 from typing import Literal
 
@@ -46,6 +48,8 @@ class TwoElectronAtomGroundStateResult:
     """Physical setup and iteration result for a two-electron atom."""
 
     parameters: TwoElectronAtomParameters
+    inversion_parity: Parity
+    electron_exchange_parity: Parity
     representation: TwoRadialSystem
     initial_state: np.ndarray
     ground_state: GroundStateResult
@@ -86,6 +90,48 @@ class TwoElectronAtomGroundStateResult:
     @property
     def termination_reason(self) -> str:
         return self.ground_state.termination_reason
+
+    def save(
+        self, path: str | PathLike[str], *, overwrite: bool = False
+    ) -> Path:
+        """Save the returned state and its complete representation metadata."""
+
+        from .state_archive import save_two_radial_state
+
+        return save_two_radial_state(
+            path,
+            self.state,
+            self.representation,
+            physical_state={
+                "system_family": "two_electron_atom",
+                "system": self.parameters.name,
+                "state_index": 0,
+                "parameters": asdict(self.parameters),
+                "symmetry": {
+                    "inversion_parity": self.inversion_parity,
+                    "electron_exchange_parity": self.electron_exchange_parity,
+                    "spin_multiplicity": self.spin_multiplicity,
+                },
+            },
+            calculation={
+                "method": "imaginary_time_propagation",
+                "energy": self.energy,
+                "norm": self.ground_state.norm,
+                "converged": self.converged,
+                "iterations": self.iterations,
+                "imaginary_time": self.ground_state.imaginary_time,
+                "state_change": self.state_change,
+                "residual_norm": self.residual_norm,
+                "termination_reason": self.termination_reason,
+                "total_l_squared": self.angular_momentum.total_l_squared,
+                "total_l_z": self.angular_momentum.total_l_z,
+                "inversion_expectation": self.inversion_expectation,
+                "electron_exchange_expectation": (
+                    self.electron_exchange_expectation
+                ),
+            },
+            overwrite=overwrite,
+        )
 
 
 class TwoElectronAtomGroundState:
@@ -249,6 +295,8 @@ class TwoElectronAtomGroundState:
         )
         return TwoElectronAtomGroundStateResult(
             parameters=self.parameters,
+            inversion_parity=self.inversion_parity,
+            electron_exchange_parity=self.electron_exchange_parity,
             representation=self.representation,
             initial_state=initial,
             ground_state=ground_state,
