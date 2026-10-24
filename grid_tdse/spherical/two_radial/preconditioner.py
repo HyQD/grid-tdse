@@ -5,32 +5,14 @@ import numpy as np
 from .system import TwoRadialSystem
 
 
-class TwoRadialOneBodyPreconditioner:
-    r"""Approximate the imaginary-time CN inverse with the one-body terms.
+class _TwoRadialOneBodyInverse:
+    """Apply a shifted one-body inverse in weighted eigenbases."""
 
-    The preconditioner applies
-
-    ``[I + dt/2 (h1 + h2)]**-1``
-
-    independently to every angular-channel pair.  The coordinate Hamiltonians
-    are diagonalized in their quadrature-weighted Hermitian representations.
-    The two-coordinate Coulomb interaction is deliberately omitted.
-    """
-
-    def __init__(self, system: TwoRadialSystem, time_step: float) -> None:
+    def __init__(self, system: TwoRadialSystem, shift: complex) -> None:
         if not isinstance(system, TwoRadialSystem):
             raise TypeError("system must be a TwoRadialSystem")
-        if isinstance(time_step, (bool, np.bool_)) or not np.isscalar(time_step):
-            raise TypeError("time_step must be a positive real scalar")
-        if np.iscomplexobj(time_step):
-            raise TypeError("time_step must be a positive real scalar")
-        time_step = float(time_step)
-        if not np.isfinite(time_step) or time_step <= 0.0:
-            raise ValueError("time_step must be positive and finite")
-
         self.system = system
-        self.time_step = time_step
-        self.alpha = 0.5 * time_step
+        self.shift = shift
         self._sqrt_w1 = np.sqrt(system.grid1.weights)
         self._sqrt_w2 = np.sqrt(system.grid2.weights)
         self._eigenvalues1, self._eigenvectors1 = _weighted_eigensystems(
@@ -47,7 +29,10 @@ class TwoRadialOneBodyPreconditioner:
                 f"state has shape {state.shape}; expected {self.system.psi_shape}"
             )
 
-        result = np.empty_like(state, dtype=np.result_type(state.dtype, float))
+        result = np.empty_like(
+            state,
+            dtype=np.result_type(state.dtype, self.shift),
+        )
         for i, (eps1, vectors1) in enumerate(
             zip(self._eigenvalues1, self._eigenvectors1, strict=True)
         ):
@@ -56,17 +41,56 @@ class TwoRadialOneBodyPreconditioner:
             ):
                 weighted = self._sqrt_w1[:, None] * state[i, j] * self._sqrt_w2[None, :]
                 transformed = vectors1.T.conj() @ weighted @ vectors2
-                denominator = 1.0 + self.alpha * (eps1[:, None] + eps2[None, :])
+                denominator = 1.0 + self.shift * (
+                    eps1[:, None] + eps2[None, :]
+                )
                 if np.any(np.isclose(denominator, 0.0)):
                     raise np.linalg.LinAlgError(
                         "one-body preconditioner is singular for this time step"
                     )
-                transformed /= denominator
+                transformed = transformed / denominator
                 weighted_result = vectors1 @ transformed @ vectors2.T.conj()
                 result[i, j] = (
                     weighted_result / self._sqrt_w1[:, None] / self._sqrt_w2[None, :]
                 )
         return result
+
+
+class TwoRadialOneBodyPreconditioner(_TwoRadialOneBodyInverse):
+    r"""Approximate the imaginary-time CN inverse with the one-body terms.
+
+    The preconditioner applies
+
+    ``[I + dt/2 (h1 + h2)]**-1``
+
+    independently to every angular-channel pair.  The coordinate Hamiltonians
+    are diagonalized in their quadrature-weighted Hermitian representations.
+    The two-coordinate Coulomb interaction is deliberately omitted.
+    """
+
+    def __init__(self, system: TwoRadialSystem, time_step: float) -> None:
+        time_step = _positive_time_step(time_step)
+        self.time_step = time_step
+        self.alpha = 0.5 * time_step
+        super().__init__(system, self.alpha)
+
+
+class TwoRadialRealTimePreconditioner(_TwoRadialOneBodyInverse):
+    r"""Approximate the real-time CN inverse with the one-body terms.
+
+    The preconditioner applies
+
+    ``[I + i dt/2 (h1 + h2)]**-1``
+
+    independently to every angular-channel pair. The two-coordinate Coulomb
+    interaction and explicitly time-dependent interactions are omitted.
+    """
+
+    def __init__(self, system: TwoRadialSystem, time_step: float) -> None:
+        time_step = _positive_time_step(time_step)
+        self.time_step = time_step
+        self.alpha = 0.5j * time_step
+        super().__init__(system, self.alpha)
 
 
 def lowest_weighted_eigenstate(
@@ -113,3 +137,14 @@ def _weighted_eigensystems(blocks: np.ndarray, sqrt_weights: np.ndarray):
         eigenvalues.append(values)
         eigenvectors.append(vectors)
     return np.asarray(eigenvalues), np.asarray(eigenvectors)
+
+
+def _positive_time_step(value) -> float:
+    if isinstance(value, (bool, np.bool_)) or not np.isscalar(value):
+        raise TypeError("time_step must be a positive real scalar")
+    if np.iscomplexobj(value):
+        raise TypeError("time_step must be a positive real scalar")
+    result = float(value)
+    if not np.isfinite(result) or result <= 0.0:
+        raise ValueError("time_step must be positive and finite")
+    return result
