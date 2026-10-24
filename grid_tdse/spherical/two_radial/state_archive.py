@@ -290,6 +290,50 @@ def load_two_radial_state(path: str | os.PathLike[str]) -> TwoRadialState:
     return state
 
 
+def two_radial_compatibility_metadata(
+    representation: TwoRadialSystem,
+    *,
+    physical_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return restart metadata for a two-radial real-time checkpoint.
+
+    The representation identifier includes the realized radial points,
+    quadrature weights, and ordered angular channel tables. The full grid and
+    angular specifications are retained so the representation can be
+    reconstructed without storing Python objects.
+    """
+
+    if not isinstance(representation, TwoRadialSystem):
+        raise TypeError("representation must be a TwoRadialSystem")
+    if not isinstance(physical_state, Mapping):
+        raise TypeError("physical_state must be a mapping")
+    arrays = {
+        "radial_points1": np.asarray(representation.grid1.r),
+        "radial_weights1": np.asarray(representation.grid1.weights),
+        "angular_states1": np.asarray(
+            representation.basis1.states,
+            dtype=np.int64,
+        ),
+        "radial_points2": np.asarray(representation.grid2.r),
+        "radial_weights2": np.asarray(representation.grid2.weights),
+        "angular_states2": np.asarray(
+            representation.basis2.states,
+            dtype=np.int64,
+        ),
+    }
+    representation_metadata = _representation_metadata(representation)
+    metadata = {
+        "physical_state": dict(physical_state),
+        "representation": representation_metadata,
+        "representation_id": _representation_id(
+            representation_metadata,
+            arrays,
+        ),
+        "state_shape": list(representation.psi_shape),
+    }
+    return json.loads(_canonical_json(metadata))
+
+
 def _representation_metadata(representation: TwoRadialSystem) -> dict[str, Any]:
     return {
         "coordinate1": {
