@@ -17,6 +17,12 @@ from .diatomic import (
     DiatomicIonParameters,
     NonBornOppenheimerDiatomicIonGroundState,
 )
+from .dipole import (
+    AxialCoordinateDipole,
+    AxialDipoleCouplings,
+    DipoleGauge,
+    TwoRadialAxialDipoleInteraction,
+)
 from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
 from .hamiltonian import TwoRadialHamiltonian
 from .observables import AngularMomentumExpectations
@@ -40,12 +46,15 @@ __all__ = [
     "AngularBasisSpec",
     "AngularMomentumExpectations",
     "AngularRadialPotential",
+    "AxialCoordinateDipole",
+    "AxialDipoleCouplings",
     "CoordinateSpec",
     "CoulombCouplings",
     "CoulombMultipoleSpec",
     "CoulombTerm",
     "DiatomicIonGroundStateResult",
     "DiatomicIonParameters",
+    "DipoleGauge",
     "FEMDVRGridSpec",
     "NonBornOppenheimerDiatomicIonGroundState",
     "RadialCoulombMultipoles",
@@ -53,6 +62,7 @@ __all__ = [
     "RadialPotential",
     "RadialSincDVRGridSpec",
     "TwoRadialHamiltonian",
+    "TwoRadialAxialDipoleInteraction",
     "TwoRadialOneBodyPreconditioner",
     "TwoRadialState",
     "TwoRadialSystem",
