@@ -5,6 +5,7 @@ from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     RadialSincDVRGridSpec,
     TwoElectronAtomGroundState,
+    load_two_radial_state,
 )
 
 
@@ -205,6 +206,24 @@ def test_one_itp_step_returns_metadata_and_preserves_symmetry():
     assert result.electron_exchange_expectation == pytest.approx(1.0, abs=1.0e-12)
     assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1.0e-10)
     assert result.spin_multiplicity == 1
+
+
+def test_atomic_ground_state_result_saves_restart_metadata(tmp_path):
+    result = _calculation().solve()
+    path = tmp_path / "user-selected-atomic-state"
+
+    assert result.save(path) == path
+    stored = load_two_radial_state(path)
+
+    np.testing.assert_array_equal(stored.coefficients, result.state)
+    assert stored.physical_state["system_family"] == "two_electron_atom"
+    assert stored.physical_state["system"] == "He"
+    assert stored.physical_state["parameters"]["nuclear_charge"] == 2.0
+    assert stored.physical_state["symmetry"]["spin_multiplicity"] == 1
+    assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["residual_norm"] == pytest.approx(
+        result.residual_norm
+    )
 
 
 def test_atomic_interface_validates_system_grid_symmetry_and_cutoffs():

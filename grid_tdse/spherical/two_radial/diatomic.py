@@ -1,7 +1,9 @@
 """High-level ground states for non-Born--Oppenheimer diatomic ions."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from numbers import Integral
+from os import PathLike
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -82,6 +84,9 @@ class DiatomicIonGroundStateResult:
     """Physical setup and iteration result for a diatomic-ion ground state."""
 
     parameters: DiatomicIonParameters
+    inversion_parity: Parity
+    pair_exchange_parity: Parity | None
+    symmetry_adapted_basis: bool
     representation: TwoRadialSystem
     initial_state: np.ndarray
     ground_state: GroundStateResult
@@ -121,6 +126,47 @@ class DiatomicIonGroundStateResult:
     @property
     def termination_reason(self) -> str:
         return self.ground_state.termination_reason
+
+    def save(
+        self, path: str | PathLike[str], *, overwrite: bool = False
+    ) -> Path:
+        """Save the returned state and its complete representation metadata."""
+
+        from .state_archive import save_two_radial_state
+
+        symmetry = {
+            "inversion_parity": self.inversion_parity,
+            "pair_exchange_parity": self.pair_exchange_parity,
+            "symmetry_adapted_basis": self.symmetry_adapted_basis,
+        }
+        return save_two_radial_state(
+            path,
+            self.state,
+            self.representation,
+            physical_state={
+                "system_family": "non_bo_diatomic_ion",
+                "system": self.parameters.name,
+                "state_index": 0,
+                "parameters": asdict(self.parameters),
+                "symmetry": symmetry,
+            },
+            calculation={
+                "method": "imaginary_time_propagation",
+                "energy": self.energy,
+                "norm": self.ground_state.norm,
+                "converged": self.converged,
+                "iterations": self.iterations,
+                "imaginary_time": self.ground_state.imaginary_time,
+                "state_change": self.state_change,
+                "residual_norm": self.residual_norm,
+                "termination_reason": self.termination_reason,
+                "total_l_squared": self.angular_momentum.total_l_squared,
+                "total_l_z": self.angular_momentum.total_l_z,
+                "inversion_expectation": self.inversion_expectation,
+                "pair_exchange_expectation": self.pair_exchange_expectation,
+            },
+            overwrite=overwrite,
+        )
 
 
 class NonBornOppenheimerDiatomicIonGroundState:
@@ -312,6 +358,9 @@ class NonBornOppenheimerDiatomicIonGroundState:
         )
         return DiatomicIonGroundStateResult(
             parameters=self.parameters,
+            inversion_parity=self.inversion_parity,
+            pair_exchange_parity=self.pair_exchange_parity,
+            symmetry_adapted_basis=self.symmetry_adapted_basis,
             representation=self.representation,
             initial_state=initial,
             ground_state=ground_state,
