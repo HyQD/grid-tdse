@@ -26,7 +26,10 @@ from .dipole import (
 from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
 from .hamiltonian import TwoRadialHamiltonian
 from .observables import AngularMomentumExpectations
-from .preconditioner import TwoRadialOneBodyPreconditioner
+from .preconditioner import (
+    TwoRadialOneBodyPreconditioner,
+    TwoRadialRealTimePreconditioner,
+)
 from .state_archive import (
     TwoRadialState,
     load_two_radial_state,
@@ -64,6 +67,7 @@ __all__ = [
     "TwoRadialHamiltonian",
     "TwoRadialAxialDipoleInteraction",
     "TwoRadialOneBodyPreconditioner",
+    "TwoRadialRealTimePreconditioner",
     "TwoRadialState",
     "TwoRadialSystem",
     "TwoRadialSystemSpec",

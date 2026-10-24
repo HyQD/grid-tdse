@@ -5,6 +5,7 @@ from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialOneBodyPreconditioner,
+    TwoRadialRealTimePreconditioner,
     load_two_radial_state,
 )
 
@@ -278,6 +279,28 @@ def test_one_body_preconditioner_matches_direct_block_inverse():
     h2 = representation.h2[0]
     dimension = h1.shape[0] * h2.shape[0]
     matrix = np.eye(dimension) + 0.5 * time_step * (
+        np.kron(h1, np.eye(h2.shape[0])) + np.kron(np.eye(h1.shape[0]), h2)
+    )
+    expected = np.linalg.solve(matrix, state[0, 0].ravel()).reshape(actual.shape)
+    np.testing.assert_allclose(actual, expected, atol=2.0e-12, rtol=2.0e-12)
+
+
+def test_real_time_preconditioner_matches_direct_complex_block_inverse():
+    calculation = _calculation()
+    representation = calculation.representation
+    time_step = 0.07
+    preconditioner = TwoRadialRealTimePreconditioner(representation, time_step)
+    rng = np.random.default_rng(9)
+    state = np.zeros(representation.psi_shape)
+    state[0, 0] = rng.normal(
+        size=(representation.grid1.n_points, representation.grid2.n_points)
+    )
+
+    actual = preconditioner(state)[0, 0]
+    h1 = representation.h1[0]
+    h2 = representation.h2[0]
+    dimension = h1.shape[0] * h2.shape[0]
+    matrix = np.eye(dimension) + 0.5j * time_step * (
         np.kron(h1, np.eye(h2.shape[0])) + np.kron(np.eye(h1.shape[0]), h2)
     )
     expected = np.linalg.solve(matrix, state[0, 0].ravel()).reshape(actual.shape)
