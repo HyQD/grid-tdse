@@ -15,5 +15,6 @@ foundation:
 - [Non-Born--Oppenheimer diatomic-ion ground states](non_bo_diatomic_ground_state.md)
 - [Two-electron atomic ground states](two_electron_atomic_ground_state.md)
 - [Two-radial state archives](two_radial_state_archives.md)
+- [Axial two-radial dipole interactions](two_radial_dipole_interaction.md)
 
 Runnable calculations are kept in the [`examples`](../examples) directory.
