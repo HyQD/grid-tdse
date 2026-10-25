@@ -33,26 +33,32 @@ class _TwoRadialOneBodyInverse:
             state,
             dtype=np.result_type(state.dtype, self.shift),
         )
-        for i, (eps1, vectors1) in enumerate(
-            zip(self._eigenvalues1, self._eigenvectors1, strict=True)
-        ):
-            for j, (eps2, vectors2) in enumerate(
-                zip(self._eigenvalues2, self._eigenvectors2, strict=True)
-            ):
-                weighted = self._sqrt_w1[:, None] * state[i, j] * self._sqrt_w2[None, :]
-                transformed = vectors1.T.conj() @ weighted @ vectors2
-                denominator = 1.0 + self.shift * (
-                    eps1[:, None] + eps2[None, :]
+        for pair, (i, j) in enumerate(self.system.angular_pairs.pairs):
+            eps1 = self._eigenvalues1[i]
+            vectors1 = self._eigenvectors1[i]
+            eps2 = self._eigenvalues2[j]
+            vectors2 = self._eigenvectors2[j]
+            block = (
+                state[pair]
+                if self.system.uses_compact_angular_storage
+                else state[i, j]
+            )
+            weighted = self._sqrt_w1[:, None] * block * self._sqrt_w2[None, :]
+            transformed = vectors1.T.conj() @ weighted @ vectors2
+            denominator = 1.0 + self.shift * (eps1[:, None] + eps2[None, :])
+            if np.any(np.isclose(denominator, 0.0)):
+                raise np.linalg.LinAlgError(
+                    "one-body preconditioner is singular for this time step"
                 )
-                if np.any(np.isclose(denominator, 0.0)):
-                    raise np.linalg.LinAlgError(
-                        "one-body preconditioner is singular for this time step"
-                    )
-                transformed = transformed / denominator
-                weighted_result = vectors1 @ transformed @ vectors2.T.conj()
-                result[i, j] = (
-                    weighted_result / self._sqrt_w1[:, None] / self._sqrt_w2[None, :]
-                )
+            transformed = transformed / denominator
+            weighted_result = vectors1 @ transformed @ vectors2.T.conj()
+            block_result = (
+                weighted_result / self._sqrt_w1[:, None] / self._sqrt_w2[None, :]
+            )
+            if self.system.uses_compact_angular_storage:
+                result[pair] = block_result
+            else:
+                result[i, j] = block_result
         return result
 
 

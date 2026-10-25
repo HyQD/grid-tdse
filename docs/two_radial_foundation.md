@@ -36,6 +36,37 @@ retains odd $l$. Leaving it unset retains both parities.
 $\lambda$ and $\mu$. These are Coulomb multipoles and are not the total
 angular and magnetic quantum numbers of the complete system.
 
+### Conserved total magnetic quantum number
+
+When the Hamiltonian conserves the total magnetic quantum number, set
+`M_tot` on `TwoRadialSystemSpec` to retain only angular pairs satisfying
+$m_1+m_2=M_{\mathrm{tot}}$. The high-level atomic and non-Born--Oppenheimer
+diatomic interfaces expose the same option. `M_tot=None`, which is the
+default, keeps the full angular-product representation for legacy use and
+comparisons.
+
+For example, the following table assumes that both coordinates use complete,
+identical angular bases with `m_max=l_max` and no coordinate-parity
+reduction. It compares the full product with the `M_tot=0` sector:
+
+| `l_max` | Full angular pairs | `M_tot=0` pairs |
+| ---: | ---: | ---: |
+| 0 | 1 | 1 |
+| 2 | 81 | 19 |
+| 4 | 625 | 85 |
+| 6 | 2,401 | 231 |
+| 8 | 6,561 | 489 |
+| 10 | 14,641 | 891 |
+| 12 | 28,561 | 1,469 |
+| 14 | 50,625 | 2,255 |
+| 16 | 83,521 | 3,281 |
+
+The full count is $(l_{\max}+1)^4$. For `M_tot=0`, the number of retained
+pairs is $(l_{\max}+1)^2+l_{\max}(l_{\max}+1)(2l_{\max}+1)/3$. At
+`l_max=16`, compact storage therefore uses about 25.5 times fewer angular
+blocks. Symmetry-adapted coordinate bases have different counts because some
+$l$ values have already been removed.
+
 ## Coulomb action
 
 The setup evaluates scalar Gaunt coefficients and stores only nonzero angular
@@ -69,6 +100,7 @@ system = TwoRadialSystemSpec(
     coordinate2=electron,
     multipoles=CoulombMultipoleSpec(lambda_max=4, mu_max=4),
     coulomb_terms=(CoulombTerm(radial_scale=1.0, charge_product=1.0),),
+    M_tot=0,
 ).build()
 
 hamiltonian = system.hamiltonian()

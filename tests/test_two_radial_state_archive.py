@@ -16,7 +16,7 @@ from grid_tdse.spherical.two_radial import (
 )
 
 
-def _system(*, parity=None, l_max=2, second_nodes=(0.0, 1.5, 4.0)):
+def _system(*, parity=None, l_max=2, second_nodes=(0.0, 1.5, 4.0), M_tot=None):
     grid1 = FEMDVRGridSpec([0.0, 2.0, 5.0], [4, 4])
     grid2 = FEMDVRGridSpec(second_nodes, [4, 4])
     basis = AngularBasisSpec(l_max, l_max, coordinate_parity=parity)
@@ -25,6 +25,7 @@ def _system(*, parity=None, l_max=2, second_nodes=(0.0, 1.5, 4.0)):
         coordinate2=CoordinateSpec(grid2, basis, -0.25),
         multipoles=CoulombMultipoleSpec(0, 0),
         coulomb_terms=(CoulombTerm(1.0, 1.0),),
+        M_tot=M_tot,
     ).build()
 
 
@@ -98,6 +99,31 @@ def test_state_archive_requires_explicit_overwrite(tmp_path):
     np.testing.assert_array_equal(
         load_two_radial_state(path).coefficients, state + 1.0
     )
+
+
+def test_version_one_full_archives_remain_loadable(tmp_path):
+    system = _system(parity=1)
+    state = np.ones(system.psi_shape)
+    path = tmp_path / "legacy-state"
+    save_two_radial_state(
+        path,
+        state,
+        system,
+        physical_state=_physical_state(),
+    )
+    with np.load(path, allow_pickle=False) as original:
+        arrays = {name: original[name].copy() for name in original.files}
+    metadata = json.loads(str(arrays["metadata_json"].item()))
+    metadata["format_version"] = 1
+    assert "M_tot" not in metadata["representation"]
+    arrays["metadata_json"] = np.asarray(json.dumps(metadata))
+    with path.open("wb") as stream:
+        np.savez(stream, **arrays)
+
+    loaded = load_two_radial_state(path)
+
+    assert loaded.M_tot is None
+    np.testing.assert_array_equal(loaded.state_for(system), state)
 
 
 def test_reduced_state_embeds_into_full_angular_basis(tmp_path):
@@ -210,6 +236,7 @@ def test_two_radial_checkpoint_metadata_identifies_representation():
 
     assert metadata["physical_state"] == _physical_state()
     assert metadata["state_shape"] == list(system.psi_shape)
+    assert metadata["representation"].get("M_tot") is None
     assert len(metadata["representation_id"]) == 64
     assert metadata["representation"]["coordinate1"]["grid"] == {
         "family": "femdvr",
@@ -224,3 +251,52 @@ def test_two_radial_checkpoint_metadata_identifies_representation():
         _system(parity=1, second_nodes=(0.0, 1.6, 4.0)),
         physical_state=_physical_state(),
     )
+
+
+def test_compact_M_tot_state_archive_round_trip_and_full_embedding(tmp_path):
+    compact = _system(M_tot=0)
+    full = _system(M_tot=None)
+    rng = np.random.default_rng(81)
+    state = rng.normal(size=compact.psi_shape) + 1j * rng.normal(
+        size=compact.psi_shape
+    )
+    path = tmp_path / "compact-state"
+
+    save_two_radial_state(
+        path,
+        state,
+        compact,
+        physical_state=_physical_state(),
+    )
+    loaded = load_two_radial_state(path)
+    checkpoint_metadata = two_radial_compatibility_metadata(
+        compact,
+        physical_state=_physical_state(),
+    )
+
+    assert loaded.M_tot == 0
+    assert loaded.coefficients.shape == compact.psi_shape
+    assert checkpoint_metadata["representation"]["M_tot"] == 0
+    assert checkpoint_metadata["state_shape"] == list(compact.psi_shape)
+    np.testing.assert_array_equal(loaded.state_for(compact), state)
+    with pytest.raises(ValueError, match="M_tot storage sector does not match"):
+        loaded.state_for(full)
+    np.testing.assert_array_equal(
+        loaded.embed_into(full),
+        compact.unpack_state(state),
+    )
+
+
+def test_compact_archive_rejects_a_different_M_tot_sector(tmp_path):
+    source = _system(M_tot=0)
+    target = _system(M_tot=1)
+    path = tmp_path / "compact-state"
+    save_two_radial_state(
+        path,
+        np.ones(source.psi_shape),
+        source,
+        physical_state=_physical_state(),
+    )
+
+    with pytest.raises(ValueError, match="does not retain all stored angular pairs"):
+        load_two_radial_state(path).embed_into(target)

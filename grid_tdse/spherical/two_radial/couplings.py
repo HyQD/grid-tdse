@@ -9,7 +9,7 @@ from grid_lib.spherical_coordinates.angular_momentum import (
     get_ybar_value,
 )
 
-from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
 
 
 @dataclass(frozen=True)
@@ -51,11 +51,18 @@ def build_coulomb_couplings(
     basis2: AngularBasisSpec,
     multipoles: CoulombMultipoleSpec,
     *,
+    angular_pairs: AngularPairBasis | None = None,
     tolerance: float = 1.0e-12,
     max_pairs: int = 20_000_000,
 ) -> CoulombCouplings:
     """Build nonzero Gaunt-coefficient products without dense angular tensors."""
 
+    if angular_pairs is None:
+        angular_pairs = AngularPairBasis(basis1, basis2)
+    elif angular_pairs.basis1 != basis1 or angular_pairs.basis2 != basis2:
+        raise ValueError("angular_pairs does not match the coordinate bases")
+
+    retained = set(angular_pairs.pairs)
     rows: list[tuple[int, int, int, int, int, float]] = []
     lambda_indices = {value: i for i, value in enumerate(multipoles.lambdas)}
 
@@ -87,6 +94,8 @@ def build_coulomb_couplings(
         radial_index = lambda_indices[lambda_]
         for out1, in1, value1 in left:
             for out2, in2, value2 in right:
+                if (out1, out2) not in retained or (in1, in2) not in retained:
+                    continue
                 rows.append((out1, out2, in1, in2, radial_index, value1 * value2))
                 if len(rows) > max_pairs:
                     raise ValueError(
