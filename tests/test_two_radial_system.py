@@ -69,6 +69,21 @@ def test_femdvr_system_uses_two_grid_poisson_coulomb():
     assert np.isfinite(system.radial_multipoles.values).all()
 
 
+def test_femdvr_system_can_use_direct_analytic_coulomb_multipoles():
+    grid1 = FEMDVRGridSpec([0.0, 2.0, 5.0], [4, 4])
+    grid2 = FEMDVRGridSpec([0.0, 1.5, 4.0], [4, 4])
+    system = TwoRadialSystemSpec(
+        coordinate1=_coordinate(grid1, l_max=0),
+        coordinate2=_coordinate(grid2, l_max=0),
+        multipoles=CoulombMultipoleSpec(0, 0),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+        radial_coulomb_method="analytic",
+    ).build()
+
+    assert system.radial_multipoles.representation == "analytic"
+    assert np.isfinite(system.radial_multipoles.values).all()
+
+
 def test_direct_legacy_system_construction_defaults_to_the_full_product_basis():
     prepared = TwoRadialSystemSpec(
         coordinate1=_coordinate(RadialSincDVRGridSpec(4.0, 4), l_max=0),

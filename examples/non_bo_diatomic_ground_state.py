@@ -1,9 +1,17 @@
 """Non-Born--Oppenheimer H2+ ground state by imaginary-time propagation."""
 
+from pathlib import Path
+
 from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
 )
+
+SYSTEM = "H2+"
+INVERSION_PARITY = +1
+PAIR_EXCHANGE_PARITY = +1
+INITIAL_STATE = "product"
+STATE_TOLERANCE = 1.0e-8
 
 # The electron coordinate is measured from the nuclear center of mass.
 electronic_grid = FEMDVRGridSpec(
@@ -20,30 +28,52 @@ internuclear_grid = FEMDVRGridSpec(
 
 # Retain only m_e + m_R = M_tot. Use None for the full legacy representation.
 M_tot = 0
+l_max = 2
+
+# Follow the legacy ground.py filename convention. The archive itself stores
+# the complete grid, angular representation, physical parameters, and
+# diagnostics; the compact filename is only a human-readable summary.
+system_label = SYSTEM.replace("+", "p")
+symmetry_label = "s" if INVERSION_PARITY == 1 else "a"
+if PAIR_EXCHANGE_PARITY is not None:
+    symmetry_label += "p" if PAIR_EXCHANGE_PARITY == 1 else "o"
+grid_label = (
+    f"{len(electronic_grid.n_points)}e{electronic_grid.n_points[0]}-"
+    f"{len(internuclear_grid.n_points)}e{internuclear_grid.n_points[0]}"
+)
+extent_label = (
+    f"{electronic_grid.nodes[-1]:g}-{internuclear_grid.nodes[-1]:g}"
+)
+initial_state_label = "prod" if INITIAL_STATE == "product" else INITIAL_STATE
+GROUND_STATE_PATH = Path(__file__).resolve().parent / "ground_states" / (
+    f"{system_label}__{symmetry_label}_{grid_label}_{extent_label}_{l_max}__"
+    f"{initial_state_label}_{STATE_TOLERANCE:.0e}.npz"
+)
+GROUND_STATE_OVERWRITE = False
 
 calculation = NonBornOppenheimerDiatomicIonGroundState(
-    "H2+",
+    SYSTEM,
     electronic_grid=electronic_grid,
     internuclear_grid=internuclear_grid,
     # Native symmetry inputs: symmetric total inversion and symmetric
     # proton-pair exchange.  For HD+, pair_exchange_parity must be None.
-    inversion_parity=+1,
-    pair_exchange_parity=+1,
+    inversion_parity=INVERSION_PARITY,
+    pair_exchange_parity=PAIR_EXCHANGE_PARITY,
     symmetry_adapted_basis=True,
     # Coordinate angular basis and independent Coulomb-multipole truncation.
-    l_max=2,
-    m_max=2,
-    lambda_max=4,
-    mu_max=4,
+    l_max=l_max,
+    m_max=l_max,
+    lambda_max=2*l_max,
+    mu_max=2*l_max,
     M_tot=M_tot,
     # Reproducible particle masses and deterministic product-state guess.
     codata_set="2022",
-    initial_state="product",
+    initial_state=INITIAL_STATE,
     # Imaginary-time Crank--Nicolson iteration.
     time_step=0.25,
-    max_iterations=5000,
+    max_iterations=15000,
     energy_tolerance=1.0e-10,
-    state_tolerance=1.0e-8,
+    state_tolerance=STATE_TOLERANCE,
     residual_tolerance=1.0e-8,
     linear_solver="bicgstab",
     linear_rtol=0.0,
@@ -54,6 +84,13 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
 
 result = calculation.solve()
 last = result.history[-1]
+
+if not result.converged:
+    raise RuntimeError("refusing to save an unconverged ground state")
+saved_path = result.save(
+    GROUND_STATE_PATH,
+    overwrite=GROUND_STATE_OVERWRITE,
+)
 
 print(f"System:                   {result.parameters.name}")
 print(f"Particles:                {result.parameters.particles}")
@@ -67,3 +104,4 @@ print(f"<L_total^2>:              {result.angular_momentum.total_l_squared:.12f}
 print(f"<L_total,z>:              {result.angular_momentum.total_l_z:.12f}")
 print(f"<inversion>:              {result.inversion_expectation:.12f}")
 print(f"<pair exchange>:          {result.pair_exchange_expectation:.12f}")
+print(f"Saved state:              {saved_path}")

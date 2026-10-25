@@ -8,6 +8,7 @@ from .atomic import (
 )
 from .coulomb import (
     CoulombTerm,
+    RadialCoulombMethod,
     RadialCoulombMultipoles,
     build_radial_coulomb_multipoles,
 )
@@ -45,6 +46,10 @@ from .system import (
     angular_radial_potential,
     radial_potential,
 )
+from .tdse import (
+    NonBornOppenheimerDiatomicIonTDSE,
+    TwoElectronAtomTDSE,
+)
 
 __all__ = [
     "AngularBasisSpec",
@@ -62,7 +67,9 @@ __all__ = [
     "DipoleGauge",
     "FEMDVRGridSpec",
     "NonBornOppenheimerDiatomicIonGroundState",
+    "NonBornOppenheimerDiatomicIonTDSE",
     "RadialCoulombMultipoles",
+    "RadialCoulombMethod",
     "RadialGrid",
     "RadialPotential",
     "RadialSincDVRGridSpec",
@@ -76,6 +83,7 @@ __all__ = [
     "TwoElectronAtomGroundState",
     "TwoElectronAtomGroundStateResult",
     "TwoElectronAtomParameters",
+    "TwoElectronAtomTDSE",
     "angular_radial_potential",
     "build_coulomb_couplings",
     "build_radial_coulomb_multipoles",
