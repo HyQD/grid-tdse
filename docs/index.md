@@ -10,6 +10,7 @@ foundation:
 
 - [Runtime dependencies](runtime_dependencies.md)
 - [Installation](installation.md)
+- [Saga environment setup and updates](saga_setup.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](ground_state_iteration.md)
 - [Non-Born--Oppenheimer diatomic-ion ground states](non_bo_diatomic_ground_state.md)

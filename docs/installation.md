@@ -31,3 +31,7 @@ Run the test suite from the repository root:
 ```bash
 python -m pytest
 ```
+
+For a project-local development environment on Saga, including cloning,
+editable installation, Slurm testing, troubleshooting, and update procedures,
+see [Setting up grid-tdse on Saga](saga_setup.md).
