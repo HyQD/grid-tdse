@@ -1,6 +1,7 @@
 """Two-radial spherical-coordinate Hamiltonian foundation."""
 
 from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
+from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .atomic import (
     TwoElectronAtomGroundState,
     TwoElectronAtomGroundStateResult,
@@ -75,6 +76,7 @@ __all__ = [
     "RadialSincDVRGridSpec",
     "TwoRadialHamiltonian",
     "TwoRadialAxialDipoleInteraction",
+    "TwoRadialAbsorbingBoundaries",
     "TwoRadialOneBodyPreconditioner",
     "TwoRadialRealTimePreconditioner",
     "TwoRadialState",

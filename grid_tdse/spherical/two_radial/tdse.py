@@ -13,6 +13,7 @@ import numpy as np
 
 from grid_tdse.real_time import RealTimePropagationResult, RealTimePropagator
 
+from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
 from .atomic import _atomic_parameters
 from .coulomb import CoulombTerm, RadialCoulombMethod
@@ -144,6 +145,7 @@ class _TwoRadialTDSE:
             "fields": field_metadata,
             "integrator": self.integrator,
             "integrator_options": _json_value(self.integrator_options),
+            "absorbing_boundaries": self.absorbing_boundaries.metadata,
         }
         self.samplers = self._prepare_samplers(observables, samplers)
 
@@ -163,6 +165,11 @@ class _TwoRadialTDSE:
                 self.representation.inner_product,
                 preconditioner=self.preconditioner,
                 samplers=self.samplers,
+                post_step=(
+                    self.absorbing_boundaries.apply_mask
+                    if self.absorbing_boundaries.has_mask
+                    else None
+                ),
                 checkpoint_path=self.checkpoint_path,
                 checkpoint_interval=self.checkpoint_interval,
                 compatibility_metadata=self.compatibility_metadata,
@@ -181,6 +188,8 @@ class _TwoRadialTDSE:
         result = self.field_free_hamiltonian(state)
         if self.dipole_interaction is not None:
             result += self.dipole_interaction(state, time)
+        if self.absorbing_boundaries.has_cap:
+            result += self.absorbing_boundaries.cap_action(state)
         return result
 
     def _prepare_initial_state(self, initial_state: InitialState) -> np.ndarray:
@@ -303,7 +312,6 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         tile_size: int = 2048,
     ) -> None:
         _validate_absorber_pair(mask, cap, "atomic radial coordinate")
-        _reject_unimplemented_absorbers(mask=mask, cap=cap)
         if not isinstance(grid, FEMDVRGridSpec):
             raise TypeError("grid must be a FEMDVRGridSpec")
         self.parameters = _atomic_parameters(atom)
@@ -340,6 +348,13 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             radial_coulomb_method=radial_coulomb_method,
         )
         self.representation = self.specification.build()
+        self.absorbing_boundaries = TwoRadialAbsorbingBoundaries(
+            self.representation,
+            mask1=mask,
+            mask2=mask,
+            cap1=cap,
+            cap2=cap,
+        )
         self._configure_real_time(
             initial_state=initial_state,
             fields=fields,
@@ -419,9 +434,6 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
     ) -> None:
         _validate_absorber_pair(mask_r, cap_r, "electronic coordinate r")
         _validate_absorber_pair(mask_R, cap_R, "internuclear coordinate R")
-        _reject_unimplemented_absorbers(
-            mask_r=mask_r, mask_R=mask_R, cap_r=cap_r, cap_R=cap_R
-        )
         if not isinstance(electronic_grid, FEMDVRGridSpec):
             raise TypeError("electronic_grid must be a FEMDVRGridSpec")
         if not isinstance(internuclear_grid, FEMDVRGridSpec):
@@ -489,6 +501,13 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             radial_coulomb_method=radial_coulomb_method,
         )
         self.representation = self.specification.build()
+        self.absorbing_boundaries = TwoRadialAbsorbingBoundaries(
+            self.representation,
+            mask1=mask_r,
+            mask2=mask_R,
+            cap1=cap_r,
+            cap2=cap_R,
+        )
         self._configure_real_time(
             initial_state=initial_state,
             fields=fields,
@@ -634,15 +653,6 @@ def _angular_limits(l_max, m_max, lambda_max, mu_max):
 def _validate_absorber_pair(mask, cap, coordinate: str) -> None:
     if mask is not None and cap is not None:
         raise ValueError(f"mask and cap cannot both be set for the {coordinate}")
-
-
-def _reject_unimplemented_absorbers(**absorbers) -> None:
-    enabled = [name for name, value in absorbers.items() if value is not None]
-    if enabled:
-        names = ", ".join(enabled)
-        raise NotImplementedError(
-            f"absorber support is reserved but not implemented yet: {names}"
-        )
 
 
 def _field_gauge(value: str) -> DipoleGauge:
