@@ -6,6 +6,7 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 from electromagnetic_fields import SineSquareLaser
+from grid_lib.spherical_coordinates import CubicCAP, RadialCosineMask
 from matter_field_params import wavelength_nm_to_omega_au
 
 from grid_tdse.spherical.two_radial import (
@@ -30,6 +31,11 @@ PHASE = 0.0
 
 TIME_STEP = 0.5
 FINAL_TIME = 10.0
+
+# Select at most one absorber. For example, replace the mask by
+# CubicCAP(alpha=0.75, eta=0.01) to use a CAP instead.
+MASK = RadialCosineMask(r0=24.0, n=4.0)
+CAP: CubicCAP | None = None
 
 
 initial_state = load_two_radial_state(GROUND_STATE_PATH)
@@ -61,8 +67,8 @@ calculation = TwoElectronAtomTDSE(
     },
     time_step=TIME_STEP,
     final_time=FINAL_TIME,
-    mask=None,
-    cap=None,
+    mask=MASK,
+    cap=CAP,
     observables=("expec_z",),
 )
 result = calculation.run(progress=True)

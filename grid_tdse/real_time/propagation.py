@@ -102,9 +102,9 @@ class RealTimePropagator:
     exactly. Each step uses matrix-free implicit midpoint/Crank--Nicolson
     propagation from :mod:`integrator_lib`.
 
-    States are never normalized during real-time propagation. No mask,
-    complex absorbing potential, or other post-step state transformation is
-    applied by this layer.
+    States are never normalized during real-time propagation. An optional
+    post-step transformation can apply a representation-specific operation,
+    such as an absorbing mask, after each accepted integrator step.
     """
 
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
@@ -181,6 +181,7 @@ class RealTimePropagator:
             str, Callable[[np.ndarray, float], np.ndarray | complex | float]
         ]
         | None = None,
+        post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
         compatibility_metadata: Mapping[str, Any] | None = None,
@@ -207,6 +208,12 @@ class RealTimePropagator:
             callables. Each sampler is evaluated at the initial time and after
             every accepted step. Samplers must not modify the read-only state
             view they receive.
+        post_step
+            Optional ``post_step(state, time)`` transformation applied after
+            each accepted step and before norms, samples, and checkpoints are
+            recorded. It receives a read-only state view and must return a
+            finite numeric array with the same shape. The initial state is not
+            transformed.
         checkpoint_path
             Exact user path for an atomically replaced rolling checkpoint.
             When supplied, the final state is always checkpointed.
@@ -231,6 +238,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
             compatibility_metadata=compatibility_metadata,
@@ -254,6 +262,7 @@ class RealTimePropagator:
             str, Callable[[np.ndarray, float], np.ndarray | complex | float]
         ]
         | None = None,
+        post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
         compatibility_metadata: Mapping[str, Any] | None = None,
@@ -278,6 +287,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
             compatibility_metadata=compatibility_metadata,
@@ -301,6 +311,7 @@ class RealTimePropagator:
             str, Callable[[np.ndarray, float], np.ndarray | complex | float]
         ]
         | None = None,
+        post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
         compatibility_metadata: Mapping[str, Any] | None = None,
@@ -324,6 +335,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
             compatibility_metadata=compatibility_metadata,
@@ -342,6 +354,7 @@ class RealTimePropagator:
         *,
         preconditioner,
         samplers,
+        post_step,
         checkpoint_path,
         checkpoint_interval,
         compatibility_metadata,
@@ -357,6 +370,8 @@ class RealTimePropagator:
             raise TypeError("hamiltonian must be callable")
         if not callable(inner_product):
             raise TypeError("inner_product must be callable")
+        if post_step is not None and not callable(post_step):
+            raise TypeError("post_step must be callable or None")
 
         interval = _optional_positive_integer(
             checkpoint_interval,
@@ -461,10 +476,13 @@ class RealTimePropagator:
                 self.time_step,
                 schrodinger_rhs,
             )
+            accepted_time = float(self.propagation_times[local_step])
+            if post_step is not None:
+                state = _post_step_state(post_step, state, accepted_time, shape)
             step = previous_steps + local_step
             record = RealTimePropagationStep(
                 step=step,
-                time=float(self.propagation_times[local_step]),
+                time=accepted_time,
                 norm=self._norm(state, inner_product),
                 linear_iterations=int(integrator.last_iterations),
                 linear_residual_norm=float(integrator.last_residual_norm),
@@ -721,6 +739,21 @@ def _hamiltonian_action(hamiltonian, state, time, shape) -> np.ndarray:
     if not np.isfinite(action).all():
         raise ValueError("hamiltonian returned non-finite values")
     return action
+
+
+def _post_step_state(post_step, state, time, shape) -> np.ndarray:
+    read_only_state = state.view()
+    read_only_state.flags.writeable = False
+    values = np.asarray(post_step(read_only_state, time))
+    if values.shape != shape:
+        raise ValueError(
+            f"post_step returned shape {values.shape}; expected {shape}"
+        )
+    if not np.issubdtype(values.dtype, np.number):
+        raise TypeError("post_step must return numeric values")
+    if not np.isfinite(values).all():
+        raise ValueError("post_step returned non-finite values")
+    return values.copy()
 
 
 def _inner_product_value(inner_product, left, right) -> complex:

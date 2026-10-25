@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "HyQD-electromagnetic-fields",
-    "HyQD-grid-lib>=1.1.0",
+    "HyQD-grid-lib>=1.2.0",
     "HyQD-integrator-lib>=0.2.0",
     "HyQD-matter-field-params",
     "numpy>=2.5.2,<2.6",

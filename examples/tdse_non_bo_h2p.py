@@ -6,6 +6,7 @@ from typing import Literal
 import matplotlib.pyplot as plt
 import numpy as np
 from electromagnetic_fields import SineSquareLaser
+from grid_lib.spherical_coordinates import CubicCAP
 from matter_field_params import wavelength_nm_to_omega_au
 
 from grid_tdse.spherical.two_radial import (
@@ -28,6 +29,13 @@ PHASE = 0.0
 
 TIME_STEP = 0.5
 FINAL_TIME = 10.0
+
+# Each CAP begins at 80% of its coordinate's radial interval. Thus the
+# electronic and internuclear onsets are 0.8 * r_max and 0.8 * R_max.
+MASK_r = None
+MASK_R = None
+CAP_r = CubicCAP(alpha=0.8, eta=1.0)
+CAP_R = CubicCAP(alpha=0.8, eta=1.0)
 
 
 initial_state = load_two_radial_state(GROUND_STATE_PATH)
@@ -64,10 +72,10 @@ calculation = NonBornOppenheimerDiatomicIonTDSE(
     },
     time_step=TIME_STEP,
     final_time=FINAL_TIME,
-    mask_r=None,
-    mask_R=None,
-    cap_r=None,
-    cap_R=None,
+    mask_r=MASK_r,
+    mask_R=MASK_R,
+    cap_r=CAP_r,
+    cap_R=CAP_R,
     observables=("expec_z",),
 )
 result = calculation.run(progress=True)

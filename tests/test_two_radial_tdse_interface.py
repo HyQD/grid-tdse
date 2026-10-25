@@ -182,7 +182,7 @@ def test_diatomic_archive_requires_matching_codata_set(tmp_path):
         )
 
 
-def test_absorber_options_reject_conflicts_and_reserve_future_support():
+def test_atomic_absorber_options_reject_conflicts_and_apply_cap():
     initial = _atomic_initial_state()
     with pytest.raises(ValueError, match="cannot both"):
         TwoElectronAtomTDSE(
@@ -195,13 +195,63 @@ def test_absorber_options_reject_conflicts_and_reserve_future_support():
             mask=object(),
             cap=object(),
         )
-    with pytest.raises(NotImplementedError, match="not implemented"):
-        TwoElectronAtomTDSE(
-            "He",
-            grid=GRID,
-            initial_state=initial,
-            l_max=1,
-            final_time=0.01,
-            time_step=0.01,
-            mask=object(),
-        )
+    cap = -0.2j * np.ones(2)
+    calculation = TwoElectronAtomTDSE(
+        "He",
+        grid=GRID,
+        initial_state=initial,
+        l_max=1,
+        final_time=0.01,
+        time_step=0.01,
+        cap=cap,
+        integrator_options={"preconditioner": False},
+    )
+    state = calculation.initial_state
+    expected_cap_action = 2.0 * cap[None, :, None] * state
+
+    np.testing.assert_allclose(
+        calculation.hamiltonian(state, 0.0)
+        - calculation.field_free_hamiltonian(state),
+        expected_cap_action,
+    )
+
+
+def test_atomic_mask_is_applied_after_each_real_time_step():
+    initial = _atomic_initial_state()
+    mask = np.array([1.0, 0.5])
+    calculation = TwoElectronAtomTDSE(
+        "He",
+        grid=GRID,
+        initial_state=initial,
+        l_max=1,
+        final_time=0.01,
+        time_step=0.01,
+        mask=mask,
+        integrator_options={"preconditioner": False},
+    )
+
+    result = calculation.run(progress=False)
+
+    assert result.norm < result.initial_norm
+    assert calculation.dynamics_metadata["absorbing_boundaries"]["mask1"]
+
+
+def test_diatomic_allows_mask_and_cap_on_different_coordinates(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    calculation = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        l_max=1,
+        M_tot=0,
+        final_time=0.01,
+        time_step=0.01,
+        mask_r=np.array([1.0, 0.8]),
+        cap_R=-0.1j * np.ones(2),
+        integrator_options={"preconditioner": False},
+    )
+
+    assert calculation.absorbing_boundaries.mask1 is not None
+    assert calculation.absorbing_boundaries.cap2 is not None
