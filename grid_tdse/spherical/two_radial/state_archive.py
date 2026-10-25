@@ -370,6 +370,9 @@ def _representation_metadata(representation: TwoRadialSystem) -> dict[str, Any]:
             "mu_max": representation.multipoles.mu_max,
             "lambda_parity": representation.multipoles.lambda_parity,
         },
+        "radial_coulomb_representation": (
+            representation.radial_multipoles.representation
+        ),
     }
     if representation.M_tot is not None:
         metadata["M_tot"] = representation.M_tot

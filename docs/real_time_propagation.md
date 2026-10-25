@@ -87,6 +87,76 @@ norm_t = result.norm_history
 Real-time propagation never normalizes the state. An initial state with norm
 different from one retains that normalization under a Hermitian Hamiltonian.
 
+## High-level two-radial interfaces
+
+`TwoElectronAtomTDSE` and `NonBornOppenheimerDiatomicIonTDSE` assemble the
+FEM-DVR representation, field-free Hamiltonian, z-polarized dipole
+interaction, integrator, preconditioner, built-in sampling, and checkpoint
+metadata. Their `run(progress=True)` method returns the same
+`RealTimePropagationResult` used by the representation-independent layer.
+
+The preferred initial-state input is a loaded `TwoRadialState`. The caller
+still specifies the grid and angular truncations, and the interface validates
+the archived physical parameters and radial representation before using the
+coefficients. A NumPy array is also accepted for custom states; in that case
+the caller is responsible for ensuring that the array describes the requested
+physical setup. States are copied but are not normalized.
+
+```python
+from grid_tdse.spherical.two_radial import (
+    TwoElectronAtomTDSE,
+    load_two_radial_state,
+)
+
+initial_state = load_two_radial_state("helium-ground-state.npz")
+calculation = TwoElectronAtomTDSE(
+    "He",
+    grid=initial_state.grid1_specification,
+    initial_state=initial_state,
+    fields=[(pulse, (0.0, 0.0, 1.0))],
+    field_gauge="length",
+    l_max=initial_state.basis1.l_max,
+    m_max=initial_state.basis1.m_max,
+    lambda_max=initial_state.multipoles.lambda_max,
+    mu_max=initial_state.multipoles.mu_max,
+    M_tot=0,
+    radial_coulomb_method="poisson",
+    integrator="crank-nicolson",
+    integrator_options={
+        "solver": "bicgstab",
+        "rtol": 0.0,
+        "atol": 1.0e-10,
+        "preconditioner": True,
+    },
+    time_step=0.5,
+    final_time=10.0,
+)
+result = calculation.run(progress=True)
+```
+
+Only `crank-nicolson` is currently implemented. The separate `integrator` and
+`integrator_options` arguments provide the dispatch point for future methods
+such as SIL without changing either physical-system interface.
+
+FEM-DVR uses `radial_coulomb_method="poisson"` by default. Setting it to
+`"analytic"` evaluates the radial multipole expression directly on the two
+radial grids. This selection concerns the radial Coulomb kernel; both paths
+use the same angular multipole expansion and sparse angular contractions.
+
+For a homonuclear non-Born--Oppenheimer ion, a z-polarized field preserves
+pair-exchange parity but couples even and odd electronic partial waves. The
+diatomic interface therefore retains the selected parity of the internuclear
+coordinate while using both parities for the electronic coordinate. A
+symmetry-reduced archived ground state is embedded into this larger angular
+space automatically. The archive's complete particle parameters, including
+its CODATA set, must match the requested real-time calculation.
+
+The atomic interface reserves `mask` and `cap`; the diatomic interface reserves
+the coordinate-specific `mask_r`, `mask_R`, `cap_r`, and `cap_R`. A mask and a
+CAP on the same coordinate are rejected. Non-`None` absorbers are not yet
+implemented and raise `NotImplementedError` rather than being silently
+ignored.
+
 ## Checkpoints and recovery
 
 Pass an exact output path and a positive interval to save a rolling checkpoint
@@ -196,3 +266,9 @@ the unnormalized total electronic position expectation and probability norm as
 `expec_z` and `norm_t`, respectively. It also demonstrates periodic checkpoint
 output with explicit physical, representation, laser, gauge, and CODATA
 metadata.
+
+[`examples/tdse_he_atom_high_level.py`](../examples/tdse_he_atom_high_level.py)
+loads an archived helium ground state and performs the same type of calculation
+through `TwoElectronAtomTDSE`. The corresponding non-Born--Oppenheimer H2+
+workflow is shown in
+[`examples/tdse_non_bo_h2p.py`](../examples/tdse_non_bo_h2p.py).
