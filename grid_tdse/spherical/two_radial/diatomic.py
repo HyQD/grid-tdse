@@ -18,7 +18,7 @@ from grid_tdse.ground_state import (
 )
 
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
-from .coulomb import CoulombTerm
+from .coulomb import CoulombTerm, RadialCoulombMethod
 from .grids import FEMDVRGridSpec
 from .observables import (
     AngularMomentumExpectations,
@@ -184,7 +184,9 @@ class NonBornOppenheimerDiatomicIonGroundState:
     orbital angular momentum is represented without an axial truncation. Set
     ``M_tot`` to a conserved total magnetic quantum number for compact
     angular-pair storage, or leave it as ``None`` for the full legacy
-    representation.
+    representation. ``radial_coulomb_method`` selects either the FEM-DVR
+    Poisson construction or direct evaluation of the analytic radial
+    multipole expression.
     """
 
     _CANONICAL_NAMES = {
@@ -207,6 +209,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         lambda_max: int | None = None,
         mu_max: int | None = None,
         M_tot: int | None = None,
+        radial_coulomb_method: RadialCoulombMethod = "poisson",
         codata_set: str = "2022",
         initial_state: InitialState = "product",
         time_step: float = 0.25,
@@ -268,6 +271,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         if self.mu_max > 2 * self.m_max:
             raise ValueError("mu_max must not exceed 2*m_max")
         self.M_tot = M_tot
+        self.radial_coulomb_method = radial_coulomb_method
 
         electron_parity, pair_parity = self._coordinate_parities()
         electron_basis = AngularBasisSpec(
@@ -315,6 +319,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 ),
             ),
             M_tot=M_tot,
+            radial_coulomb_method=radial_coulomb_method,
         )
         self.specification = specification
         self.representation = specification.build()
