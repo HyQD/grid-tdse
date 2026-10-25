@@ -1,6 +1,7 @@
 """Radial multipoles for Coulomb interactions between two coordinates."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
@@ -10,6 +11,9 @@ from grid_lib.spherical_coordinates.radial_Coulomb import (
 
 from .angular import CoulombMultipoleSpec
 from .grids import RadialGrid, require_same_grid_family
+
+
+RadialCoulombMethod = Literal["poisson", "analytic"]
 
 
 @dataclass(frozen=True)
@@ -48,18 +52,28 @@ def build_radial_coulomb_multipoles(
     grid2: RadialGrid,
     multipoles: CoulombMultipoleSpec,
     terms: tuple[CoulombTerm, ...],
+    *,
+    method: RadialCoulombMethod | None = None,
 ) -> RadialCoulombMultipoles:
-    """Build multipoles using Poisson for FEM-DVR and the analytic sinc kernel.
+    """Build radial multipoles with a Poisson or analytic kernel.
 
-    Both paths return physical pointwise values: source quadrature weights are
+    FEM-DVR defaults to the Poisson construction. Sinc-DVR defaults to the
+    analytic multipole expression and does not support the Poisson path. Both
+    methods return physical pointwise values: source quadrature weights are
     not stored in the returned array.
     """
 
     require_same_grid_family(grid1, grid2)
     if not terms:
         raise ValueError("at least one CoulombTerm is required")
+    if method is None:
+        method = "poisson" if grid1.family == "femdvr" else "analytic"
+    if method not in ("poisson", "analytic"):
+        raise ValueError("method must be 'poisson' or 'analytic'")
 
-    if grid1.family == "femdvr":
+    if method == "poisson":
+        if grid1.family != "femdvr":
+            raise ValueError("the Poisson Coulomb method requires FEM-DVR")
         weighted = radial_Coulomb_femdvr_two_grid(
             grid1.dvr,
             grid2.dvr,
