@@ -1,5 +1,6 @@
 """High-level ground states for non-Born--Oppenheimer diatomic ions."""
 
+import warnings
 from dataclasses import asdict, dataclass
 from numbers import Integral
 from os import PathLike
@@ -234,6 +235,15 @@ class NonBornOppenheimerDiatomicIonGroundState:
         if not isinstance(symmetry_adapted_basis, (bool, np.bool_)):
             raise TypeError("symmetry_adapted_basis must be boolean")
         self.symmetry_adapted_basis = bool(symmetry_adapted_basis)
+        if self.symmetry_adapted_basis and not self.parameters.has_identical_pair:
+            warnings.warn(
+                f"symmetry_adapted_basis=True has no effect for "
+                f"{self.parameters.name}: the particles defining the "
+                "internuclear coordinate are distinguishable, so "
+                "pair-exchange symmetry cannot reduce the angular bases",
+                UserWarning,
+                stacklevel=2,
+            )
         if not isinstance(use_preconditioner, (bool, np.bool_)):
             raise TypeError("use_preconditioner must be boolean")
         self.use_preconditioner = bool(use_preconditioner)
