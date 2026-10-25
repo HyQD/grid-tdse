@@ -1,6 +1,6 @@
 """Two-radial spherical-coordinate Hamiltonian foundation."""
 
-from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
 from .atomic import (
     TwoElectronAtomGroundState,
     TwoElectronAtomGroundStateResult,
@@ -48,6 +48,7 @@ from .system import (
 
 __all__ = [
     "AngularBasisSpec",
+    "AngularPairBasis",
     "AngularMomentumExpectations",
     "AngularRadialPotential",
     "AxialCoordinateDipole",

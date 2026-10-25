@@ -19,7 +19,7 @@ from grid_tdse.spherical.two_radial import (
 )
 
 
-def _system(*, parity1=None, parity2=None, grid_family="femdvr"):
+def _system(*, parity1=None, parity2=None, grid_family="femdvr", M_tot=None):
     if grid_family != "femdvr":
         from grid_tdse.spherical.two_radial import RadialSincDVRGridSpec
 
@@ -35,6 +35,7 @@ def _system(*, parity1=None, parity2=None, grid_family="femdvr"):
         coordinate2=CoordinateSpec(grid2, basis2, -0.25),
         multipoles=CoulombMultipoleSpec(0, 0),
         coulomb_terms=(CoulombTerm(1.0, 1.0),),
+        M_tot=M_tot,
     ).build()
 
 
@@ -374,3 +375,33 @@ def test_zero_field_returns_complex_zeros_in_velocity_gauge():
 
     assert np.iscomplexobj(result)
     assert np.all(result == 0.0)
+
+
+@pytest.mark.parametrize("gauge", ["length", "velocity"])
+@pytest.mark.parametrize("coordinate", [1, 2])
+def test_compact_M_tot_dipole_action_matches_full_representation(gauge, coordinate):
+    full = _system()
+    compact = _system(M_tot=0)
+    compact_state = _random_state(compact, seed=37)
+    full_state = compact.unpack_state(compact_state)
+    coupling = -0.83
+
+    full_action = AxialCoordinateDipole(
+        full,
+        coordinate,
+        gauge=gauge,
+        coupling=coupling,
+    )(full_state)
+    compact_action = AxialCoordinateDipole(
+        compact,
+        coordinate,
+        gauge=gauge,
+        coupling=coupling,
+    )(compact_state)
+
+    np.testing.assert_allclose(
+        compact_action,
+        compact.pack_state(full_action),
+        atol=3.0e-13,
+        rtol=3.0e-13,
+    )

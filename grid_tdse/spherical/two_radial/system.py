@@ -5,7 +5,7 @@ from typing import Callable, Protocol
 
 import numpy as np
 
-from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
 from .coulomb import (
     CoulombTerm,
     RadialCoulombMultipoles,
@@ -72,12 +72,17 @@ class CoordinateSpec:
 
 @dataclass(frozen=True)
 class TwoRadialSystemSpec:
-    """Complete setup recipe for a two-radial Hamiltonian foundation."""
+    """Complete setup recipe for a two-radial Hamiltonian foundation.
+
+    ``M_tot=None`` uses the full Cartesian product of one-coordinate angular
+    channels. An integer ``M_tot`` retains only pairs with ``m1 + m2=M_tot``.
+    """
 
     coordinate1: CoordinateSpec
     coordinate2: CoordinateSpec
     multipoles: CoulombMultipoleSpec
     coulomb_terms: tuple[CoulombTerm, ...]
+    M_tot: int | None = None
 
     def build(self) -> "TwoRadialSystem":
         grid1 = self.coordinate1.build_grid()
@@ -86,14 +91,23 @@ class TwoRadialSystemSpec:
         radial_multipoles = build_radial_coulomb_multipoles(
             grid1, grid2, self.multipoles, self.coulomb_terms
         )
+        angular_pairs = AngularPairBasis(
+            self.coordinate1.basis,
+            self.coordinate2.basis,
+            self.M_tot,
+        )
         couplings = build_coulomb_couplings(
-            self.coordinate1.basis, self.coordinate2.basis, self.multipoles
+            self.coordinate1.basis,
+            self.coordinate2.basis,
+            self.multipoles,
+            angular_pairs=angular_pairs,
         )
         return TwoRadialSystem(
             grid1=grid1,
             grid2=grid2,
             basis1=self.coordinate1.basis,
             basis2=self.coordinate2.basis,
+            angular_pairs=angular_pairs,
             h1=self.coordinate1.build_one_body_operator(grid1),
             h2=self.coordinate2.build_one_body_operator(grid2),
             multipoles=self.multipoles,
@@ -115,15 +129,115 @@ class TwoRadialSystem:
     multipoles: CoulombMultipoleSpec
     radial_multipoles: RadialCoulombMultipoles
     couplings: CoulombCouplings
+    angular_pairs: AngularPairBasis | None = None
+
+    def __post_init__(self) -> None:
+        angular_pairs = self.angular_pairs
+        if angular_pairs is None:
+            angular_pairs = AngularPairBasis(self.basis1, self.basis2)
+            object.__setattr__(self, "angular_pairs", angular_pairs)
+        elif (
+            angular_pairs.basis1 != self.basis1
+            or angular_pairs.basis2 != self.basis2
+        ):
+            raise ValueError("angular_pairs does not match the coordinate bases")
 
     @property
-    def psi_shape(self) -> tuple[int, int, int, int]:
+    def M_tot(self) -> int | None:
+        return self.angular_pairs.M_tot
+
+    @property
+    def uses_compact_angular_storage(self) -> bool:
+        return self.angular_pairs.is_compact
+
+    @property
+    def full_psi_shape(self) -> tuple[int, int, int, int]:
         return (
             self.basis1.n_channels,
             self.basis2.n_channels,
             self.grid1.n_points,
             self.grid2.n_points,
         )
+
+    @property
+    def psi_shape(self) -> tuple[int, ...]:
+        if self.uses_compact_angular_storage:
+            return (
+                self.angular_pairs.n_pairs,
+                self.grid1.n_points,
+                self.grid2.n_points,
+            )
+        return self.full_psi_shape
+
+    def angular_block(
+        self, state: np.ndarray, channel1: int, channel2: int
+    ) -> np.ndarray:
+        """Return one retained angular block without copying it."""
+
+        if self.uses_compact_angular_storage:
+            return state[self.angular_pairs.index(channel1, channel2)]
+        return state[channel1, channel2]
+
+    def set_angular_block(
+        self,
+        state: np.ndarray,
+        channel1: int,
+        channel2: int,
+        values: np.ndarray,
+    ) -> None:
+        if self.uses_compact_angular_storage:
+            state[self.angular_pairs.index(channel1, channel2)] = values
+        else:
+            state[channel1, channel2] = values
+
+    def add_to_angular_block(
+        self,
+        state: np.ndarray,
+        channel1: int,
+        channel2: int,
+        values: np.ndarray,
+    ) -> None:
+        if self.uses_compact_angular_storage:
+            pair = self.angular_pairs.get(channel1, channel2)
+            if pair is None:
+                raise ValueError(
+                    f"angular channel pair {(channel1, channel2)} is not retained"
+                )
+            state[pair] += values
+        else:
+            state[channel1, channel2] += values
+
+    def pack_state(self, state: np.ndarray) -> np.ndarray:
+        """Pack a full angular-product state into this representation."""
+
+        values = np.asarray(state)
+        if values.shape == self.psi_shape:
+            return values.copy()
+        if values.shape != self.full_psi_shape:
+            raise ValueError(
+                f"state has shape {values.shape}; expected {self.psi_shape} or "
+                f"{self.full_psi_shape}"
+            )
+        if not self.uses_compact_angular_storage:
+            return values.copy()
+        return np.ascontiguousarray(
+            np.asarray([values[i, j] for i, j in self.angular_pairs.pairs])
+        )
+
+    def unpack_state(self, state: np.ndarray) -> np.ndarray:
+        """Return a full angular-product array, inserting absent blocks as zero."""
+
+        values = np.asarray(state)
+        if values.shape != self.psi_shape:
+            raise ValueError(
+                f"state has shape {values.shape}; expected {self.psi_shape}"
+            )
+        if not self.uses_compact_angular_storage:
+            return values.copy()
+        result = np.zeros(self.full_psi_shape, dtype=values.dtype)
+        for pair, (i, j) in enumerate(self.angular_pairs.pairs):
+            result[i, j] = values[pair]
+        return result
 
     def hamiltonian(self, *, tile_size: int = 2048):
         from .hamiltonian import TwoRadialHamiltonian
@@ -133,6 +247,7 @@ class TwoRadialSystem:
             self.h2,
             self.radial_multipoles,
             self.couplings,
+            angular_pairs=self.angular_pairs,
             tile_size=tile_size,
         )
 
@@ -149,8 +264,13 @@ class TwoRadialSystem:
             raise ValueError(
                 f"right state has shape {right.shape}; expected {self.psi_shape}"
             )
+        subscripts = (
+            "pab,pab,a,b->"
+            if self.uses_compact_angular_storage
+            else "ijab,ijab,a,b->"
+        )
         return np.einsum(
-            "ijab,ijab,a,b->",
+            subscripts,
             left.conj(),
             right,
             self.grid1.weights,

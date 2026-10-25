@@ -18,6 +18,9 @@ internuclear_grid = FEMDVRGridSpec(
     n_points=[21, 21, 21, 21],
 )
 
+# Retain only m_e + m_R = M_tot. Use None for the full legacy representation.
+M_tot = 0
+
 calculation = NonBornOppenheimerDiatomicIonGroundState(
     "H2+",
     electronic_grid=electronic_grid,
@@ -32,12 +35,13 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     m_max=2,
     lambda_max=4,
     mu_max=4,
+    M_tot=M_tot,
     # Reproducible particle masses and deterministic product-state guess.
     codata_set="2022",
     initial_state="product",
     # Imaginary-time Crank--Nicolson iteration.
     time_step=0.25,
-    max_iterations=2000,
+    max_iterations=5000,
     energy_tolerance=1.0e-10,
     state_tolerance=1.0e-8,
     residual_tolerance=1.0e-8,

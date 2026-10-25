@@ -35,6 +35,9 @@ M_MAX = L_MAX
 LAMBDA_MAX = 2 * L_MAX
 MU_MAX = LAMBDA_MAX
 
+# Retain only m1 + m2 = M_tot. Use None for the full legacy representation.
+M_tot = 0
+
 # One-cycle sine-square pulse. The field vanishes after the optical cycle,
 # while propagation continues until FINAL_TIME.
 FIELD_STRENGTH = 0.001
@@ -91,6 +94,7 @@ ground_state_calculation = TwoElectronAtomGroundState(
     m_max=M_MAX,
     lambda_max=LAMBDA_MAX,
     mu_max=MU_MAX,
+    M_tot=M_tot,
     initial_state="product",
     time_step=GROUND_STATE_TIME_STEP,
     max_iterations=GROUND_STATE_MAX_ITERATIONS,

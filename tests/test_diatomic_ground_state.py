@@ -24,6 +24,7 @@ def _calculation(
     symmetry_adapted_basis=True,
     initial_state="product",
     max_iterations=1,
+    M_tot=None,
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -37,6 +38,7 @@ def _calculation(
         m_max=2,
         lambda_max=4,
         mu_max=4,
+        M_tot=M_tot,
         codata_set="2022",
         initial_state=initial_state,
         time_step=0.05,
@@ -105,7 +107,9 @@ def test_symmetric_inversion_antisymmetric_pair_guess_is_coupled_total_l_zero():
     assert calculation.pair_exchange_expectation(state) == pytest.approx(-1.0)
 
     result = calculation.solve()
-    assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1.0e-10)
+    assert result.angular_momentum.total_l_squared == pytest.approx(
+        0.0, abs=1.0e-10
+    )
     assert result.pair_exchange_expectation == pytest.approx(-1.0, abs=1.0e-12)
 
 
@@ -341,4 +345,51 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.calculation["energy"] == pytest.approx(result.energy)
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
+    )
+
+
+def test_compact_M_tot_diatomic_so_sector_matches_full_representation():
+    options = dict(
+        inversion_parity=1,
+        pair_exchange_parity=-1,
+        symmetry_adapted_basis=False,
+    )
+    full = _calculation(**options, M_tot=None)
+    compact = _calculation(**options, M_tot=0)
+
+    assert compact.representation.psi_shape[0] == 19
+    np.testing.assert_allclose(
+        compact.representation.unpack_state(compact.initial_state),
+        full.initial_state,
+        atol=2.0e-14,
+    )
+    np.testing.assert_allclose(
+        compact.hamiltonian(compact.initial_state),
+        compact.representation.pack_state(full.hamiltonian(full.initial_state)),
+        atol=3.0e-13,
+        rtol=3.0e-13,
+    )
+
+    result = compact.solve()
+    assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1.0e-10)
+    assert result.angular_momentum.total_l_z == pytest.approx(0.0, abs=1.0e-14)
+    assert result.inversion_expectation == pytest.approx(1.0, abs=1.0e-12)
+    assert result.pair_exchange_expectation == pytest.approx(-1.0, abs=1.0e-12)
+
+
+def test_compact_M_tot_preconditioner_matches_full_representation():
+    full = _calculation(M_tot=None).representation
+    compact = _calculation(M_tot=0).representation
+    rng = np.random.default_rng(73)
+    compact_state = rng.normal(size=compact.psi_shape)
+    full_state = compact.unpack_state(compact_state)
+
+    full_action = TwoRadialOneBodyPreconditioner(full, 0.07)(full_state)
+    compact_action = TwoRadialOneBodyPreconditioner(compact, 0.07)(compact_state)
+
+    np.testing.assert_allclose(
+        compact_action,
+        compact.pack_state(full_action),
+        atol=2.0e-12,
+        rtol=2.0e-12,
     )

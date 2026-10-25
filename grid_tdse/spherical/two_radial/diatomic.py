@@ -138,6 +138,7 @@ class DiatomicIonGroundStateResult:
             "inversion_parity": self.inversion_parity,
             "pair_exchange_parity": self.pair_exchange_parity,
             "symmetry_adapted_basis": self.symmetry_adapted_basis,
+            "M_tot": self.representation.M_tot,
         }
         return save_two_radial_state(
             path,
@@ -180,7 +181,10 @@ class NonBornOppenheimerDiatomicIonGroundState:
 
     Only FEM-DVR is supported at this stage.  ``l_max`` and ``m_max`` apply to
     both coordinates; the complete magnetic range is required so that total
-    orbital angular momentum is represented without an axial truncation.
+    orbital angular momentum is represented without an axial truncation. Set
+    ``M_tot`` to a conserved total magnetic quantum number for compact
+    angular-pair storage, or leave it as ``None`` for the full legacy
+    representation.
     """
 
     _CANONICAL_NAMES = {
@@ -202,6 +206,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         m_max: int | None = None,
         lambda_max: int | None = None,
         mu_max: int | None = None,
+        M_tot: int | None = None,
         codata_set: str = "2022",
         initial_state: InitialState = "product",
         time_step: float = 0.25,
@@ -262,6 +267,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
             raise ValueError("mu_max must not exceed lambda_max")
         if self.mu_max > 2 * self.m_max:
             raise ValueError("mu_max must not exceed 2*m_max")
+        self.M_tot = M_tot
 
         electron_parity, pair_parity = self._coordinate_parities()
         electron_basis = AngularBasisSpec(
@@ -308,6 +314,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
                     p.electron_charge * p.partner_charge,
                 ),
             ),
+            M_tot=M_tot,
         )
         self.specification = specification
         self.representation = specification.build()
@@ -386,14 +393,18 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 f"expected {self.representation.psi_shape}"
             )
         projected = state.copy()
-        for i, (l_e, _) in enumerate(self.representation.basis1.states):
-            for j, (l_R, _) in enumerate(self.representation.basis2.states):
-                inversion = _l_parity(l_e + l_R)
-                pair_exchange = _l_parity(l_R)
-                if inversion != self.inversion_parity or (
-                    self.pair_exchange_parity is not None
-                    and pair_exchange != self.pair_exchange_parity
-                ):
+        for pair, (i, j) in enumerate(self.representation.angular_pairs.pairs):
+            l_e = self.representation.basis1.states[i][0]
+            l_R = self.representation.basis2.states[j][0]
+            inversion = _l_parity(l_e + l_R)
+            pair_exchange = _l_parity(l_R)
+            if inversion != self.inversion_parity or (
+                self.pair_exchange_parity is not None
+                and pair_exchange != self.pair_exchange_parity
+            ):
+                if self.representation.uses_compact_angular_storage:
+                    projected[pair] = 0
+                else:
                     projected[i, j] = 0
         return projected
 
@@ -432,7 +443,8 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 raise ValueError("initial_state must be 'product' or a NumPy array")
             state = self._product_initial_state()
         else:
-            state = self._validated_state(initial_state).copy()
+            state = self.representation.pack_state(initial_state)
+            state = self._validated_state(state)
 
         state = self.project_symmetry(state)
         norm_squared = self.representation.inner_product(state, state).real
@@ -444,6 +456,11 @@ class NonBornOppenheimerDiatomicIonGroundState:
         return state / np.sqrt(norm_squared)
 
     def _product_initial_state(self) -> np.ndarray:
+        if self.M_tot not in (None, 0):
+            raise ValueError(
+                "the product initial state has M_tot=0; provide a custom state "
+                "for another conserved sector"
+            )
         if self.pair_exchange_parity is None:
             l_R = 0
             l_e = 0 if self.inversion_parity == 1 else 1
@@ -470,15 +487,19 @@ class NonBornOppenheimerDiatomicIonGroundState:
         state = np.zeros(self.representation.psi_shape, dtype=radial_product.dtype)
 
         if l_e == l_R == 1 and self.inversion_parity == 1:
-            # Pure L_total=0, M_total=0 coupling of two l=1 coordinates.
+            # Pure L_tot=0, M_tot=0 coupling of two l=1 coordinates.
             for m_e in range(-1, 2):
                 m_R = -m_e
                 coefficient = (-1.0) ** (1 - m_e) / np.sqrt(3.0)
                 i = self.representation.basis1.index(1, m_e)
                 j = self.representation.basis2.index(1, m_R)
-                state[i, j] = coefficient * radial_product
+                self.representation.set_angular_block(
+                    state, i, j, coefficient * radial_product
+                )
         else:
-            state[electron_channel, pair_channel] = radial_product
+            self.representation.set_angular_block(
+                state, electron_channel, pair_channel, radial_product
+            )
         return state
 
     def _validated_state(self, state: np.ndarray) -> np.ndarray:

@@ -111,6 +111,7 @@ class TwoElectronAtomGroundStateResult:
                     "inversion_parity": self.inversion_parity,
                     "electron_exchange_parity": self.electron_exchange_parity,
                     "spin_multiplicity": self.spin_multiplicity,
+                    "M_tot": self.representation.M_tot,
                 },
             },
             calculation={
@@ -144,7 +145,9 @@ class TwoElectronAtomGroundState:
 
     Compact spectroscopic aliases are deliberately not used for the native
     symmetry inputs. The complete magnetic range ``m_max=l_max`` is required
-    so total orbital angular momentum remains represented.
+    so total orbital angular momentum remains represented. Set ``M_tot`` to
+    a conserved total magnetic quantum number for compact angular-pair
+    storage, or leave it as ``None`` for the full legacy representation.
     """
 
     _SYSTEMS = {
@@ -170,6 +173,7 @@ class TwoElectronAtomGroundState:
         m_max: int | None = None,
         lambda_max: int | None = None,
         mu_max: int | None = None,
+        M_tot: int | None = None,
         initial_state: InitialState = "product",
         time_step: float = 0.25,
         max_iterations: int = 1_000,
@@ -222,6 +226,7 @@ class TwoElectronAtomGroundState:
             raise ValueError("mu_max must not exceed lambda_max")
         if self.mu_max > 2 * self.m_max:
             raise ValueError("mu_max must not exceed 2*m_max")
+        self.M_tot = M_tot
 
         basis = AngularBasisSpec(self.l_max, self.m_max)
         coordinate = CoordinateSpec(
@@ -246,6 +251,7 @@ class TwoElectronAtomGroundState:
                     charge_product=self.parameters.electron_charge**2,
                 ),
             ),
+            M_tot=M_tot,
         )
         self.specification = specification
         self.representation = specification.build()
@@ -315,18 +321,20 @@ class TwoElectronAtomGroundState:
         """Project an array onto total inversion and electron exchange parity."""
 
         state = validated_state(self.representation, state)
-        inversion_values = np.empty(
-            (
-                self.representation.basis1.n_channels,
-                self.representation.basis2.n_channels,
+        inverted = np.empty_like(state)
+        for pair, (i, j) in enumerate(self.representation.angular_pairs.pairs):
+            l1 = self.representation.basis1.states[i][0]
+            l2 = self.representation.basis2.states[j][0]
+            block = (
+                state[pair]
+                if self.representation.uses_compact_angular_storage
+                else state[i, j]
             )
-        )
-        for i, (l1, _) in enumerate(self.representation.basis1.states):
-            for j, (l2, _) in enumerate(self.representation.basis2.states):
-                inversion_values[i, j] = _l_parity(l1 + l2)
-        inverted = inversion_values[:, :, None, None] * state
+            self.representation.set_angular_block(
+                inverted, i, j, _l_parity(l1 + l2) * block
+            )
         projected = 0.5 * (state + self.inversion_parity * inverted)
-        exchanged = projected.transpose(1, 0, 3, 2)
+        exchanged = self._exchange_state(projected)
         return 0.5 * (projected + self.electron_exchange_parity * exchanged)
 
     def inversion_expectation(self, state: np.ndarray) -> float:
@@ -341,7 +349,7 @@ class TwoElectronAtomGroundState:
         norm_squared = self.representation.inner_product(state, state).real
         if norm_squared <= 0.0:
             raise ValueError("state has zero norm")
-        exchanged = state.transpose(1, 0, 3, 2)
+        exchanged = self._exchange_state(state)
         value = self.representation.inner_product(state, exchanged)
         return float(value.real / norm_squared)
 
@@ -356,7 +364,8 @@ class TwoElectronAtomGroundState:
                 raise ValueError("initial_state must be 'product' or a NumPy array")
             state = self._product_initial_state()
         else:
-            state = validated_state(self.representation, initial_state).copy()
+            state = self.representation.pack_state(initial_state)
+            state = validated_state(self.representation, state)
 
         state = self.project_symmetry(state)
         norm_squared = self.representation.inner_product(state, state).real
@@ -368,6 +377,11 @@ class TwoElectronAtomGroundState:
         return state / np.sqrt(norm_squared)
 
     def _product_initial_state(self) -> np.ndarray:
+        if self.M_tot not in (None, 0):
+            raise ValueError(
+                "the product initial state has M_tot=0; provide a custom state "
+                "for another conserved sector"
+            )
         s_channel = self.representation.basis1.index(0, 0)
         _, s_states = weighted_eigenstates(
             self.representation.h1[s_channel],
@@ -377,17 +391,28 @@ class TwoElectronAtomGroundState:
 
         if self.inversion_parity == 1:
             if self.electron_exchange_parity == 1:
-                state[s_channel, s_channel] = np.outer(s_states[:, 0], s_states[:, 0])
+                self.representation.set_angular_block(
+                    state,
+                    s_channel,
+                    s_channel,
+                    np.outer(s_states[:, 0], s_states[:, 0]),
+                )
             else:
                 if s_states.shape[1] < 2:
                     raise ValueError(
                         "the radial grid must represent two s states for an "
                         "antisymmetric even-inversion product guess"
                     )
-                state[s_channel, s_channel] = (
-                    np.outer(s_states[:, 0], s_states[:, 1])
-                    - np.outer(s_states[:, 1], s_states[:, 0])
-                ) / np.sqrt(2.0)
+                self.representation.set_angular_block(
+                    state,
+                    s_channel,
+                    s_channel,
+                    (
+                        np.outer(s_states[:, 0], s_states[:, 1])
+                        - np.outer(s_states[:, 1], s_states[:, 0])
+                    )
+                    / np.sqrt(2.0),
+                )
         else:
             if self.l_max < 1:
                 raise ValueError(
@@ -400,11 +425,25 @@ class TwoElectronAtomGroundState:
             )
             direct = np.outer(s_states[:, 0], p_states[:, 0])
             exchanged = np.outer(p_states[:, 0], s_states[:, 0])
-            state[s_channel, p_channel] = direct / np.sqrt(2.0)
-            state[p_channel, s_channel] = (
-                self.electron_exchange_parity * exchanged / np.sqrt(2.0)
+            self.representation.set_angular_block(
+                state, s_channel, p_channel, direct / np.sqrt(2.0)
+            )
+            self.representation.set_angular_block(
+                state,
+                p_channel,
+                s_channel,
+                self.electron_exchange_parity * exchanged / np.sqrt(2.0),
             )
         return state
+
+    def _exchange_state(self, state: np.ndarray) -> np.ndarray:
+        if not self.representation.uses_compact_angular_storage:
+            return state.transpose(1, 0, 3, 2)
+        exchanged = np.empty_like(state)
+        for pair, (i, j) in enumerate(self.representation.angular_pairs.pairs):
+            target = self.representation.angular_pairs.index(j, i)
+            exchanged[target] = state[pair].T
+        return exchanged
 
 
 def _atomic_parameters(atom: str) -> TwoElectronAtomParameters:
