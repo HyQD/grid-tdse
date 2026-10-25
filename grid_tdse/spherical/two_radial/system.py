@@ -8,6 +8,7 @@ import numpy as np
 from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
 from .coulomb import (
     CoulombTerm,
+    RadialCoulombMethod,
     RadialCoulombMultipoles,
     build_radial_coulomb_multipoles,
 )
@@ -83,13 +84,18 @@ class TwoRadialSystemSpec:
     multipoles: CoulombMultipoleSpec
     coulomb_terms: tuple[CoulombTerm, ...]
     M_tot: int | None = None
+    radial_coulomb_method: RadialCoulombMethod | None = None
 
     def build(self) -> "TwoRadialSystem":
         grid1 = self.coordinate1.build_grid()
         grid2 = self.coordinate2.build_grid()
         require_same_grid_family(grid1, grid2)
         radial_multipoles = build_radial_coulomb_multipoles(
-            grid1, grid2, self.multipoles, self.coulomb_terms
+            grid1,
+            grid2,
+            self.multipoles,
+            self.coulomb_terms,
+            method=self.radial_coulomb_method,
         )
         angular_pairs = AngularPairBasis(
             self.coordinate1.basis,
