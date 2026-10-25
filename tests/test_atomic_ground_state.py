@@ -20,6 +20,7 @@ def _calculation(
     electron_exchange_parity=1,
     initial_state="product",
     max_iterations=1,
+    M_tot=None,
 ):
     return TwoElectronAtomGroundState(
         atom,
@@ -30,6 +31,7 @@ def _calculation(
         m_max=2,
         lambda_max=4,
         mu_max=4,
+        M_tot=M_tot,
         initial_state=initial_state,
         time_step=0.01,
         max_iterations=max_iterations,
@@ -224,6 +226,49 @@ def test_atomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
     )
+
+
+def test_compact_M_tot_atomic_calculation_matches_full_representation():
+    full = _calculation(M_tot=None)
+    compact = _calculation(M_tot=0)
+
+    assert full.representation.psi_shape[0:2] == (9, 9)
+    assert compact.representation.psi_shape[0] == 19
+    np.testing.assert_allclose(
+        compact.representation.unpack_state(compact.initial_state),
+        full.initial_state,
+        atol=2.0e-14,
+    )
+    np.testing.assert_allclose(
+        compact.hamiltonian(compact.initial_state),
+        compact.representation.pack_state(full.hamiltonian(full.initial_state)),
+        atol=3.0e-13,
+        rtol=3.0e-13,
+    )
+
+    result = compact.solve()
+    assert result.state.shape == compact.representation.psi_shape
+    assert result.angular_momentum.total_l_z == pytest.approx(0.0, abs=1.0e-14)
+    assert result.inversion_expectation == pytest.approx(1.0, abs=1.0e-12)
+    assert result.electron_exchange_expectation == pytest.approx(1.0, abs=1.0e-12)
+
+
+def test_product_initial_state_rejects_nonzero_M_tot():
+    with pytest.raises(ValueError, match="product initial state has M_tot=0"):
+        _calculation(M_tot=1)
+
+
+def test_custom_initial_state_can_select_a_nonzero_M_tot_sector():
+    full = _calculation()
+    rng = np.random.default_rng(29)
+    custom = rng.normal(size=full.representation.psi_shape)
+
+    calculation = _calculation(M_tot=1, initial_state=custom)
+
+    assert calculation.representation.M_tot == 1
+    assert calculation.angular_momentum_expectations(
+        calculation.initial_state
+    ).total_l_z == pytest.approx(1.0, abs=1.0e-13)
 
 
 def test_atomic_interface_validates_system_grid_symmetry_and_cutoffs():
