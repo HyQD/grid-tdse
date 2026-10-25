@@ -38,12 +38,107 @@ angular and magnetic quantum numbers of the complete system.
 
 ### Conserved total magnetic quantum number
 
-When the Hamiltonian conserves the total magnetic quantum number, set
-`M_tot` on `TwoRadialSystemSpec` to retain only angular pairs satisfying
+In the uncoupled angular basis, every product function
+$Y_{l_1m_1}(\Omega_1)Y_{l_2m_2}(\Omega_2)$ is an eigenfunction of the total
+orbital $z$-projection,
+
+$$
+L_{z,\mathrm{tot}}=L_{z,1}+L_{z,2},
+$$
+
+with eigenvalue $M_{\mathrm{tot}}=m_1+m_2$ in units where $\hbar=1$. If the
+Hamiltonian commutes with $L_{z,\mathrm{tot}}$, angular products with different
+values of $M_{\mathrm{tot}}$ do not couple. A state initialized in one such
+sector consequently remains in it, so angular blocks belonging to all other
+sectors need neither be stored nor evaluated.
+
+The field-free atomic and non-Born--Oppenheimer diatomic Hamiltonians used
+here are rotational scalars and therefore conserve both total orbital angular
+momentum and its magnetic projection. The conservation of $M_{\mathrm{tot}}$
+can also be seen directly from the implemented selection rules:
+
+- A central one-coordinate kinetic or potential operator is diagonal in $m_i$
+  and cannot change $m_1+m_2$.
+- In a Coulomb multipole $(\lambda,\mu)$, the first coordinate changes its
+  magnetic quantum number by the opposite amount to the second coordinate.
+  Thus every nonzero coupling preserves the sum of the two magnetic quantum
+  numbers:
+
+  $$
+  m_1^{\mathrm{in}}+m_2^{\mathrm{in}}=m_1^{\mathrm{out}}+m_2^{\mathrm{out}}.
+  $$
+- A spatially uniform field polarized along the laboratory $z$ axis is the
+  $q=0$ spherical component of the dipole interaction. It has $\Delta m_i=0$
+  and preserves the same $M_{\mathrm{tot}}$ sector in both length and velocity
+  gauge.
+
+This reduction is not a restriction to a particular value of total orbital
+angular momentum. For example, an `M_tot=0` basis can contain contributions
+from $L_{\mathrm{tot}}=0,1,2,\ldots$. It is also independent of inversion and,
+when defined, identical-pair exchange parity; those symmetries may be imposed
+in addition. Spin is not part of the present spatial representation, so
+`M_tot` refers only to orbital angular momentum.
+
+Set `M_tot` on `TwoRadialSystemSpec` to retain only angular pairs satisfying
 $m_1+m_2=M_{\mathrm{tot}}$. The high-level atomic and non-Born--Oppenheimer
 diatomic interfaces expose the same option. `M_tot=None`, which is the
 default, keeps the full angular-product representation for legacy use and
-comparisons.
+comparisons. A fixed sector must not be used when the complete Hamiltonian
+breaks axial symmetry. Examples include an $x$- or $y$-polarized field, a
+non-axisymmetric external potential, and any interaction containing spherical
+components with $q\ne 0$ without retaining all sectors to which they couple.
+
+#### Representation in the code
+
+The compact representation is assembled and used as follows:
+
+1. `AngularBasisSpec` enumerates the one-coordinate states $(l_i,m_i)$.
+2. `AngularPairBasis(..., M_tot=M)` enumerates only index pairs `(i, j)` for
+   which `basis1.states[i][1] + basis2.states[j][1] == M` and assigns each pair
+   a compact index `p`.
+3. `TwoRadialSystemSpec.build()` passes this table to the Coulomb-coupling
+   builder. Both the input and output angular pairs of every stored coupling
+   must occur in the retained table. The Coulomb selection rules guarantee
+   that this is a closed Hamiltonian block when $M_{\mathrm{tot}}$ is
+   conserved.
+4. A full state has shape `(n1, n2, nr1, nr2)`. A fixed-sector state instead
+   has shape `(n_pairs, nr1, nr2)`, where the first axis follows
+   `system.angular_pairs.pairs`.
+5. The one-body action selects the appropriate coordinate blocks for each
+   compact pair. The optimized Coulomb kernel uses compact input and output
+   pair indices, so it does not temporarily reconstruct the full angular
+   product.
+6. The axial dipole action constructs only transitions whose output pair is
+   retained. Because its angular action has $\Delta m_i=0$, these transitions
+   stay in the same compact sector.
+
+Schematically, the mapping is
+
+```python
+pairs = tuple(
+    (i, j)
+    for i, (_, m1) in enumerate(basis1.states)
+    for j, (_, m2) in enumerate(basis2.states)
+    if m1 + m2 == M_tot
+)
+
+# Full storage:    psi[i, j, r1, r2]
+# Compact storage: psi[p, r1, r2], where pairs[p] == (i, j)
+```
+
+`TwoRadialSystem.pack_state()` extracts a fixed sector from a full
+angular-product array, while `unpack_state()` restores the full shape and
+fills absent sectors with zeros. State archives record `M_tot` as part of the
+representation metadata, preventing an exact reload into an incompatible
+storage sector. The full and compact Hamiltonian actions are tested against
+one another, and `M_tot=None` remains useful as a reference implementation.
+
+The initial state must have a nonzero component in the selected sector. The
+built-in product guesses belong to `M_tot=0`; selecting another sector
+therefore requires a custom initial state. When a full custom array is
+provided to a compact high-level calculation, `pack_state()` projects it by
+retaining the requested angular blocks, after which the high-level interface
+applies its other symmetry projections and normalizes the state.
 
 For example, the following table assumes that both coordinates use complete,
 identical angular bases with `m_max=l_max` and no coordinate-parity
