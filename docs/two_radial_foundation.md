@@ -62,11 +62,10 @@ can also be seen directly from the implemented selection rules:
 - In a Coulomb multipole $(\lambda,\mu)$, the first coordinate changes its
   magnetic quantum number by the opposite amount to the second coordinate.
   Thus every nonzero coupling satisfies $m_1^{\mathrm{in}}+m_2^{\mathrm{in}}=m_1^{\mathrm{out}}+m_2^{\mathrm{out}}$ and preserves the sum of the two magnetic quantum numbers.
-- Write the rank-one spherical dipole tensor as $T^{(1)}_{\tilde m}$, where
-  $\tilde m\in\{-1,0,+1\}$ labels its spherical component. A spatially uniform
-  field polarized along the laboratory $z$ axis selects $\tilde m=0$. It
-  therefore has $\Delta m_i=0$ and preserves the same $M_{\mathrm{tot}}$
-  sector in both length and velocity gauge.
+- The rank-one spherical dipole tensor has three components labeled by
+  $\tilde{m}\in\{-1,0,+1\}$. A spatially uniform field polarized along the
+  laboratory $z$ axis selects $\tilde{m}=0$. It therefore has $\Delta m=0$ and
+  preserves the same `M_tot` sector in both length and velocity gauge.
 
 This reduction is not a restriction to a particular value of total orbital
 angular momentum. For example, an `M_tot=0` basis can contain contributions
@@ -82,7 +81,7 @@ default, keeps the full angular-product representation for legacy use and
 comparisons. A fixed sector must not be used when the complete Hamiltonian
 breaks axial symmetry. Examples include an $x$- or $y$-polarized field, a
 non-axisymmetric external potential, and any interaction containing spherical
-dipole components with $\tilde m\ne 0$ without retaining all sectors to which
+dipole components with $\tilde{m}\ne 0$ without retaining all sectors to which
 they couple.
 
 #### Representation in the code
