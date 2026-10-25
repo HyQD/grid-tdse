@@ -153,11 +153,15 @@ def test_hd_rejects_pair_exchange_parity_and_uses_full_coordinate_bases():
             pair_exchange_parity=1,
         )
 
-    calculation = _calculation(
-        "HD+",
-        inversion_parity=1,
-        pair_exchange_parity=None,
-    )
+    with pytest.warns(
+        UserWarning,
+        match="symmetry_adapted_basis=True has no effect for HD\\+",
+    ):
+        calculation = _calculation(
+            "HD+",
+            inversion_parity=1,
+            pair_exchange_parity=None,
+        )
     assert not calculation.parameters.has_identical_pair
     assert not calculation.basis_is_reduced
     assert calculation.representation.basis1.coordinate_parity is None
@@ -208,6 +212,7 @@ def test_supported_systems_take_particle_data_from_matter_field_params(
         system,
         inversion_parity=1,
         pair_exchange_parity=pair_parity,
+        symmetry_adapted_basis=system != "HD+",
     )
     assert calculation.parameters.particles == particles
     assert calculation.parameters.reference_charge == 1.0
@@ -222,6 +227,7 @@ def test_velocity_couplings_are_derived_from_reduced_charges_and_masses(system):
         system,
         inversion_parity=1,
         pair_exchange_parity=pair_parity,
+        symmetry_adapted_basis=system != "HD+",
     ).parameters
 
     assert parameters.internuclear_velocity_coupling == pytest.approx(
@@ -257,6 +263,7 @@ def test_hd_has_a_nonzero_internuclear_velocity_coupling():
     parameters = _calculation(
         "HD+",
         pair_exchange_parity=None,
+        symmetry_adapted_basis=False,
     ).parameters
 
     assert parameters.internuclear_velocity_coupling != pytest.approx(0.0)
