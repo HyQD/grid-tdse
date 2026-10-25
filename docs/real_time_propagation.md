@@ -151,11 +151,50 @@ symmetry-reduced archived ground state is embedded into this larger angular
 space automatically. The archive's complete particle parameters, including
 its CODATA set, must match the requested real-time calculation.
 
-The atomic interface reserves `mask` and `cap`; the diatomic interface reserves
-the coordinate-specific `mask_r`, `mask_R`, `cap_r`, and `cap_R`. A mask and a
-CAP on the same coordinate are rejected. Non-`None` absorbers are not yet
-implemented and raise `NotImplementedError` rather than being silently
-ignored.
+## Absorbing boundaries
+
+`grid-lib` provides reusable radial profiles through `RadialCosineMask` and
+`CubicCAP`:
+
+```python
+from grid_lib.spherical_coordinates import CubicCAP, RadialCosineMask
+
+mask = RadialCosineMask(r0=24.0, n=4.0)
+cap = CubicCAP(alpha=0.75, eta=0.01)
+```
+
+Both are callables with the signature `profile(radial_grid, r_max)`. A finite
+one-dimensional array evaluated on the representation's radial nodes can be
+supplied instead. Mask values must be real and lie between zero and one. The
+imaginary part of every CAP value must be non-positive.
+
+The atomic interface accepts `mask` or `cap` and applies the same radial
+profile to both electron coordinates. One mask step therefore multiplies the
+state by $M(r_1)M(r_2)$, while a CAP contributes $W(r_1)+W(r_2)$ to the
+Hamiltonian.
+
+The non-Born--Oppenheimer diatomic interface accepts the coordinate-specific
+`mask_r`, `mask_R`, `cap_r`, and `cap_R` arguments. Its corresponding factors
+are $M_r(r)M_R(R)$ and $W_r(r)+W_R(R)$. This permits different absorber onset
+and strength parameters for the electronic and internuclear grids.
+
+A mask and CAP on the same coordinate are mutually exclusive and are rejected
+at construction. It is valid for a diatomic calculation to use a mask on one
+coordinate and a CAP on the other.
+
+A mask is applied once after every accepted time step, before the norm,
+observables, and checkpoint are recorded. It is not applied to the initial
+state. A CAP is instead included as a diagonal, non-Hermitian term in every
+real-time Hamiltonian action. CAP terms are excluded from ground-state
+construction and from the current separable preconditioner. The latter remains
+an approximation to the Hermitian one-coordinate part of the
+Crank--Nicolson system.
+
+Neither absorber renormalizes the state. Consequently, norm loss represents
+absorbed probability and all recorded expectation values remain unnormalized.
+The realized absorber parameters and value digests are stored in the dynamics
+metadata. Exact checkpoint resume therefore verifies the same absorber setup,
+whereas starting a new propagation segment may select another absorber.
 
 ## Checkpoints and recovery
 
@@ -247,13 +286,6 @@ For two-radial calculations, use
 records the physical system, reconstructible grid and angular specifications,
 state shape, and a representation identifier formed from the realized radial
 quadratures and ordered angular channel tables.
-
-## Current absorption scope
-
-This layer currently applies no mask, complex absorbing potential, or other
-post-step transformation. The returned state is exactly the state accepted by
-the time integrator. Absorption will be added as a separate propagation policy
-before the two-radial observable interface is introduced.
 
 ## Helium example
 

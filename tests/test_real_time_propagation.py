@@ -149,6 +149,56 @@ def test_real_time_samples_initial_state_and_every_accepted_step():
     )
 
 
+def test_post_step_transformation_precedes_diagnostics_and_sampling():
+    propagator = RealTimePropagator(
+        final_time=0.2,
+        time_step=0.1,
+        progress_interval=None,
+    )
+    initial = np.ones(2)
+
+    result = propagator.propagate(
+        initial,
+        lambda state, time: np.zeros_like(state),
+        np.vdot,
+        post_step=lambda state, time: 0.5 * state,
+        samplers={"amplitudes": lambda state, time: state.copy()},
+    )
+
+    np.testing.assert_allclose(result.state, 0.25 * initial)
+    np.testing.assert_allclose(result.norm_history, [2.0, 0.5, 0.125])
+    np.testing.assert_allclose(
+        result.samples["amplitudes"],
+        [initial, 0.5 * initial, 0.25 * initial],
+    )
+
+
+@pytest.mark.parametrize(
+    ("post_step", "error", "message"),
+    [
+        (1.0, TypeError, "callable"),
+        (lambda state, time: np.ones(3), ValueError, "shape"),
+        (
+            lambda state, time: np.array([np.nan, 0.0]),
+            ValueError,
+            "non-finite",
+        ),
+    ],
+)
+def test_real_time_validates_post_step_transformations(
+    post_step, error, message
+):
+    propagator = RealTimePropagator(final_time=0.1, time_step=0.1)
+
+    with pytest.raises(error, match=message):
+        propagator.propagate(
+            np.ones(2),
+            lambda state, time: np.zeros_like(state),
+            np.vdot,
+            post_step=post_step,
+        )
+
+
 def test_sampler_receives_a_read_only_state_view():
     propagator = RealTimePropagator(
         final_time=0.1,
