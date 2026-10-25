@@ -1,6 +1,7 @@
 """Explicit angular state tables for two-radial spherical calculations."""
 
 from dataclasses import dataclass, field
+from numbers import Integral
 from typing import Literal
 
 
@@ -53,6 +54,61 @@ class AngularBasisSpec:
             return self._indices[(l, m)]
         except KeyError as exc:
             raise ValueError(f"angular state {(l, m)} is not in this basis") from exc
+
+
+@dataclass(frozen=True)
+class AngularPairBasis:
+    """Ordered product channels, optionally restricted to a fixed ``M_tot``.
+
+    ``M_tot=None`` retains the complete Cartesian product and therefore the
+    legacy four-dimensional state representation.  An integer ``M_tot``
+    retains only channel pairs satisfying ``m1 + m2 == M_tot`` and stores the
+    angular pair on one compact state axis.
+    """
+
+    basis1: AngularBasisSpec
+    basis2: AngularBasisSpec
+    M_tot: int | None = None
+    pairs: tuple[tuple[int, int], ...] = field(init=False)
+    _indices: dict[tuple[int, int], int] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.M_tot is not None:
+            if isinstance(self.M_tot, bool) or not isinstance(self.M_tot, Integral):
+                raise TypeError("M_tot must be an integer or None")
+            object.__setattr__(self, "M_tot", int(self.M_tot))
+
+        pairs = tuple(
+            (i, j)
+            for i, (_, m1) in enumerate(self.basis1.states)
+            for j, (_, m2) in enumerate(self.basis2.states)
+            if self.M_tot is None or m1 + m2 == self.M_tot
+        )
+        if not pairs:
+            raise ValueError("M_tot leaves no angular-channel pairs")
+        object.__setattr__(self, "pairs", pairs)
+        object.__setattr__(self, "_indices", {pair: p for p, pair in enumerate(pairs)})
+
+    @property
+    def is_compact(self) -> bool:
+        return self.M_tot is not None
+
+    @property
+    def n_pairs(self) -> int:
+        return len(self.pairs)
+
+    def index(self, channel1: int, channel2: int) -> int:
+        try:
+            return self._indices[(channel1, channel2)]
+        except KeyError as exc:
+            raise ValueError(
+                f"angular channel pair {(channel1, channel2)} is not retained"
+            ) from exc
+
+    def get(self, channel1: int, channel2: int) -> int | None:
+        """Return the compact index, or ``None`` when the pair is absent."""
+
+        return self._indices.get((channel1, channel2))
 
 
 @dataclass(frozen=True)

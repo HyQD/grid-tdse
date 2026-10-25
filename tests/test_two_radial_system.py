@@ -8,6 +8,7 @@ from grid_tdse.spherical.two_radial import (
     CoulombTerm,
     FEMDVRGridSpec,
     RadialSincDVRGridSpec,
+    TwoRadialSystem,
     TwoRadialSystemSpec,
     radial_potential,
 )
@@ -68,6 +69,31 @@ def test_femdvr_system_uses_two_grid_poisson_coulomb():
     assert np.isfinite(system.radial_multipoles.values).all()
 
 
+def test_direct_legacy_system_construction_defaults_to_the_full_product_basis():
+    prepared = TwoRadialSystemSpec(
+        coordinate1=_coordinate(RadialSincDVRGridSpec(4.0, 4), l_max=0),
+        coordinate2=_coordinate(RadialSincDVRGridSpec(4.0, 4), l_max=0),
+        multipoles=CoulombMultipoleSpec(0, 0),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+    ).build()
+
+    system = TwoRadialSystem(
+        prepared.grid1,
+        prepared.grid2,
+        prepared.basis1,
+        prepared.basis2,
+        prepared.h1,
+        prepared.h2,
+        prepared.multipoles,
+        prepared.radial_multipoles,
+        prepared.couplings,
+    )
+
+    assert system.M_tot is None
+    assert not system.uses_compact_angular_storage
+    assert system.psi_shape == prepared.psi_shape
+
+
 def test_system_rejects_mixed_radial_grid_families():
     spec = TwoRadialSystemSpec(
         coordinate1=_coordinate(RadialSincDVRGridSpec(4.0, 4), l_max=0),
@@ -78,3 +104,53 @@ def test_system_rejects_mixed_radial_grid_families():
 
     with pytest.raises(ValueError, match="same grid family"):
         spec.build()
+
+
+def _magnetic_sector_system(M_tot):
+    grid = RadialSincDVRGridSpec(5.0, 5)
+    basis = AngularBasisSpec(l_max=2, m_max=2)
+    coordinate = CoordinateSpec(
+        grid=grid,
+        basis=basis,
+        kinetic_prefactor=-0.5,
+        one_body_terms=(radial_potential(lambda r: -2.0 / r),),
+    )
+    return TwoRadialSystemSpec(
+        coordinate1=coordinate,
+        coordinate2=coordinate,
+        multipoles=CoulombMultipoleSpec(4, 4),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+        M_tot=M_tot,
+    ).build()
+
+
+def test_compact_M_tot_hamiltonian_matches_full_representation():
+    full = _magnetic_sector_system(None)
+    compact = _magnetic_sector_system(0)
+    rng = np.random.default_rng(902)
+    compact_state = rng.normal(size=compact.psi_shape) + 1j * rng.normal(
+        size=compact.psi_shape
+    )
+    full_state = compact.unpack_state(compact_state)
+
+    assert full.psi_shape == (9, 9, 5, 5)
+    assert compact.psi_shape == (19, 5, 5)
+    assert compact.full_psi_shape == full.psi_shape
+    assert compact.couplings.n_pairs < full.couplings.n_pairs
+    np.testing.assert_array_equal(compact.pack_state(full_state), compact_state)
+    np.testing.assert_array_equal(compact.unpack_state(compact_state), full_state)
+
+    compact_action = compact.hamiltonian()(compact_state)
+    full_action = full.hamiltonian()(full_state)
+    np.testing.assert_allclose(
+        compact_action,
+        compact.pack_state(full_action),
+        atol=2.0e-13,
+        rtol=2.0e-13,
+    )
+    np.testing.assert_allclose(
+        compact.inner_product(compact_state, compact_action),
+        full.inner_product(full_state, full_action),
+        atol=2.0e-12,
+        rtol=2.0e-13,
+    )

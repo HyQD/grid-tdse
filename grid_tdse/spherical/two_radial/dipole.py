@@ -133,6 +133,11 @@ class AxialCoordinateDipole:
                 "operators"
             )
         self.cos_theta = self._momentum.pz_lm_1.copy()
+        self._compact_transitions = (
+            self._build_compact_transitions()
+            if representation.uses_compact_angular_storage
+            else None
+        )
 
     def apply(self, state: np.ndarray) -> np.ndarray:
         """Return the field-independent coordinate action."""
@@ -141,6 +146,8 @@ class AxialCoordinateDipole:
         return self._apply_values(values)
 
     def _apply_values(self, values: np.ndarray) -> np.ndarray:
+        if self.representation.uses_compact_angular_storage:
+            return self._apply_compact(values)
         batched = self._as_radial_angular_batch(values)
         if self.gauge == "length":
             angular = np.matmul(batched, self.cos_theta.T)
@@ -148,6 +155,63 @@ class AxialCoordinateDipole:
         else:
             result = -self.coupling * self._momentum.pz(batched)
         return self._from_radial_angular_batch(result)
+
+    def _build_compact_transitions(self):
+        pair_basis = self.representation.angular_pairs
+        transitions = [[] for _ in pair_basis.pairs]
+        angular_nonzero = tuple(
+            np.flatnonzero(
+                (self._momentum.pz_lm_1[:, input_] != 0.0)
+                | (self._momentum.pz_lm_2[:, input_] != 0.0)
+            )
+            for input_ in range(self.basis.n_channels)
+        )
+        for input_pair, (in1, in2) in enumerate(pair_basis.pairs):
+            angular_input = in1 if self.coordinate == 1 else in2
+            for angular_output in angular_nonzero[angular_input]:
+                if self.coordinate == 1:
+                    output_pair = pair_basis.get(int(angular_output), in2)
+                else:
+                    output_pair = pair_basis.get(in1, int(angular_output))
+                if output_pair is None:
+                    continue
+                transitions[output_pair].append(
+                    (
+                        input_pair,
+                        self._momentum.pz_lm_1[angular_output, angular_input],
+                        self._momentum.pz_lm_2[angular_output, angular_input],
+                    )
+                )
+        return tuple(tuple(row) for row in transitions)
+
+    def _apply_compact(self, values: np.ndarray) -> np.ndarray:
+        dtype = np.result_type(
+            values.dtype,
+            complex if self.gauge == "velocity" else float,
+        )
+        result = np.zeros(values.shape, dtype=dtype)
+        if self.gauge == "length":
+            for output, transitions in enumerate(self._compact_transitions):
+                for input_, angular1, _ in transitions:
+                    result[output] += angular1 * values[input_]
+            if self.coordinate == 1:
+                result *= self.grid.r[None, :, None]
+            else:
+                result *= self.grid.r[None, None, :]
+            return -self.coupling * result
+
+        if self.coordinate == 1:
+            derivative = np.matmul(self._momentum.D1_tilde, values)
+            divided = self.grid.r[None, :, None] ** -1 * values
+        else:
+            derivative = np.matmul(values, self._momentum.D1_tilde.T)
+            divided = self.grid.r[None, None, :] ** -1 * values
+        for output, transitions in enumerate(self._compact_transitions):
+            for input_, angular1, angular2 in transitions:
+                result[output] += (
+                    angular1 * derivative[input_] - angular2 * divided[input_]
+                )
+        return 1j * self.coupling * result
 
     __call__ = apply
 

@@ -13,13 +13,14 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from .angular import AngularBasisSpec, CoulombMultipoleSpec
+from .angular import AngularBasisSpec, AngularPairBasis, CoulombMultipoleSpec
 from .grids import FEMDVRGridSpec, RadialGrid, RadialGridSpec, RadialSincDVRGridSpec
 from .system import TwoRadialSystem
 
 
 _FORMAT_NAME = "grid-tdse-two-radial-state"
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
+_SUPPORTED_FORMAT_VERSIONS = {1, 2}
 _REQUIRED_ARRAYS = {
     "state",
     "radial_points1",
@@ -94,6 +95,12 @@ class TwoRadialState:
         )
 
     @property
+    def M_tot(self) -> int | None:
+        """Stored total magnetic sector, or ``None`` for full storage."""
+
+        return self.metadata["representation"].get("M_tot")
+
+    @property
     def representation_id(self) -> str:
         return self.metadata["representation_id"]
 
@@ -134,6 +141,8 @@ class TwoRadialState:
             representation.basis1.states,
             allow_superset=allow_angular_superset,
         )
+        if not allow_angular_superset and self.M_tot != representation.M_tot:
+            raise ValueError("M_tot storage sector does not match")
         _validate_angular_basis(
             "coordinate 2",
             self.angular_states2,
@@ -156,9 +165,21 @@ class TwoRadialState:
         map1 = [representation.basis1.index(*state) for state in states1]
         map2 = [representation.basis2.index(*state) for state in states2]
         result = np.zeros(representation.psi_shape, dtype=self.coefficients.dtype)
-        for source1, target1 in enumerate(map1):
-            for source2, target2 in enumerate(map2):
-                result[target1, target2] = self.coefficients[source1, source2]
+        source_pairs = AngularPairBasis(self.basis1, self.basis2, self.M_tot)
+        for source_pair, (source1, source2) in enumerate(source_pairs.pairs):
+            target1 = map1[source1]
+            target2 = map2[source2]
+            target_pair = representation.angular_pairs.get(target1, target2)
+            if target_pair is None:
+                raise ValueError(
+                    "target representation does not retain all stored angular pairs"
+                )
+            block = (
+                self.coefficients[source_pair]
+                if source_pairs.is_compact
+                else self.coefficients[source1, source2]
+            )
+            representation.set_angular_block(result, target1, target2, block)
         return result
 
 
@@ -335,7 +356,7 @@ def two_radial_compatibility_metadata(
 
 
 def _representation_metadata(representation: TwoRadialSystem) -> dict[str, Any]:
-    return {
+    metadata = {
         "coordinate1": {
             "grid": _grid_metadata(representation.grid1),
             "angular_basis": _basis_metadata(representation.basis1),
@@ -350,6 +371,9 @@ def _representation_metadata(representation: TwoRadialSystem) -> dict[str, Any]:
             "lambda_parity": representation.multipoles.lambda_parity,
         },
     }
+    if representation.M_tot is not None:
+        metadata["M_tot"] = representation.M_tot
+    return metadata
 
 
 def _grid_metadata(grid: RadialGrid) -> dict[str, Any]:
@@ -405,7 +429,7 @@ def _validate_archive_contents(state: TwoRadialState) -> None:
         raise TypeError("state archive metadata must be a dictionary")
     if metadata.get("format") != _FORMAT_NAME:
         raise ValueError("file is not a grid-tdse two-radial state archive")
-    if metadata.get("format_version") != _FORMAT_VERSION:
+    if metadata.get("format_version") not in _SUPPORTED_FORMAT_VERSIONS:
         raise ValueError(
             "unsupported two-radial state archive format version: "
             f"{metadata.get('format_version')!r}"
@@ -421,8 +445,14 @@ def _validate_archive_contents(state: TwoRadialState) -> None:
             raise ValueError(f"state archive metadata is missing {name!r}")
 
     coefficients = np.asarray(state.coefficients)
-    if coefficients.ndim != 4:
-        raise ValueError("stored state must be a four-dimensional array")
+    representation = metadata["representation"]
+    M_tot = representation.get("M_tot")
+    expected_ndim = 3 if M_tot is not None else 4
+    if coefficients.ndim != expected_ndim:
+        raise ValueError(
+            f"stored state must be a {expected_ndim}-dimensional array for "
+            f"M_tot={M_tot!r}"
+        )
     if not np.issubdtype(coefficients.dtype, np.number):
         raise TypeError("stored state must contain numeric values")
     if not np.isfinite(coefficients).all():
@@ -448,14 +478,16 @@ def _validate_archive_contents(state: TwoRadialState) -> None:
             raise ValueError(
                 f"stored coordinate {coordinate} angular states contain duplicates"
             )
-        expected_angular = coefficients.shape[coordinate - 1]
-        expected_radial = coefficients.shape[coordinate + 1]
-        if angular.shape[0] != expected_angular or points.size != expected_radial:
+        expected_radial = (
+            coefficients.shape[coordinate]
+            if M_tot is not None
+            else coefficients.shape[coordinate + 1]
+        )
+        if points.size != expected_radial:
             raise ValueError(
                 f"stored coordinate {coordinate} arrays do not match state shape"
             )
 
-    representation = metadata["representation"]
     for coordinate, angular in (
         ("coordinate1", state.angular_states1),
         ("coordinate2", state.angular_states2),
@@ -466,6 +498,29 @@ def _validate_archive_contents(state: TwoRadialState) -> None:
                 f"stored {coordinate} angular array disagrees with metadata"
             )
         _grid_specification(representation[coordinate]["grid"])
+    pair_basis = AngularPairBasis(
+        _angular_basis(representation["coordinate1"]["angular_basis"]),
+        _angular_basis(representation["coordinate2"]["angular_basis"]),
+        M_tot,
+    )
+    expected_shape = (
+        (
+            pair_basis.n_pairs,
+            state.radial_points1.size,
+            state.radial_points2.size,
+        )
+        if pair_basis.is_compact
+        else (
+            state.angular_states1.shape[0],
+            state.angular_states2.shape[0],
+            state.radial_points1.size,
+            state.radial_points2.size,
+        )
+    )
+    if coefficients.shape != expected_shape:
+        raise ValueError(
+            f"stored state has shape {coefficients.shape}; expected {expected_shape}"
+        )
     _ = state.multipoles
 
 

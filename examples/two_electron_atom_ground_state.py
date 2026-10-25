@@ -10,6 +10,9 @@ radial_grid = FEMDVRGridSpec(
     n_points=[11, 11, 11, 11, 11],
 )
 
+# Retain only m1 + m2 = M_tot. Use None for the full legacy representation.
+M_tot = 0
+
 calculation = TwoElectronAtomGroundState(
     "He",  # Use "Be2+" for the beryllium dication.
     grid=radial_grid,
@@ -21,6 +24,7 @@ calculation = TwoElectronAtomGroundState(
     m_max=2,
     lambda_max=4,
     mu_max=4,
+    M_tot=M_tot,
     # Deterministic symmetry-adapted product-state guess.
     initial_state="product",
     # Imaginary-time Crank--Nicolson iteration.
