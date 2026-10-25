@@ -12,6 +12,7 @@ INVERSION_PARITY = +1
 PAIR_EXCHANGE_PARITY = +1
 INITIAL_STATE = "product"
 STATE_TOLERANCE = 1.0e-8
+RADIAL_COULOMB_METHOD = "poisson"
 
 # The electron coordinate is measured from the nuclear center of mass.
 electronic_grid = FEMDVRGridSpec(
@@ -66,6 +67,7 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     lambda_max=2*l_max,
     mu_max=2*l_max,
     M_tot=M_tot,
+    radial_coulomb_method=RADIAL_COULOMB_METHOD,
     # Reproducible particle masses and deterministic product-state guess.
     codata_set="2022",
     initial_state=INITIAL_STATE,

@@ -25,6 +25,7 @@ def _calculation(
     initial_state="product",
     max_iterations=1,
     M_tot=None,
+    radial_coulomb_method="poisson",
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -39,6 +40,7 @@ def _calculation(
         lambda_max=4,
         mu_max=4,
         M_tot=M_tot,
+        radial_coulomb_method=radial_coulomb_method,
         codata_set="2022",
         initial_state=initial_state,
         time_step=0.05,
@@ -126,6 +128,21 @@ def test_homonuclear_system_uses_reduced_coordinate_bases_and_even_multipoles():
     assert calculation.parameters.reference_center_scale == pytest.approx(-0.5)
     assert calculation.parameters.partner_center_scale == pytest.approx(0.5)
     assert calculation.parameters.electronic_reduced_mass < 1.0
+
+
+@pytest.mark.parametrize(
+    ("method", "representation"),
+    [("poisson", "femdvr-poisson"), ("analytic", "analytic")],
+)
+def test_femdvr_radial_coulomb_method_is_exposed(method, representation):
+    calculation = _calculation(radial_coulomb_method=method)
+
+    assert calculation.radial_coulomb_method == method
+    assert calculation.specification.radial_coulomb_method == method
+    assert (
+        calculation.representation.radial_multipoles.representation
+        == representation
+    )
 
 
 def test_hd_rejects_pair_exchange_parity_and_uses_full_coordinate_bases():
