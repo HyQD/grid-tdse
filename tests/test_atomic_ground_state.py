@@ -223,6 +223,7 @@ def test_atomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.physical_state["parameters"]["nuclear_charge"] == 2.0
     assert stored.physical_state["symmetry"]["spin_multiplicity"] == 1
     assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["radial_operator_mode"] == "global"
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
     )

@@ -27,6 +27,7 @@ from .preconditioner import TwoRadialRealTimePreconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
 from .system import (
     CoordinateSpec,
+    RadialOperatorMode,
     TwoRadialSystemSpec,
     radial_potential,
 )
@@ -81,6 +82,7 @@ class _TwoRadialTDSE:
         checkpoint_overwrite: bool,
         checkpoint_metadata: Mapping[str, Any] | None,
         progress_interval: int | None,
+        radial_operator_mode: RadialOperatorMode,
         tile_size: int,
     ) -> None:
         if integrator not in self._INTEGRATORS:
@@ -98,8 +100,10 @@ class _TwoRadialTDSE:
         self.field_gauge = _field_gauge(field_gauge)
         self.fields, field_metadata = _axial_fields(fields, self.field_gauge)
         self.field_free_hamiltonian = self.representation.hamiltonian(
-            tile_size=tile_size
+            tile_size=tile_size,
+            radial_operator_mode=radial_operator_mode,
         )
+        self.radial_operator_mode = radial_operator_mode
         self.dipole_interaction = (
             self._build_dipole_interaction(self.fields) if self.fields else None
         )
@@ -146,6 +150,7 @@ class _TwoRadialTDSE:
             "integrator": self.integrator,
             "integrator_options": _json_value(self.integrator_options),
             "absorbing_boundaries": self.absorbing_boundaries.metadata,
+            "radial_operator_mode": self.radial_operator_mode,
         }
         self.samplers = self._prepare_samplers(observables, samplers)
 
@@ -309,6 +314,7 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         checkpoint_overwrite: bool = False,
         checkpoint_metadata: Mapping[str, Any] | None = None,
         progress_interval: int | None = 10,
+        radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
         _validate_absorber_pair(mask, cap, "atomic radial coordinate")
@@ -371,6 +377,7 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             checkpoint_overwrite=checkpoint_overwrite,
             checkpoint_metadata=checkpoint_metadata,
             progress_interval=progress_interval,
+            radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
         )
 
@@ -384,6 +391,7 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             self.parameters,
             gauge=self.field_gauge if gauge is None else gauge,
             fields=fields,
+            radial_operator_mode=self.radial_operator_mode,
         )
 
     def _physical_state_metadata(self):
@@ -430,6 +438,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         checkpoint_overwrite: bool = False,
         checkpoint_metadata: Mapping[str, Any] | None = None,
         progress_interval: int | None = 10,
+        radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
         _validate_absorber_pair(mask_r, cap_r, "electronic coordinate r")
@@ -524,6 +533,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             checkpoint_overwrite=checkpoint_overwrite,
             checkpoint_metadata=checkpoint_metadata,
             progress_interval=progress_interval,
+            radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
         )
 
@@ -537,6 +547,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             self.parameters,
             gauge=self.field_gauge if gauge is None else gauge,
             fields=fields,
+            radial_operator_mode=self.radial_operator_mode,
         )
 
     def _physical_state_metadata(self):

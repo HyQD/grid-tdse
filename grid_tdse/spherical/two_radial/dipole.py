@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 from grid_lib.spherical_coordinates.momentum_operators import MomentumOperators
 
-from .system import TwoRadialSystem
+from .system import RadialOperatorMode, TwoRadialSystem
 
 
 DipoleGauge = Literal["length", "velocity"]
@@ -91,6 +91,7 @@ class AxialCoordinateDipole:
         *,
         gauge: DipoleGauge,
         coupling: float,
+        radial_operator_mode: RadialOperatorMode = "global",
     ) -> None:
         if coordinate not in (1, 2):
             raise ValueError("coordinate must be 1 or 2")
@@ -98,6 +99,7 @@ class AxialCoordinateDipole:
         self.coordinate = coordinate
         self.gauge = _gauge(gauge)
         self.coupling = _finite_real(coupling, "coupling")
+        self.radial_operator_mode = _radial_operator_mode(radial_operator_mode)
 
         if coordinate == 1:
             grid = representation.grid1
@@ -152,6 +154,13 @@ class AxialCoordinateDipole:
         if self.gauge == "length":
             angular = np.matmul(batched, self.cos_theta.T)
             result = -self.coupling * self.grid.r[None, :, None] * angular
+        elif self.radial_operator_mode == "element-local":
+            derivative = self.grid.apply_local_first_derivative(batched, axis=1)
+            derivative -= self.grid.r[None, :, None] ** -1 * batched
+            result = np.matmul(derivative, self._momentum.pz_lm_1.T)
+            divided = self.grid.r[None, :, None] ** -1 * batched
+            result -= np.matmul(divided, self._momentum.pz_lm_2.T)
+            result *= 1j * self.coupling
         else:
             result = -self.coupling * self._momentum.pz(batched)
         return self._from_radial_angular_batch(result)
@@ -201,11 +210,19 @@ class AxialCoordinateDipole:
             return -self.coupling * result
 
         if self.coordinate == 1:
-            derivative = np.matmul(self._momentum.D1_tilde, values)
             divided = self.grid.r[None, :, None] ** -1 * values
+            if self.radial_operator_mode == "element-local":
+                derivative = self.grid.apply_local_first_derivative(values, axis=-2)
+                derivative -= divided
+            else:
+                derivative = np.matmul(self._momentum.D1_tilde, values)
         else:
-            derivative = np.matmul(values, self._momentum.D1_tilde.T)
             divided = self.grid.r[None, None, :] ** -1 * values
+            if self.radial_operator_mode == "element-local":
+                derivative = self.grid.apply_local_first_derivative(values, axis=-1)
+                derivative -= divided
+            else:
+                derivative = np.matmul(values, self._momentum.D1_tilde.T)
         for output, transitions in enumerate(self._compact_transitions):
             for input_, angular1, angular2 in transitions:
                 result[output] += (
@@ -250,12 +267,14 @@ class TwoRadialAxialDipoleInteraction:
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
         couplings: AxialDipoleCouplings,
+        radial_operator_mode: RadialOperatorMode = "global",
     ) -> None:
         self.representation = representation
         self.gauge = _gauge(gauge)
         if not isinstance(couplings, AxialDipoleCouplings):
             raise TypeError("couplings must be an AxialDipoleCouplings")
         self.couplings = couplings
+        self.radial_operator_mode = _radial_operator_mode(radial_operator_mode)
         self.fields = _field_profiles(fields, self.gauge)
         coordinate_operators = []
         for coordinate, coupling in (
@@ -269,6 +288,7 @@ class TwoRadialAxialDipoleInteraction:
                         coordinate,
                         gauge=self.gauge,
                         coupling=coupling,
+                        radial_operator_mode=self.radial_operator_mode,
                     )
                 )
         if not coordinate_operators:
@@ -283,6 +303,7 @@ class TwoRadialAxialDipoleInteraction:
         *,
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
+        radial_operator_mode: RadialOperatorMode = "global",
     ) -> "TwoRadialAxialDipoleInteraction":
         """Construct the interaction for an infinite-mass two-electron atom."""
 
@@ -293,6 +314,7 @@ class TwoRadialAxialDipoleInteraction:
             couplings=AxialDipoleCouplings.for_two_electron_atom(
                 parameters, gauge
             ),
+            radial_operator_mode=radial_operator_mode,
         )
 
     @classmethod
@@ -303,6 +325,7 @@ class TwoRadialAxialDipoleInteraction:
         *,
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
+        radial_operator_mode: RadialOperatorMode = "global",
     ) -> "TwoRadialAxialDipoleInteraction":
         """Construct the interaction for non-BO diatomic Jacobi coordinates."""
 
@@ -311,6 +334,7 @@ class TwoRadialAxialDipoleInteraction:
             gauge=gauge,
             fields=fields,
             couplings=AxialDipoleCouplings.for_diatomic_ion(parameters, gauge),
+            radial_operator_mode=radial_operator_mode,
         )
 
     def field_amplitude(self, time: float) -> float:
@@ -384,6 +408,14 @@ def _state_array(state, expected_shape: tuple[int, ...]) -> np.ndarray:
 def _gauge(value: str) -> DipoleGauge:
     if value not in ("length", "velocity"):
         raise ValueError("gauge must be 'length' or 'velocity'")
+    return value
+
+
+def _radial_operator_mode(value: str) -> RadialOperatorMode:
+    if value not in ("global", "element-local"):
+        raise ValueError(
+            "radial_operator_mode must be 'global' or 'element-local'"
+        )
     return value
 
 

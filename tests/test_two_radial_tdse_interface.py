@@ -164,6 +164,43 @@ def test_diatomic_interface_embeds_field_free_symmetry_archive(tmp_path):
     ).real == pytest.approx(1.0)
 
 
+def test_diatomic_tdse_exposes_element_local_radial_action(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    common = dict(
+        system="H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        l_max=1,
+        m_max=1,
+        lambda_max=2,
+        mu_max=2,
+        M_tot=0,
+        final_time=0.01,
+        time_step=0.01,
+        integrator_options={"preconditioner": False},
+    )
+    global_calculation = NonBornOppenheimerDiatomicIonTDSE(
+        **common, radial_operator_mode="global"
+    )
+    local_calculation = NonBornOppenheimerDiatomicIonTDSE(
+        **common, radial_operator_mode="element-local"
+    )
+
+    assert local_calculation.radial_operator_mode == "element-local"
+    assert (
+        local_calculation.dynamics_metadata["radial_operator_mode"]
+        == "element-local"
+    )
+    np.testing.assert_allclose(
+        local_calculation.field_free_hamiltonian(local_calculation.initial_state),
+        global_calculation.field_free_hamiltonian(global_calculation.initial_state),
+        atol=3.0e-12,
+        rtol=3.0e-13,
+    )
+
+
 def test_diatomic_archive_requires_matching_codata_set(tmp_path):
     archived = _archived_h2p_state(tmp_path, codata_set="2022")
     with pytest.raises(ValueError, match="CODATA set"):

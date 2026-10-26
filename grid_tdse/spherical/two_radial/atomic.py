@@ -22,6 +22,7 @@ from .observables import (
 from .preconditioner import TwoRadialOneBodyPreconditioner, weighted_eigenstates
 from .system import (
     CoordinateSpec,
+    RadialOperatorMode,
     TwoRadialSystem,
     TwoRadialSystemSpec,
     radial_potential,
@@ -58,6 +59,7 @@ class TwoElectronAtomGroundStateResult:
     inversion_expectation: float
     electron_exchange_expectation: float
     spin_multiplicity: int
+    radial_operator_mode: RadialOperatorMode = "global"
 
     @property
     def state(self) -> np.ndarray:
@@ -116,6 +118,7 @@ class TwoElectronAtomGroundStateResult:
             },
             calculation={
                 "method": "imaginary_time_propagation",
+                "radial_operator_mode": self.radial_operator_mode,
                 "energy": self.energy,
                 "norm": self.ground_state.norm,
                 "converged": self.converged,
@@ -187,6 +190,7 @@ class TwoElectronAtomGroundState:
         gmres_restart: int | None = None,
         progress_interval: int | None = 10,
         use_preconditioner: bool = True,
+        radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
         self.parameters = _atomic_parameters(atom)
@@ -227,6 +231,7 @@ class TwoElectronAtomGroundState:
         if self.mu_max > 2 * self.m_max:
             raise ValueError("mu_max must not exceed 2*m_max")
         self.M_tot = M_tot
+        self.radial_operator_mode = radial_operator_mode
 
         basis = AngularBasisSpec(self.l_max, self.m_max)
         coordinate = CoordinateSpec(
@@ -255,7 +260,10 @@ class TwoElectronAtomGroundState:
         )
         self.specification = specification
         self.representation = specification.build()
-        self.hamiltonian = self.representation.hamiltonian(tile_size=tile_size)
+        self.hamiltonian = self.representation.hamiltonian(
+            tile_size=tile_size,
+            radial_operator_mode=radial_operator_mode,
+        )
         self.solver = ImaginaryTimeGroundStateSolver(
             time_step=time_step,
             max_iterations=max_iterations,
@@ -313,6 +321,7 @@ class TwoElectronAtomGroundState:
                 ground_state.state
             ),
             spin_multiplicity=self.spin_multiplicity,
+            radial_operator_mode=self.radial_operator_mode,
         )
 
     __call__ = solve

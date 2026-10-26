@@ -33,6 +33,7 @@ from .preconditioner import (
 )
 from .system import (
     CoordinateSpec,
+    RadialOperatorMode,
     TwoRadialSystem,
     TwoRadialSystemSpec,
     radial_potential,
@@ -95,6 +96,7 @@ class DiatomicIonGroundStateResult:
     angular_momentum: AngularMomentumExpectations
     inversion_expectation: float
     pair_exchange_expectation: float | None
+    radial_operator_mode: RadialOperatorMode = "global"
 
     @property
     def state(self) -> np.ndarray:
@@ -154,6 +156,7 @@ class DiatomicIonGroundStateResult:
             },
             calculation={
                 "method": "imaginary_time_propagation",
+                "radial_operator_mode": self.radial_operator_mode,
                 "energy": self.energy,
                 "norm": self.ground_state.norm,
                 "converged": self.converged,
@@ -225,6 +228,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         gmres_restart: int | None = None,
         progress_interval: int | None = 10,
         use_preconditioner: bool = True,
+        radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
         self.parameters = _diatomic_parameters(system, codata_set)
@@ -282,6 +286,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
             raise ValueError("mu_max must not exceed 2*m_max")
         self.M_tot = M_tot
         self.radial_coulomb_method = radial_coulomb_method
+        self.radial_operator_mode = radial_operator_mode
 
         electron_parity, pair_parity = self._coordinate_parities()
         electron_basis = AngularBasisSpec(
@@ -333,7 +338,10 @@ class NonBornOppenheimerDiatomicIonGroundState:
         )
         self.specification = specification
         self.representation = specification.build()
-        self.hamiltonian = self.representation.hamiltonian(tile_size=tile_size)
+        self.hamiltonian = self.representation.hamiltonian(
+            tile_size=tile_size,
+            radial_operator_mode=radial_operator_mode,
+        )
 
         self.solver = ImaginaryTimeGroundStateSolver(
             time_step=time_step,
@@ -394,6 +402,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 if self.parameters.has_identical_pair
                 else None
             ),
+            radial_operator_mode=self.radial_operator_mode,
         )
 
     __call__ = solve
