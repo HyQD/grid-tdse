@@ -13,6 +13,7 @@ PAIR_EXCHANGE_PARITY = +1
 INITIAL_STATE = "product"
 STATE_TOLERANCE = 1.0e-8
 RADIAL_COULOMB_METHOD = "poisson"
+RADIAL_OPERATOR_MODE = "element-local"
 
 # The electron coordinate is measured from the nuclear center of mass.
 electronic_grid = FEMDVRGridSpec(
@@ -68,6 +69,7 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     mu_max=2*l_max,
     M_tot=M_tot,
     radial_coulomb_method=RADIAL_COULOMB_METHOD,
+    radial_operator_mode=RADIAL_OPERATOR_MODE,
     # Reproducible particle masses and deterministic product-state guess.
     codata_set="2022",
     initial_state=INITIAL_STATE,

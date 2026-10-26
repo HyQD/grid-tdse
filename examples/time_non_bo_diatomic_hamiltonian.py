@@ -117,6 +117,14 @@ def parse_arguments():
         help="radial tile size used by the optimized Coulomb action",
     )
     parser.add_argument(
+        "--radial-operator-mode",
+        choices=("global", "element-local"),
+        default="element-local",
+        help=(
+            "radial one-body action; 'global' retains the dense reference path"
+        ),
+    )
+    parser.add_argument(
         "--repeats",
         type=int,
         default=10,
@@ -314,6 +322,7 @@ calculation = NonBornOppenheimerDiatomicIonTDSE(
     M_tot=0,
     codata_set="2022",
     radial_coulomb_method="poisson",
+    radial_operator_mode=args.radial_operator_mode,
     integrator="crank-nicolson",
     integrator_options={"preconditioner": False},
     initial_time=0.0,
@@ -336,24 +345,12 @@ state = calculation.initial_state.copy()
 state /= np.sqrt(representation.inner_product(state, state).real)
 hamiltonian = calculation.field_free_hamiltonian
 
-pair_channels_r = np.asarray(
-    [channel_r for channel_r, _ in representation.angular_pairs.pairs]
-)
-pair_channels_R = np.asarray(
-    [channel_R for _, channel_R in representation.angular_pairs.pairs]
-)
-one_body_r_pairs = np.ascontiguousarray(representation.h1[pair_channels_r])
-one_body_R_pairs_transpose = np.ascontiguousarray(
-    representation.h2[pair_channels_R].transpose(0, 2, 1)
-)
-
-
 def apply_one_body_r():
-    return np.matmul(one_body_r_pairs, state)
+    return hamiltonian.apply_one_body_coordinate1(state)
 
 
 def apply_one_body_R():
-    return np.matmul(state, one_body_R_pairs_transpose)
+    return hamiltonian.apply_one_body_coordinate2(state)
 
 
 def apply_coulomb():
@@ -370,12 +367,14 @@ length_interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
     calculation.parameters,
     gauge="length",
     fields=(unit_field,),
+    radial_operator_mode=args.radial_operator_mode,
 )
 velocity_interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
     representation,
     calculation.parameters,
     gauge="velocity",
     fields=(unit_field,),
+    radial_operator_mode=args.radial_operator_mode,
 )
 
 
@@ -490,6 +489,7 @@ print(f"Retained angular pairs:         {representation.angular_pairs.n_pairs}")
 print(f"Complex state shape:            {state.shape}")
 print(f"Complex state size:             {state.nbytes / 2**20:.3f} MiB")
 print(f"Poisson Coulomb tile size:      {args.tile_size}")
+print(f"Radial operator mode:           {args.radial_operator_mode}")
 print(f"Numba threads:                  {get_num_threads()}")
 print(f"Timed repetitions:              {args.repeats}")
 print(f"Timed CN repetitions:           {args.cn_repeats}")

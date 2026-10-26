@@ -1,7 +1,7 @@
 """Preparation of grid and angular data for two-radial Hamiltonians."""
 
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Callable, Literal, Protocol
 
 import numpy as np
 
@@ -14,6 +14,9 @@ from .coulomb import (
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
 from .grids import RadialGrid, RadialGridSpec, require_same_grid_family
+
+
+RadialOperatorMode = Literal["global", "element-local"]
 
 
 class RadialDiagonalTerm(Protocol):
@@ -55,19 +58,40 @@ class CoordinateSpec:
     def build_grid(self) -> RadialGrid:
         return self.grid.build(self.basis.l_max)
 
-    def build_one_body_operator(self, grid: RadialGrid | None = None) -> np.ndarray:
+    def build_one_body_diagonal(
+        self, grid: RadialGrid | None = None
+    ) -> np.ndarray:
+        """Return centrifugal and potential terms for every angular channel."""
+
         grid = self.build_grid() if grid is None else grid
+        diagonal = np.empty((self.basis.n_channels, grid.n_points), dtype=float)
+        for channel, (l, m) in enumerate(self.basis.states):
+            values = -self.kinetic_prefactor * l * (l + 1) / grid.r**2
+            for term in self.one_body_terms:
+                values = values + term.diagonal(l, m, grid)
+            diagonal[channel] = values
+        return diagonal
+
+    def build_one_body_operator(
+        self,
+        grid: RadialGrid | None = None,
+        diagonal: np.ndarray | None = None,
+    ) -> np.ndarray:
+        grid = self.build_grid() if grid is None else grid
+        if diagonal is None:
+            diagonal = self.build_one_body_diagonal(grid)
+        diagonal = np.asarray(diagonal)
+        expected_shape = (self.basis.n_channels, grid.n_points)
+        if diagonal.shape != expected_shape:
+            raise ValueError(
+                f"diagonal has shape {diagonal.shape}; expected {expected_shape}"
+            )
         operator = np.zeros(
             (self.basis.n_channels, grid.n_points, grid.n_points), dtype=float
         )
-        for channel, (l, m) in enumerate(self.basis.states):
-            radial_laplacian = grid.second_derivative(l) - np.diag(
-                l * (l + 1) / grid.r**2
-            )
-            block = self.kinetic_prefactor * radial_laplacian
-            for term in self.one_body_terms:
-                block = block + np.diag(term.diagonal(l, m, grid))
-            operator[channel] = block
+        for channel, (l, _) in enumerate(self.basis.states):
+            operator[channel] = self.kinetic_prefactor * grid.second_derivative(l)
+            operator[channel] += np.diag(diagonal[channel])
         return operator
 
 
@@ -90,6 +114,8 @@ class TwoRadialSystemSpec:
         grid1 = self.coordinate1.build_grid()
         grid2 = self.coordinate2.build_grid()
         require_same_grid_family(grid1, grid2)
+        h1_diagonal = self.coordinate1.build_one_body_diagonal(grid1)
+        h2_diagonal = self.coordinate2.build_one_body_diagonal(grid2)
         radial_multipoles = build_radial_coulomb_multipoles(
             grid1,
             grid2,
@@ -114,11 +140,15 @@ class TwoRadialSystemSpec:
             basis1=self.coordinate1.basis,
             basis2=self.coordinate2.basis,
             angular_pairs=angular_pairs,
-            h1=self.coordinate1.build_one_body_operator(grid1),
-            h2=self.coordinate2.build_one_body_operator(grid2),
+            h1=self.coordinate1.build_one_body_operator(grid1, h1_diagonal),
+            h2=self.coordinate2.build_one_body_operator(grid2, h2_diagonal),
             multipoles=self.multipoles,
             radial_multipoles=radial_multipoles,
             couplings=couplings,
+            kinetic_prefactor1=self.coordinate1.kinetic_prefactor,
+            kinetic_prefactor2=self.coordinate2.kinetic_prefactor,
+            h1_diagonal=h1_diagonal,
+            h2_diagonal=h2_diagonal,
         )
 
 
@@ -136,6 +166,10 @@ class TwoRadialSystem:
     radial_multipoles: RadialCoulombMultipoles
     couplings: CoulombCouplings
     angular_pairs: AngularPairBasis | None = None
+    kinetic_prefactor1: float | None = None
+    kinetic_prefactor2: float | None = None
+    h1_diagonal: np.ndarray | None = None
+    h2_diagonal: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         angular_pairs = self.angular_pairs
@@ -245,7 +279,12 @@ class TwoRadialSystem:
             result[i, j] = values[pair]
         return result
 
-    def hamiltonian(self, *, tile_size: int = 2048):
+    def hamiltonian(
+        self,
+        *,
+        tile_size: int = 2048,
+        radial_operator_mode: RadialOperatorMode = "global",
+    ):
         from .hamiltonian import TwoRadialHamiltonian
 
         return TwoRadialHamiltonian(
@@ -254,6 +293,13 @@ class TwoRadialSystem:
             self.radial_multipoles,
             self.couplings,
             angular_pairs=self.angular_pairs,
+            grid1=self.grid1,
+            grid2=self.grid2,
+            kinetic_prefactor1=self.kinetic_prefactor1,
+            kinetic_prefactor2=self.kinetic_prefactor2,
+            h1_diagonal=self.h1_diagonal,
+            h2_diagonal=self.h2_diagonal,
+            radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
         )
 

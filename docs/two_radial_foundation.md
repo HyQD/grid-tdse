@@ -26,6 +26,24 @@ Two grid families are supported:
 Both coordinates must use the same grid family. Their extents and point
 counts may differ.
 
+### FEM-DVR radial operator actions
+
+`TwoRadialSystem.hamiltonian()` accepts
+`radial_operator_mode="global"` or `"element-local"`. The global mode uses the
+existing dense radial derivative matrices and remains the default reference
+path. The element-local mode uses the finite-element maps and local stiffness
+actions supplied by `grid-lib`, inserts the omitted homogeneous Dirichlet
+boundary values, and scatter-adds the element contributions without applying
+a dense global radial matrix.
+
+The centrifugal and other one-coordinate potentials remain diagonal in the
+radial DVR. Both modes use the same optimized Coulomb action and produce the
+same physical Hamiltonian. In velocity gauge, the same selection also applies
+the radial first derivative in the dipole interaction element by element.
+Length-gauge multiplication and the Coulomb action are already radial-local.
+Element-local mode currently requires FEM-DVR; radial sinc-DVR calculations
+must use global mode.
+
 ## Angular specifications
 
 `AngularBasisSpec` defines the coordinate quantum numbers $l$ and $m$.
@@ -194,7 +212,7 @@ system = TwoRadialSystemSpec(
     M_tot=0,
 ).build()
 
-hamiltonian = system.hamiltonian()
+hamiltonian = system.hamiltonian(radial_operator_mode="global")
 ```
 
 The atomic and molecular-ion interfaces own physical validation, particle
