@@ -45,10 +45,74 @@ necessary so that `final_time` is reached exactly.
 The Hamiltonian callable must be linear in its state argument. For a field-free
 Hamiltonian, its time argument can simply be ignored.
 
-Two-radial FEM-DVR calculations can use
-`TwoRadialRealTimePreconditioner`. It approximates the real-time
-Crank--Nicolson inverse with the separable one-coordinate Hamiltonians while
-omitting the Coulomb and explicitly time-dependent interactions.
+Two-radial FEM-DVR calculations provide several Crank--Nicolson
+preconditioners. All currently approximate the inverse of the separable
+one-coordinate part of the CN matrix. They omit the Coulomb interaction,
+external field, and CAP; those terms remain present in every Hamiltonian
+action and therefore in the converged solution.
+
+## Crank--Nicolson preconditioners
+
+For a CN matrix written as $A=I+i\Delta t H/2$, the available high-level
+selectors are:
+
+- `"spectral"`: the historical `TwoRadialRealTimePreconditioner`. It applies
+  the exact inverse of the separable one-body approximation by global weighted
+  eigenvector transforms in both coordinates. It is the serial reference and
+  remains the default, but its global transform in the partitioned coordinate
+  is unsuitable for a permanently distributed state.
+- `"diagonal"`: pointwise Jacobi using the diagonal of both one-coordinate
+  Hamiltonians. Its setup and action are local, but the weaker approximation
+  generally requires more Krylov iterations.
+- `"element-block-jacobi"`: non-overlapping blocks formed from FEM-DVR degree-
+  of-freedom ownership. Each block retains the full unpartitioned coordinate
+  and inverts the separable one-body approximation over its owned elements.
+- `"additive-schwarz"`: overlapping element neighborhoods. Local corrections
+  are combined with inverse-multiplicity weights, so the scatter weights form
+  a partition of unity.
+
+The element methods partition coordinate 2 by default. For a non-BO diatomic
+calculation this is the internuclear coordinate $R$, matching the planned MPI
+layout in which a rank owns an element-aligned $R$ interval but retains the
+full electronic coordinate $r$ and every local angular channel. A future MPI
+implementation will need only neighboring halo data for the overlapping
+method; the present implementation is serial and establishes the numerical
+algorithm and comparison baseline.
+
+Select a method through the CN integrator options:
+
+```python
+calculation = NonBornOppenheimerDiatomicIonTDSE(
+    # physical, grid, field, and time arguments omitted
+    integrator="crank-nicolson",
+    integrator_options={
+        "solver": "bicgstab",
+        "atol": 1.0e-10,
+        "preconditioner": "additive-schwarz",
+        "preconditioner_options": {
+            "partition_coordinate": 2,
+            "overlap_elements": 1,
+        },
+    },
+)
+```
+
+`preconditioner=True` is retained for backward compatibility and selects
+`"spectral"`; `False` or `None` disables preconditioning. The block-Jacobi
+method accepts `partition_coordinate`, while additive Schwarz also accepts
+`overlap_elements`. Unsupported method-specific options are rejected.
+
+The reproducible comparison driver
+[`non_bo_diatomic_cn_preconditioner.py`](../benchmarks/non_bo_diatomic_cn_preconditioner.py)
+reports setup time, CN solve time, Krylov iterations, Hamiltonian calls,
+residuals, norm changes, and final-state differences for every selected
+method. For example:
+
+```bash
+python benchmarks/non_bo_diatomic_cn_preconditioner.py \
+    --preconditioners spectral diagonal element-block-jacobi additive-schwarz none \
+    --partition-coordinate 2 --overlap-elements 1
+```
 
 ## Integrator selection
 
@@ -183,8 +247,8 @@ result = calculation.run(progress=True)
 
 The high-level `integrator` choices are `"crank-nicolson"`, `"sil"`, and
 `"sia"`. The `rtol` and `atol` entries control the selected method. CN accepts
-the additional `solver`, `max_iterations`, `restart`, and `preconditioner`
-options. SIL and SIA accept `max_krylov_dimension`, `max_refinements`,
+the additional `solver`, `max_iterations`, `restart`, `preconditioner`, and
+`preconditioner_options` options. SIL and SIA accept `max_krylov_dimension`, `max_refinements`,
 `reorthogonalize`, and `breakdown_tolerance`. Options belonging only to another
 method are rejected rather than silently ignored.
 
