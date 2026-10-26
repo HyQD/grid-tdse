@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 from importlib.metadata import PackageNotFoundError, version
 import json
@@ -15,7 +15,8 @@ import numpy as np
 
 
 _FORMAT_NAME = "grid-tdse-real-time-checkpoint"
-_FORMAT_VERSION = 1
+_FORMAT_VERSION = 2
+_SUPPORTED_FORMAT_VERSIONS = {1, 2}
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,24 @@ class RealTimeCheckpointSegment:
     samples: dict[str, np.ndarray]
     integrator: dict[str, Any]
     dynamics: dict[str, Any]
+    krylov_operator_calls: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=int)
+    )
+    krylov_accepted_substeps: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=int)
+    )
+    krylov_rejected_substeps: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=int)
+    )
+    krylov_refinement_depths: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=int)
+    )
+    krylov_dimensions: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=int)
+    )
+    krylov_error_estimates: np.ndarray = field(
+        default_factory=lambda: np.empty(0)
+    )
 
     def __post_init__(self) -> None:
         initial_time = _finite_real(self.initial_time, "segment initial time")
@@ -68,6 +87,36 @@ class RealTimeCheckpointSegment:
             "segment linear residual norms",
             ndim=1,
         )
+        integer_diagnostics = {
+            "krylov_operator_calls": np.asarray(self.krylov_operator_calls),
+            "krylov_accepted_substeps": np.asarray(
+                self.krylov_accepted_substeps
+            ),
+            "krylov_rejected_substeps": np.asarray(
+                self.krylov_rejected_substeps
+            ),
+            "krylov_refinement_depths": np.asarray(
+                self.krylov_refinement_depths
+            ),
+            "krylov_dimensions": np.asarray(self.krylov_dimensions),
+        }
+        n_steps = times.size - 1
+        integer_diagnostics = {
+            name: (
+                np.zeros(n_steps, dtype=int)
+                if values.size == 0 and n_steps
+                else values
+            )
+            for name, values in integer_diagnostics.items()
+        }
+        raw_krylov_errors = np.asarray(self.krylov_error_estimates)
+        if raw_krylov_errors.size == 0 and n_steps:
+            raw_krylov_errors = np.zeros(n_steps)
+        krylov_errors = _finite_real_array(
+            raw_krylov_errors,
+            "segment Krylov error estimates",
+            ndim=1,
+        )
         if times.size == 0:
             raise ValueError("checkpoint segment must contain an initial time")
         if norms.shape != times.shape:
@@ -88,11 +137,29 @@ class RealTimeCheckpointSegment:
                 "checkpoint segment linear residuals must contain one value per "
                 "completed step"
             )
+        for name, values in integer_diagnostics.items():
+            if values.ndim != 1 or values.size != times.size - 1:
+                raise ValueError(
+                    f"segment {name} must contain one value per completed step"
+                )
+            if not np.issubdtype(values.dtype, np.integer):
+                raise TypeError(f"segment {name} must contain integers")
+            if np.any(values < 0):
+                raise ValueError(f"segment {name} must be non-negative")
+        if krylov_errors.size != times.size - 1:
+            raise ValueError(
+                "segment Krylov error estimates must contain one value per "
+                "completed step"
+            )
         if np.any(norms < 0.0):
             raise ValueError("checkpoint segment norms must be non-negative")
         if np.any(residuals < 0.0):
             raise ValueError(
                 "checkpoint segment linear residual norms must be non-negative"
+            )
+        if np.any(krylov_errors < 0.0):
+            raise ValueError(
+                "checkpoint segment Krylov error estimates must be non-negative"
             )
         if not np.all(np.diff(times) > 0.0):
             raise ValueError("checkpoint segment times must be strictly increasing")
@@ -128,6 +195,13 @@ class RealTimeCheckpointSegment:
             self,
             "linear_residual_norms",
             _read_only_copy(residuals),
+        )
+        for name, values in integer_diagnostics.items():
+            object.__setattr__(self, name, _read_only_copy(values))
+        object.__setattr__(
+            self,
+            "krylov_error_estimates",
+            _read_only_copy(krylov_errors),
         )
         object.__setattr__(self, "samples", checked_samples)
         object.__setattr__(self, "initial_time", initial_time)
@@ -291,6 +365,22 @@ def save_real_time_checkpoint(
         arrays[f"{prefix}_linear_residual_norms"] = (
             segment.linear_residual_norms
         )
+        arrays[f"{prefix}_krylov_operator_calls"] = (
+            segment.krylov_operator_calls
+        )
+        arrays[f"{prefix}_krylov_accepted_substeps"] = (
+            segment.krylov_accepted_substeps
+        )
+        arrays[f"{prefix}_krylov_rejected_substeps"] = (
+            segment.krylov_rejected_substeps
+        )
+        arrays[f"{prefix}_krylov_refinement_depths"] = (
+            segment.krylov_refinement_depths
+        )
+        arrays[f"{prefix}_krylov_dimensions"] = segment.krylov_dimensions
+        arrays[f"{prefix}_krylov_error_estimates"] = (
+            segment.krylov_error_estimates
+        )
         sample_names = list(segment.samples)
         for sample_index, name in enumerate(sample_names):
             arrays[f"{prefix}_sample_{sample_index:04d}"] = segment.samples[name]
@@ -366,10 +456,11 @@ def load_real_time_checkpoint(
             ) from exc
         if archive_metadata.get("format") != _FORMAT_NAME:
             raise ValueError("file is not a grid-tdse real-time checkpoint")
-        if archive_metadata.get("format_version") != _FORMAT_VERSION:
+        format_version = archive_metadata.get("format_version")
+        if format_version not in _SUPPORTED_FORMAT_VERSIONS:
             raise ValueError(
                 "unsupported real-time checkpoint format version: "
-                f"{archive_metadata.get('format_version')!r}"
+                f"{format_version!r}"
             )
 
         segments = []
@@ -382,6 +473,18 @@ def load_real_time_checkpoint(
                 f"{prefix}_linear_iterations",
                 f"{prefix}_linear_residual_norms",
             }
+            krylov_names = (
+                "krylov_operator_calls",
+                "krylov_accepted_substeps",
+                "krylov_rejected_substeps",
+                "krylov_refinement_depths",
+                "krylov_dimensions",
+                "krylov_error_estimates",
+            )
+            if format_version >= 2:
+                required.update(
+                    f"{prefix}_{name}" for name in krylov_names
+                )
             missing = required.difference(archive.files)
             if missing:
                 raise ValueError(
@@ -401,6 +504,14 @@ def load_real_time_checkpoint(
                 samples[name] = archive[key].copy()
                 segment_arrays[key] = samples[name]
             trajectory_arrays.update(segment_arrays)
+            n_steps = archive[f"{prefix}_times"].size - 1
+
+            def krylov_values(name, *, dtype=float):
+                key = f"{prefix}_{name}"
+                if format_version >= 2:
+                    return archive[key].copy()
+                return np.zeros(n_steps, dtype=dtype)
+
             segments.append(
                 RealTimeCheckpointSegment(
                     initial_time=values["initial_time"],
@@ -417,6 +528,24 @@ def load_real_time_checkpoint(
                     linear_residual_norms=archive[
                         f"{prefix}_linear_residual_norms"
                     ].copy(),
+                    krylov_operator_calls=krylov_values(
+                        "krylov_operator_calls", dtype=int
+                    ),
+                    krylov_accepted_substeps=krylov_values(
+                        "krylov_accepted_substeps", dtype=int
+                    ),
+                    krylov_rejected_substeps=krylov_values(
+                        "krylov_rejected_substeps", dtype=int
+                    ),
+                    krylov_refinement_depths=krylov_values(
+                        "krylov_refinement_depths", dtype=int
+                    ),
+                    krylov_dimensions=krylov_values(
+                        "krylov_dimensions", dtype=int
+                    ),
+                    krylov_error_estimates=krylov_values(
+                        "krylov_error_estimates"
+                    ),
                     samples=samples,
                     integrator=values["integrator"],
                     dynamics=values["dynamics"],

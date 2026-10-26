@@ -31,6 +31,9 @@ PHASE = 0.0
 
 TIME_STEP = 0.5
 FINAL_TIME = 10.0
+# SIL applies because the Hamiltonian remains Hermitian; the mask is applied
+# only after each accepted propagation step.
+INTEGRATOR = "sil"
 
 # Select at most one absorber. For example, replace the mask by
 # CubicCAP(alpha=0.75, eta=0.01) to use a CAP instead.
@@ -58,12 +61,14 @@ calculation = TwoElectronAtomTDSE(
     lambda_max=initial_state.multipoles.lambda_max,
     mu_max=initial_state.multipoles.mu_max,
     M_tot=0,
-    integrator="crank-nicolson",
+    integrator=INTEGRATOR,
     integrator_options={
-        "solver": "bicgstab",
-        "rtol": 0.0,
-        "atol": 1.0e-10,
-        "preconditioner": True,
+        "max_krylov_dimension": 20,
+        "rtol": 1.0e-10,
+        "atol": 0.0,
+        "max_refinements": 8,
+        "reorthogonalize": True,
+        "breakdown_tolerance": 1.0e-14,
     },
     time_step=TIME_STEP,
     final_time=FINAL_TIME,
