@@ -292,3 +292,102 @@ def test_diatomic_allows_mask_and_cap_on_different_coordinates(tmp_path):
 
     assert calculation.absorbing_boundaries.mask1 is not None
     assert calculation.absorbing_boundaries.cap2 is not None
+
+
+def test_atomic_interface_exposes_sil_with_krylov_diagnostics():
+    initial = _atomic_initial_state()
+    calculation = TwoElectronAtomTDSE(
+        "He",
+        grid=GRID,
+        initial_state=initial,
+        l_max=1,
+        M_tot=0,
+        integrator="sil",
+        integrator_options={
+            "max_krylov_dimension": 8,
+            "rtol": 1.0e-9,
+            "atol": 1.0e-12,
+            "max_refinements": 2,
+            "reorthogonalize": True,
+            "breakdown_tolerance": 1.0e-14,
+        },
+        final_time=0.001,
+        time_step=0.001,
+    )
+
+    result = calculation.run(progress=False)
+
+    assert calculation.integrator == "sil"
+    assert calculation.preconditioner is None
+    assert result.krylov_operator_calls[0] > 0
+    assert result.krylov_dimensions[0] > 0
+    assert result.linear_iterations[0] == 0
+
+
+def test_diatomic_interface_exposes_sia_with_a_cap(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    calculation = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        l_max=1,
+        M_tot=0,
+        cap_R=-0.1j * np.ones(2),
+        radial_operator_mode="element-local",
+        integrator="sia",
+        integrator_options={
+            "max_krylov_dimension": 12,
+            "rtol": 1.0e-9,
+            "atol": 1.0e-12,
+            "max_refinements": 2,
+            "reorthogonalize": True,
+            "breakdown_tolerance": 1.0e-14,
+        },
+        final_time=0.001,
+        time_step=0.001,
+    )
+
+    result = calculation.run(progress=False)
+
+    assert calculation.integrator == "sia"
+    assert calculation.radial_operator_mode == "element-local"
+    assert calculation.preconditioner is None
+    assert result.krylov_operator_calls[0] > 0
+    assert result.norm < result.initial_norm
+
+
+def test_sil_rejects_a_cap():
+    initial = _atomic_initial_state()
+
+    with pytest.raises(ValueError, match="sil.*Hermitian.*CAP"):
+        TwoElectronAtomTDSE(
+            "He",
+            grid=GRID,
+            initial_state=initial,
+            l_max=1,
+            M_tot=0,
+            cap=-0.1j * np.ones(2),
+            integrator="sil",
+            final_time=0.01,
+            time_step=0.01,
+        )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_interface_rejects_cn_only_options(integrator):
+    initial = _atomic_initial_state()
+
+    with pytest.raises(ValueError, match="unknown.*integrator options"):
+        TwoElectronAtomTDSE(
+            "He",
+            grid=GRID,
+            initial_state=initial,
+            l_max=1,
+            M_tot=0,
+            integrator=integrator,
+            integrator_options={"preconditioner": False},
+            final_time=0.01,
+            time_step=0.01,
+        )

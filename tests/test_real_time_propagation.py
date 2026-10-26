@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from scipy.linalg import expm
 
 from grid_tdse.real_time import RealTimePropagator
 
@@ -323,10 +324,16 @@ def test_real_time_rejects_invalid_representation_operations(
         ("initial_time", np.inf, ValueError),
         ("final_time", 0.0, ValueError),
         ("time_step", 0.0, ValueError),
+        ("integrator", "invalid", ValueError),
         ("linear_solver", "invalid", ValueError),
         ("linear_rtol", 0.0, ValueError),
         ("linear_max_iterations", 1.5, TypeError),
         ("gmres_restart", 0, ValueError),
+        ("max_krylov_dimension", 0, ValueError),
+        ("krylov_rtol", -1.0, ValueError),
+        ("max_krylov_refinements", -1, ValueError),
+        ("krylov_reorthogonalize", 1, TypeError),
+        ("krylov_breakdown_tolerance", 0.0, ValueError),
         ("reality_tolerance", -1.0, ValueError),
         ("progress_interval", 0, ValueError),
     ],
@@ -368,3 +375,119 @@ def test_real_time_progress_can_be_disabled(capsys):
     propagator(np.ones(2), lambda state, time: state, np.vdot)
 
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_integrators_match_exact_hermitian_propagation(integrator):
+    hamiltonian = np.array(
+        [[0.4, 0.1 - 0.2j], [0.1 + 0.2j, 1.1]], dtype=complex
+    )
+    initial = np.array([1.0, -0.3j])
+    propagator = RealTimePropagator(
+        final_time=0.6,
+        time_step=0.2,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+        progress_interval=None,
+    )
+
+    result = propagator(
+        initial,
+        lambda state, time: hamiltonian @ state,
+        np.vdot,
+    )
+
+    expected = expm(-1j * 0.6 * hamiltonian) @ initial
+    np.testing.assert_allclose(result.state, expected, atol=2.0e-13)
+    assert result.norm == pytest.approx(result.initial_norm, abs=3.0e-13)
+    assert np.all(result.linear_iterations == 0)
+    assert np.all(result.linear_residual_norms == 0.0)
+    assert np.all(result.krylov_operator_calls > 0)
+    assert np.all(result.krylov_accepted_substeps > 0)
+    assert np.all(result.krylov_dimensions == 2)
+    assert np.all(result.krylov_error_estimates >= 0.0)
+
+
+def test_sia_matches_exact_cap_like_propagation():
+    hamiltonian = np.array(
+        [[0.5 - 0.2j, 0.1], [0.1, 1.0 - 0.4j]], dtype=complex
+    )
+    initial = np.array([1.0, 0.5j])
+    propagator = RealTimePropagator(
+        final_time=0.4,
+        time_step=0.2,
+        integrator="sia",
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+        progress_interval=None,
+    )
+
+    result = propagator(
+        initial,
+        lambda state, time: hamiltonian @ state,
+        np.vdot,
+    )
+
+    expected = expm(-1j * 0.4 * hamiltonian) @ initial
+    np.testing.assert_allclose(result.state, expected, atol=2.0e-13)
+    assert result.norm < result.initial_norm
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_integrators_sample_the_hamiltonian_at_midpoints(integrator):
+    evaluated_times = []
+    propagator = RealTimePropagator(
+        initial_time=0.2,
+        final_time=0.6,
+        time_step=0.2,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        progress_interval=None,
+    )
+
+    def hamiltonian(state, time):
+        evaluated_times.append(time)
+        return np.array([0.4, 0.9]) * state
+
+    propagator(np.ones(2), hamiltonian, np.vdot)
+
+    np.testing.assert_allclose(np.unique(evaluated_times), [0.3, 0.5])
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_integrators_reject_preconditioners(integrator):
+    propagator = RealTimePropagator(
+        final_time=0.1,
+        time_step=0.1,
+        integrator=integrator,
+    )
+
+    with pytest.raises(ValueError, match="preconditioner is not supported"):
+        propagator(
+            np.ones(2),
+            lambda state, time: state,
+            np.vdot,
+            preconditioner=lambda state: state,
+        )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_progress_reports_exponential_diagnostics(integrator, capsys):
+    propagator = RealTimePropagator(
+        final_time=0.1,
+        time_step=0.1,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        progress_interval=1,
+    )
+
+    propagator(np.ones(2), lambda state, time: state, np.vdot)
+
+    output = capsys.readouterr().out
+    assert "operator_calls=" in output
+    assert "krylov_dimension=" in output
+    assert "krylov_error=" in output
+    assert "linear_iterations=" not in output

@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 
@@ -5,6 +7,7 @@ from grid_tdse.real_time import (
     RealTimePropagator,
     load_real_time_checkpoint,
 )
+from grid_tdse.real_time.checkpoint import _arrays_id, _canonical_json
 
 
 COMPATIBILITY = {
@@ -21,6 +24,19 @@ def _propagator(initial_time=0.0, final_time=0.6, time_step=0.1):
         time_step=time_step,
         linear_rtol=1.0e-13,
         linear_atol=1.0e-15,
+        progress_interval=None,
+    )
+
+
+def _sia_propagator(initial_time=0.0, final_time=0.6, time_step=0.1):
+    return RealTimePropagator(
+        initial_time=initial_time,
+        final_time=final_time,
+        time_step=time_step,
+        integrator="sia",
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
         progress_interval=None,
     )
 
@@ -302,3 +318,99 @@ def test_checkpoint_metadata_must_be_json_serializable(tmp_path):
             checkpoint_path=tmp_path / "state.chkpt",
             dynamics_metadata={"invalid": object()},
         )
+
+
+def test_sia_checkpoint_preserves_diagnostics_and_resumes_exactly(tmp_path):
+    path = tmp_path / "sia-interrupted.chkpt"
+    initial = np.array([1.0, -0.3j])
+
+    def interrupting_sampler(state, time):
+        if time > 0.15:
+            raise RuntimeError("simulated interruption")
+        return np.sum(state)
+
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        _sia_propagator(final_time=0.4).propagate(
+            initial,
+            _hamiltonian,
+            np.vdot,
+            samplers={"sum": interrupting_sampler},
+            checkpoint_path=path,
+            checkpoint_interval=1,
+            compatibility_metadata=COMPATIBILITY,
+            dynamics_metadata=DYNAMICS,
+        )
+
+    checkpoint = load_real_time_checkpoint(path)
+    segment = checkpoint.latest_segment
+    assert segment.integrator["method"] == "short_iterative_arnoldi"
+    assert np.all(segment.krylov_operator_calls > 0)
+    assert np.all(segment.krylov_accepted_substeps > 0)
+    assert np.all(segment.krylov_dimensions == 2)
+    assert np.all(segment.linear_iterations == 0)
+
+    resumed = _sia_propagator(initial_time=0.1, final_time=0.4).resume(
+        checkpoint,
+        _hamiltonian,
+        np.vdot,
+        samplers={"sum": _sampler},
+        checkpoint_interval=1,
+        compatibility_metadata=COMPATIBILITY,
+        dynamics_metadata=DYNAMICS,
+    )
+    uninterrupted = _sia_propagator(final_time=0.4).propagate(
+        initial,
+        _hamiltonian,
+        np.vdot,
+        samplers={"sum": _sampler},
+    )
+
+    np.testing.assert_allclose(resumed.state, uninterrupted.state, atol=1.0e-13)
+    np.testing.assert_allclose(resumed.times, uninterrupted.times)
+    np.testing.assert_allclose(
+        resumed.krylov_operator_calls,
+        uninterrupted.krylov_operator_calls,
+    )
+    np.testing.assert_allclose(resumed.samples["sum"], uninterrupted.samples["sum"])
+
+
+def test_checkpoint_loader_remains_compatible_with_version_one(tmp_path):
+    version_two_path = tmp_path / "version-two.chkpt"
+    version_one_path = tmp_path / "version-one.chkpt"
+    _propagator(final_time=0.2).propagate(
+        np.ones(2),
+        _hamiltonian,
+        np.vdot,
+        checkpoint_path=version_two_path,
+    )
+    with np.load(version_two_path, allow_pickle=False) as archive:
+        arrays = {name: archive[name].copy() for name in archive.files}
+
+    metadata = json.loads(str(arrays.pop("metadata_json").item()))
+    arrays = {
+        name: values
+        for name, values in arrays.items()
+        if "_krylov_" not in name
+    }
+    metadata["format_version"] = 1
+    metadata["trajectory_data_id"] = _arrays_id(
+        {name: values for name, values in arrays.items() if name != "state"}
+    )
+    with version_one_path.open("wb") as stream:
+        np.savez(
+            stream,
+            metadata_json=np.asarray(_canonical_json(metadata)),
+            **arrays,
+        )
+
+    checkpoint = load_real_time_checkpoint(version_one_path)
+
+    assert checkpoint.latest_segment.integrator["method"] == "crank_nicolson"
+    np.testing.assert_array_equal(
+        checkpoint.latest_segment.krylov_operator_calls,
+        np.zeros(2, dtype=int),
+    )
+    np.testing.assert_array_equal(
+        checkpoint.latest_segment.krylov_error_estimates,
+        np.zeros(2),
+    )

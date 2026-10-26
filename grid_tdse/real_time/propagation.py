@@ -9,7 +9,11 @@ from typing import Any, Literal
 
 import numpy as np
 
-from integrator_lib import CrankNicolson
+from integrator_lib import (
+    ArnoldiExponential,
+    CrankNicolson,
+    ShortIterativeLanczos,
+)
 from scipy.sparse.linalg import LinearOperator
 
 from .checkpoint import (
@@ -29,6 +33,12 @@ class RealTimePropagationStep:
     norm: float
     linear_iterations: int
     linear_residual_norm: float
+    krylov_operator_calls: int = 0
+    krylov_accepted_substeps: int = 0
+    krylov_rejected_substeps: int = 0
+    krylov_refinement_depth: int = 0
+    krylov_dimension: int = 0
+    krylov_error_estimate: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -88,6 +98,57 @@ class RealTimePropagationResult:
             [record.linear_residual_norm for record in self.history]
         )
 
+    @property
+    def krylov_operator_calls(self) -> np.ndarray:
+        """Hamiltonian calls made by the exponential integrator per step."""
+
+        return np.asarray(
+            [record.krylov_operator_calls for record in self.history], dtype=int
+        )
+
+    @property
+    def krylov_accepted_substeps(self) -> np.ndarray:
+        """Accepted Krylov substeps for every requested propagation step."""
+
+        return np.asarray(
+            [record.krylov_accepted_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_rejected_substeps(self) -> np.ndarray:
+        """Rejected Krylov substeps for every requested propagation step."""
+
+        return np.asarray(
+            [record.krylov_rejected_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_refinement_depths(self) -> np.ndarray:
+        """Maximum adaptive-refinement depth used in every step."""
+
+        return np.asarray(
+            [record.krylov_refinement_depth for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_dimensions(self) -> np.ndarray:
+        """Largest accepted Krylov dimension used in every step."""
+
+        return np.asarray(
+            [record.krylov_dimension for record in self.history], dtype=int
+        )
+
+    @property
+    def krylov_error_estimates(self) -> np.ndarray:
+        """Accumulated accepted-substep error estimate for every step."""
+
+        return np.asarray(
+            [record.krylov_error_estimate for record in self.history]
+        )
+
 
 class RealTimePropagator:
     r"""Advance a linear time-dependent Schrödinger equation.
@@ -99,14 +160,17 @@ class RealTimePropagator:
 
     The interval is divided into uniform steps no larger than the requested
     time step, with the step size adjusted so that the final time is reached
-    exactly. Each step uses matrix-free implicit midpoint/Crank--Nicolson
-    propagation from :mod:`integrator_lib`.
+    exactly. Each step uses a matrix-free propagator from
+    :mod:`integrator_lib`. Crank--Nicolson, short-iterative Lanczos (SIL), and
+    short-iterative Arnoldi (SIA) are supported. All three sample a
+    time-dependent Hamiltonian at the temporal midpoint.
 
     States are never normalized during real-time propagation. An optional
     post-step transformation can apply a representation-specific operation,
     such as an absorbing mask, after each accepted integrator step.
     """
 
+    _INTEGRATORS = {"crank-nicolson", "sil", "sia"}
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
 
     def __init__(
@@ -115,11 +179,18 @@ class RealTimePropagator:
         initial_time: float = 0.0,
         final_time: float,
         time_step: float,
+        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
         linear_solver: str = "gmres",
         linear_rtol: float = 1.0e-10,
         linear_atol: float = 0.0,
         linear_max_iterations: int | None = None,
         gmres_restart: int | None = None,
+        max_krylov_dimension: int = 20,
+        krylov_rtol: float = 1.0e-10,
+        krylov_atol: float = 0.0,
+        max_krylov_refinements: int = 8,
+        krylov_reorthogonalize: bool = True,
+        krylov_breakdown_tolerance: float = 1.0e-14,
         reality_tolerance: float = 1.0e-10,
         progress_interval: int | None = 10,
     ) -> None:
@@ -147,6 +218,11 @@ class RealTimePropagator:
             self.n_steps + 1,
         )
 
+        if integrator not in self._INTEGRATORS:
+            choices = ", ".join(sorted(self._INTEGRATORS))
+            raise ValueError(f"integrator must be one of: {choices}")
+        self.integrator = integrator
+
         if linear_solver not in self._LINEAR_SOLVERS:
             choices = ", ".join(sorted(self._LINEAR_SOLVERS))
             raise ValueError(f"linear_solver must be one of: {choices}")
@@ -160,6 +236,23 @@ class RealTimePropagator:
         )
         self.gmres_restart = _optional_positive_integer(
             gmres_restart, "gmres_restart"
+        )
+        self.max_krylov_dimension = _positive_integer(
+            max_krylov_dimension, "max_krylov_dimension"
+        )
+        self.krylov_rtol = _nonnegative_real(krylov_rtol, "krylov_rtol")
+        self.krylov_atol = _nonnegative_real(krylov_atol, "krylov_atol")
+        if self.krylov_rtol == self.krylov_atol == 0.0:
+            raise ValueError("at least one Krylov tolerance must be positive")
+        self.max_krylov_refinements = _nonnegative_integer(
+            max_krylov_refinements, "max_krylov_refinements"
+        )
+        if not isinstance(krylov_reorthogonalize, (bool, np.bool_)):
+            raise TypeError("krylov_reorthogonalize must be boolean")
+        self.krylov_reorthogonalize = bool(krylov_reorthogonalize)
+        self.krylov_breakdown_tolerance = _positive_real(
+            krylov_breakdown_tolerance,
+            "krylov_breakdown_tolerance",
         )
         self.reality_tolerance = _nonnegative_real(
             reality_tolerance, "reality_tolerance"
@@ -202,7 +295,8 @@ class RealTimePropagator:
             Physical inner product for the representation.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
-            :class:`integrator_lib.CrankNicolson`.
+            :class:`integrator_lib.CrankNicolson`. Preconditioners are not
+            accepted by SIL or SIA.
         samplers
             Optional mapping from result names to ``sampler(state, time)``
             callables. Each sampler is evaluated at the initial time and after
@@ -455,14 +549,7 @@ class RealTimePropagator:
                         **archive_metadata,
                     }
 
-        integrator = CrankNicolson(
-            solver=self.linear_solver,
-            rtol=self.linear_rtol,
-            atol=self.linear_atol,
-            maxiter=self.linear_max_iterations,
-            restart=self.gmres_restart,
-            preconditioner=preconditioner,
-        )
+        integrator = self._build_integrator(inner_product, preconditioner)
 
         def schrodinger_rhs(values, time):
             action = _hamiltonian_action(hamiltonian, values, time, shape)
@@ -484,8 +571,7 @@ class RealTimePropagator:
                 step=step,
                 time=accepted_time,
                 norm=self._norm(state, inner_product),
-                linear_iterations=int(integrator.last_iterations),
-                linear_residual_norm=float(integrator.last_residual_norm),
+                **self._step_diagnostics(integrator),
             )
             history.append(record)
             _sample(
@@ -550,14 +636,81 @@ class RealTimePropagator:
 
     __call__ = propagate
 
-    def _integrator_metadata(self) -> dict[str, Any]:
+    def _build_integrator(self, inner_product, preconditioner):
+        if self.integrator == "crank-nicolson":
+            return CrankNicolson(
+                solver=self.linear_solver,
+                rtol=self.linear_rtol,
+                atol=self.linear_atol,
+                maxiter=self.linear_max_iterations,
+                restart=self.gmres_restart,
+                preconditioner=preconditioner,
+            )
+        if preconditioner is not None:
+            raise ValueError(
+                f"preconditioner is not supported by integrator {self.integrator!r}"
+            )
+        integrator_type = (
+            ShortIterativeLanczos
+            if self.integrator == "sil"
+            else ArnoldiExponential
+        )
+        return integrator_type(
+            max_krylov_dimension=self.max_krylov_dimension,
+            rtol=self.krylov_rtol,
+            atol=self.krylov_atol,
+            max_refinements=self.max_krylov_refinements,
+            reorthogonalize=self.krylov_reorthogonalize,
+            inner_product=inner_product,
+            breakdown_tolerance=self.krylov_breakdown_tolerance,
+        )
+
+    def _step_diagnostics(self, integrator) -> dict[str, int | float]:
+        if self.integrator == "crank-nicolson":
+            return {
+                "linear_iterations": int(integrator.last_iterations),
+                "linear_residual_norm": float(integrator.last_residual_norm),
+                "krylov_operator_calls": 0,
+                "krylov_accepted_substeps": 0,
+                "krylov_rejected_substeps": 0,
+                "krylov_refinement_depth": 0,
+                "krylov_dimension": 0,
+                "krylov_error_estimate": 0.0,
+            }
         return {
-            "method": "crank_nicolson",
-            "linear_solver": self.linear_solver,
-            "linear_rtol": self.linear_rtol,
-            "linear_atol": self.linear_atol,
-            "linear_max_iterations": self.linear_max_iterations,
-            "gmres_restart": self.gmres_restart,
+            "linear_iterations": 0,
+            "linear_residual_norm": 0.0,
+            "krylov_operator_calls": int(integrator.last_operator_calls),
+            "krylov_accepted_substeps": int(integrator.last_accepted_substeps),
+            "krylov_rejected_substeps": int(integrator.last_rejected_substeps),
+            "krylov_refinement_depth": int(integrator.last_refinement_depth),
+            "krylov_dimension": int(integrator.last_krylov_dimension),
+            "krylov_error_estimate": float(integrator.last_error_estimate),
+        }
+
+    def _integrator_metadata(self) -> dict[str, Any]:
+        if self.integrator == "crank-nicolson":
+            return {
+                "method": "crank_nicolson",
+                "linear_solver": self.linear_solver,
+                "linear_rtol": self.linear_rtol,
+                "linear_atol": self.linear_atol,
+                "linear_max_iterations": self.linear_max_iterations,
+                "gmres_restart": self.gmres_restart,
+                "reality_tolerance": self.reality_tolerance,
+            }
+        return {
+            "method": (
+                "short_iterative_lanczos"
+                if self.integrator == "sil"
+                else "short_iterative_arnoldi"
+            ),
+            "max_krylov_dimension": self.max_krylov_dimension,
+            "krylov_rtol": self.krylov_rtol,
+            "krylov_atol": self.krylov_atol,
+            "max_krylov_refinements": self.max_krylov_refinements,
+            "krylov_reorthogonalize": self.krylov_reorthogonalize,
+            "krylov_breakdown_tolerance": self.krylov_breakdown_tolerance,
             "reality_tolerance": self.reality_tolerance,
         }
 
@@ -628,6 +781,22 @@ class RealTimePropagator:
                 linear_residual_norm=float(
                     segment.linear_residual_norms[step - 1]
                 ),
+                krylov_operator_calls=int(
+                    segment.krylov_operator_calls[step - 1]
+                ),
+                krylov_accepted_substeps=int(
+                    segment.krylov_accepted_substeps[step - 1]
+                ),
+                krylov_rejected_substeps=int(
+                    segment.krylov_rejected_substeps[step - 1]
+                ),
+                krylov_refinement_depth=int(
+                    segment.krylov_refinement_depths[step - 1]
+                ),
+                krylov_dimension=int(segment.krylov_dimensions[step - 1]),
+                krylov_error_estimate=float(
+                    segment.krylov_error_estimates[step - 1]
+                ),
             )
             for step in range(1, segment.times.size)
         ]
@@ -681,6 +850,29 @@ class RealTimePropagator:
             linear_residual_norms=np.asarray(
                 [record.linear_residual_norm for record in history]
             ),
+            krylov_operator_calls=np.asarray(
+                [record.krylov_operator_calls for record in history],
+                dtype=int,
+            ),
+            krylov_accepted_substeps=np.asarray(
+                [record.krylov_accepted_substeps for record in history],
+                dtype=int,
+            ),
+            krylov_rejected_substeps=np.asarray(
+                [record.krylov_rejected_substeps for record in history],
+                dtype=int,
+            ),
+            krylov_refinement_depths=np.asarray(
+                [record.krylov_refinement_depth for record in history],
+                dtype=int,
+            ),
+            krylov_dimensions=np.asarray(
+                [record.krylov_dimension for record in history],
+                dtype=int,
+            ),
+            krylov_error_estimates=np.asarray(
+                [record.krylov_error_estimate for record in history]
+            ),
             samples={
                 name: np.asarray(values) for name, values in sample_storage.items()
             },
@@ -708,15 +900,29 @@ class RealTimePropagator:
             raise ValueError("inner product produced a negative squared norm")
         return float(norm_squared.real)
 
-    @staticmethod
-    def _print_progress(record: RealTimePropagationStep, n_steps: int) -> None:
-        print(
+    def _print_progress(
+        self,
+        record: RealTimePropagationStep,
+        n_steps: int,
+    ) -> None:
+        prefix = (
             f"TDSE {record.step:6d}/{n_steps}: "
             f"t={record.time:.8f}  "
             f"norm={record.norm:.12f}  "
-            f"linear_iterations={record.linear_iterations:d}  "
-            f"linear_residual={record.linear_residual_norm:.3e}"
         )
+        if self.integrator == "crank-nicolson":
+            print(
+                prefix
+                + f"linear_iterations={record.linear_iterations:d}  "
+                + f"linear_residual={record.linear_residual_norm:.3e}"
+            )
+        else:
+            print(
+                prefix
+                + f"operator_calls={record.krylov_operator_calls:d}  "
+                + f"krylov_dimension={record.krylov_dimension:d}  "
+                + f"krylov_error={record.krylov_error_estimate:.3e}"
+            )
 
 
 def _state_array(state) -> np.ndarray:
@@ -826,6 +1032,17 @@ def _positive_integer(value, name: str) -> int:
     result = int(value)
     if result <= 0:
         raise ValueError(f"{name} must be positive")
+    return result
+
+
+def _nonnegative_integer(value, name: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value, (int, np.integer)
+    ):
+        raise TypeError(f"{name} must be a non-negative integer")
+    result = int(value)
+    if result < 0:
+        raise ValueError(f"{name} must be non-negative")
     return result
 
 

@@ -33,7 +33,7 @@ from .system import (
 )
 
 
-IntegratorName = Literal["crank-nicolson"]
+IntegratorName = Literal["crank-nicolson", "sil", "sia"]
 InitialState = np.ndarray | TwoRadialState
 Sampler = Callable[[np.ndarray, float], np.ndarray | complex | float]
 
@@ -53,15 +53,34 @@ class _SignedAxialField:
 class _TwoRadialTDSE:
     """Shared orchestration for the public atomic and diatomic interfaces."""
 
-    _INTEGRATORS = {"crank-nicolson"}
     _INTEGRATOR_OPTIONS = {
-        "solver",
-        "rtol",
-        "atol",
-        "max_iterations",
-        "restart",
-        "preconditioner",
-        "reality_tolerance",
+        "crank-nicolson": {
+            "solver",
+            "rtol",
+            "atol",
+            "max_iterations",
+            "restart",
+            "preconditioner",
+            "reality_tolerance",
+        },
+        "sil": {
+            "max_krylov_dimension",
+            "rtol",
+            "atol",
+            "max_refinements",
+            "reorthogonalize",
+            "breakdown_tolerance",
+            "reality_tolerance",
+        },
+        "sia": {
+            "max_krylov_dimension",
+            "rtol",
+            "atol",
+            "max_refinements",
+            "reorthogonalize",
+            "breakdown_tolerance",
+            "reality_tolerance",
+        },
     }
 
     def _configure_real_time(
@@ -85,12 +104,12 @@ class _TwoRadialTDSE:
         radial_operator_mode: RadialOperatorMode,
         tile_size: int,
     ) -> None:
-        if integrator not in self._INTEGRATORS:
-            choices = ", ".join(sorted(self._INTEGRATORS))
+        if integrator not in self._INTEGRATOR_OPTIONS:
+            choices = ", ".join(sorted(self._INTEGRATOR_OPTIONS))
             raise ValueError(f"integrator must be one of: {choices}")
         self.integrator = integrator
         options = {} if integrator_options is None else dict(integrator_options)
-        unknown = set(options).difference(self._INTEGRATOR_OPTIONS)
+        unknown = set(options).difference(self._INTEGRATOR_OPTIONS[integrator])
         if unknown:
             names = ", ".join(sorted(unknown))
             raise ValueError(f"unknown {integrator} integrator options: {names}")
@@ -107,29 +126,56 @@ class _TwoRadialTDSE:
         self.dipole_interaction = (
             self._build_dipole_interaction(self.fields) if self.fields else None
         )
+        if integrator == "sil" and self.absorbing_boundaries.has_cap:
+            raise ValueError(
+                "integrator 'sil' requires a Hermitian Hamiltonian and cannot "
+                "be used with a CAP; use 'sia' or 'crank-nicolson'"
+            )
 
         self.propagator = RealTimePropagator(
             initial_time=initial_time,
             final_time=final_time,
             time_step=time_step,
+            integrator=integrator,
             linear_solver=options.get("solver", "bicgstab"),
             linear_rtol=options.get("rtol", 0.0),
             linear_atol=options.get("atol", 1.0e-10),
             linear_max_iterations=options.get("max_iterations"),
             gmres_restart=options.get("restart"),
+            max_krylov_dimension=options.get("max_krylov_dimension", 20),
+            krylov_rtol=(
+                options.get("rtol", 1.0e-10)
+                if integrator != "crank-nicolson"
+                else 1.0e-10
+            ),
+            krylov_atol=(
+                options.get("atol", 0.0)
+                if integrator != "crank-nicolson"
+                else 0.0
+            ),
+            max_krylov_refinements=options.get("max_refinements", 8),
+            krylov_reorthogonalize=options.get("reorthogonalize", True),
+            krylov_breakdown_tolerance=options.get(
+                "breakdown_tolerance", 1.0e-14
+            ),
             reality_tolerance=options.get("reality_tolerance", 1.0e-10),
             progress_interval=progress_interval,
         )
-        use_preconditioner = options.get("preconditioner", True)
-        if not isinstance(use_preconditioner, (bool, np.bool_)):
-            raise TypeError("integrator option 'preconditioner' must be boolean")
-        self.preconditioner = (
-            TwoRadialRealTimePreconditioner(
-                self.representation, self.propagator.time_step
+        if integrator == "crank-nicolson":
+            use_preconditioner = options.get("preconditioner", True)
+            if not isinstance(use_preconditioner, (bool, np.bool_)):
+                raise TypeError(
+                    "integrator option 'preconditioner' must be boolean"
+                )
+            self.preconditioner = (
+                TwoRadialRealTimePreconditioner(
+                    self.representation, self.propagator.time_step
+                )
+                if use_preconditioner
+                else None
             )
-            if use_preconditioner
-            else None
-        )
+        else:
+            self.preconditioner = None
 
         self.progress_interval = progress_interval
         self.checkpoint_path = checkpoint_path
