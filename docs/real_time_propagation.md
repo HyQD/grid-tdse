@@ -121,6 +121,7 @@ calculation = TwoElectronAtomTDSE(
     mu_max=initial_state.multipoles.mu_max,
     M_tot=0,
     radial_coulomb_method="poisson",
+    radial_operator_mode="element-local",
     integrator="crank-nicolson",
     integrator_options={
         "solver": "bicgstab",
@@ -142,6 +143,13 @@ FEM-DVR uses `radial_coulomb_method="poisson"` by default. Setting it to
 `"analytic"` evaluates the radial multipole expression directly on the two
 radial grids. This selection concerns the radial Coulomb kernel; both paths
 use the same angular multipole expansion and sparse angular contractions.
+
+The independent `radial_operator_mode` option selects how the one-coordinate
+kinetic operators are applied. `"global"` uses the existing dense matrices,
+while `"element-local"` uses FEM-DVR element actions from `grid-lib`. The
+global mode remains the compatibility default and reference implementation.
+The selection covers the kinetic second derivatives and the velocity-gauge
+radial first derivative. Element-local mode currently requires FEM-DVR.
 
 For a homonuclear non-Born--Oppenheimer ion, a z-polarized field preserves
 pair-exchange parity but couples even and odd electronic partial waves. The

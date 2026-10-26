@@ -84,6 +84,79 @@ def test_femdvr_system_can_use_direct_analytic_coulomb_multipoles():
     assert np.isfinite(system.radial_multipoles.values).all()
 
 
+@pytest.mark.parametrize("M_tot", [None, 0])
+def test_element_local_femdvr_hamiltonian_matches_global_action(M_tot):
+    grid1 = FEMDVRGridSpec([0.0, 0.8, 2.0, 5.0], [4, 5, 6])
+    grid2 = FEMDVRGridSpec([0.0, 0.5, 1.5, 4.0], [5, 4, 6])
+    basis = AngularBasisSpec(l_max=2, m_max=2)
+    system = TwoRadialSystemSpec(
+        coordinate1=CoordinateSpec(
+            grid=grid1,
+            basis=basis,
+            kinetic_prefactor=-0.7,
+            one_body_terms=(radial_potential(lambda r: -2.0 / r),),
+        ),
+        coordinate2=CoordinateSpec(
+            grid=grid2,
+            basis=basis,
+            kinetic_prefactor=-0.003,
+            one_body_terms=(radial_potential(lambda r: 1.0 / r),),
+        ),
+        multipoles=CoulombMultipoleSpec(4, 4),
+        coulomb_terms=(CoulombTerm(1.0, -1.0),),
+        M_tot=M_tot,
+    ).build()
+    global_hamiltonian = system.hamiltonian(radial_operator_mode="global")
+    local_hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
+    rng = np.random.default_rng(414)
+    state = rng.normal(size=system.psi_shape) + 1j * rng.normal(
+        size=system.psi_shape
+    )
+
+    np.testing.assert_allclose(
+        local_hamiltonian.apply_one_body_coordinate1(state),
+        global_hamiltonian.apply_one_body_coordinate1(state),
+        atol=4.0e-12,
+        rtol=4.0e-13,
+    )
+    np.testing.assert_allclose(
+        local_hamiltonian.apply_one_body_coordinate2(state),
+        global_hamiltonian.apply_one_body_coordinate2(state),
+        atol=4.0e-12,
+        rtol=4.0e-13,
+    )
+    np.testing.assert_allclose(
+        local_hamiltonian(state),
+        global_hamiltonian(state),
+        atol=8.0e-12,
+        rtol=8.0e-13,
+    )
+
+
+def test_element_local_mode_rejects_sinc_grids():
+    system = TwoRadialSystemSpec(
+        coordinate1=_coordinate(RadialSincDVRGridSpec(6.0, 6)),
+        coordinate2=_coordinate(RadialSincDVRGridSpec(4.0, 5)),
+        multipoles=CoulombMultipoleSpec(2, 0),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+    ).build()
+
+    with pytest.raises(ValueError, match="require FEM-DVR"):
+        system.hamiltonian(radial_operator_mode="element-local")
+
+
+def test_hamiltonian_rejects_unknown_radial_operator_mode():
+    system = TwoRadialSystemSpec(
+        coordinate1=_coordinate(FEMDVRGridSpec([0.0, 2.0], [4]), l_max=0),
+        coordinate2=_coordinate(FEMDVRGridSpec([0.0, 2.0], [4]), l_max=0),
+        multipoles=CoulombMultipoleSpec(0, 0),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+    ).build()
+
+    with pytest.raises(ValueError, match="radial_operator_mode"):
+        system.hamiltonian(radial_operator_mode="unknown")
+
+
 def test_direct_legacy_system_construction_defaults_to_the_full_product_basis():
     prepared = TwoRadialSystemSpec(
         coordinate1=_coordinate(RadialSincDVRGridSpec(4.0, 4), l_max=0),

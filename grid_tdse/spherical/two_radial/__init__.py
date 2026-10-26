@@ -41,6 +41,7 @@ from .state_archive import (
 from .system import (
     AngularRadialPotential,
     CoordinateSpec,
+    RadialOperatorMode,
     RadialPotential,
     TwoRadialSystem,
     TwoRadialSystemSpec,
@@ -72,6 +73,7 @@ __all__ = [
     "RadialCoulombMultipoles",
     "RadialCoulombMethod",
     "RadialGrid",
+    "RadialOperatorMode",
     "RadialPotential",
     "RadialSincDVRGridSpec",
     "TwoRadialHamiltonian",

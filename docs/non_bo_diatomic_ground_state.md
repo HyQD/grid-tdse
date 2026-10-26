@@ -35,6 +35,13 @@ The electron--particle attractions are translated into the signed
 multipoles are evaluated by the two-grid Poisson implementation in
 `grid-lib`.
 
+The radial one-body action is selected independently with
+`radial_operator_mode`. The default `"global"` mode retains the dense reference
+implementation. `"element-local"` applies the electronic and internuclear
+FEM-DVR kinetic operators element by element while keeping centrifugal and
+one-body potentials diagonal. The two modes are numerically equivalent; the
+element-local path is the foundation for later radial-domain decomposition.
+
 The same reduced parameters determine the coefficients required by a future
 velocity-gauge interaction. `DiatomicIonParameters` exposes
 

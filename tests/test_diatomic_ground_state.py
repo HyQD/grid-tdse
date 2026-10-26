@@ -26,6 +26,7 @@ def _calculation(
     max_iterations=1,
     M_tot=None,
     radial_coulomb_method="poisson",
+    radial_operator_mode="global",
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -41,6 +42,7 @@ def _calculation(
         mu_max=4,
         M_tot=M_tot,
         radial_coulomb_method=radial_coulomb_method,
+        radial_operator_mode=radial_operator_mode,
         codata_set="2022",
         initial_state=initial_state,
         time_step=0.05,
@@ -52,6 +54,19 @@ def _calculation(
         linear_rtol=0.0,
         linear_atol=1.0e-11,
         use_preconditioner=False,
+    )
+
+
+def test_element_local_ground_state_hamiltonian_matches_global_path():
+    global_calculation = _calculation(M_tot=0, radial_operator_mode="global")
+    local_calculation = _calculation(M_tot=0, radial_operator_mode="element-local")
+
+    assert local_calculation.radial_operator_mode == "element-local"
+    np.testing.assert_allclose(
+        local_calculation.hamiltonian(local_calculation.initial_state),
+        global_calculation.hamiltonian(global_calculation.initial_state),
+        atol=3.0e-12,
+        rtol=3.0e-13,
     )
 
 
@@ -367,6 +382,7 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     ]
     assert stored.physical_state["symmetry"]["pair_exchange_parity"] == 1
     assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["radial_operator_mode"] == "global"
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
     )
