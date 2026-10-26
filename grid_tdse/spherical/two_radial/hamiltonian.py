@@ -6,6 +6,8 @@ from numba import njit, prange
 from .angular import AngularPairBasis
 from .couplings import CoulombCouplings
 from .coulomb import RadialCoulombMultipoles
+from .grids import RadialGrid
+from .system import RadialOperatorMode
 
 
 class TwoRadialHamiltonian:
@@ -19,6 +21,13 @@ class TwoRadialHamiltonian:
         couplings: CoulombCouplings,
         *,
         angular_pairs: AngularPairBasis | None = None,
+        grid1: RadialGrid | None = None,
+        grid2: RadialGrid | None = None,
+        kinetic_prefactor1: float | None = None,
+        kinetic_prefactor2: float | None = None,
+        h1_diagonal: np.ndarray | None = None,
+        h2_diagonal: np.ndarray | None = None,
+        radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
         self.h1 = np.ascontiguousarray(h1)
@@ -27,6 +36,17 @@ class TwoRadialHamiltonian:
         self.radial_multipoles = radial_multipoles
         self.couplings = couplings
         self.angular_pairs = angular_pairs
+        self.grid1 = grid1
+        self.grid2 = grid2
+        self.kinetic_prefactor1 = kinetic_prefactor1
+        self.kinetic_prefactor2 = kinetic_prefactor2
+        self.h1_diagonal = (
+            None if h1_diagonal is None else np.ascontiguousarray(h1_diagonal)
+        )
+        self.h2_diagonal = (
+            None if h2_diagonal is None else np.ascontiguousarray(h2_diagonal)
+        )
+        self.radial_operator_mode = radial_operator_mode
         self.tile_size = int(tile_size)
         if self.tile_size < 1:
             raise ValueError("tile_size must be positive")
@@ -49,6 +69,14 @@ class TwoRadialHamiltonian:
             self._h2_pairs_transpose = np.ascontiguousarray(
                 self.h2[self._pair_channels2].transpose(0, 2, 1)
             )
+            if self.h1_diagonal is not None:
+                self._h1_diagonal_pairs = np.ascontiguousarray(
+                    self.h1_diagonal[self._pair_channels1]
+                )
+            if self.h2_diagonal is not None:
+                self._h2_diagonal_pairs = np.ascontiguousarray(
+                    self.h2_diagonal[self._pair_channels2]
+                )
 
     @property
     def _uses_compact_storage(self) -> bool:
@@ -70,17 +98,46 @@ class TwoRadialHamiltonian:
         )
 
     def __call__(self, psi: np.ndarray) -> np.ndarray:
-        psi = np.asarray(psi)
-        if psi.shape != self.psi_shape:
-            raise ValueError(f"psi has shape {psi.shape}; expected {self.psi_shape}")
-        psi = np.ascontiguousarray(psi)
-        if self._uses_compact_storage:
-            result = np.matmul(self._h1_pairs, psi)
-            result += np.matmul(psi, self._h2_pairs_transpose)
-        else:
-            result = np.matmul(self.h1[:, None], psi)
-            result += np.matmul(psi, self.h2_transpose)
+        psi = self._validated_state(psi)
+        result = self.apply_one_body_coordinate1(psi)
+        result += self.apply_one_body_coordinate2(psi)
         return self.apply_coulomb(psi, out=result)
+
+    def apply_one_body_coordinate1(self, psi: np.ndarray) -> np.ndarray:
+        """Apply the first-coordinate one-body Hamiltonian."""
+
+        psi = self._validated_state(psi)
+        if self.radial_operator_mode == "global":
+            if self._uses_compact_storage:
+                return np.matmul(self._h1_pairs, psi)
+            return np.matmul(self.h1[:, None], psi)
+
+        result = self.kinetic_prefactor1 * self.grid1.apply_local_second_derivative(
+            psi, axis=-2
+        )
+        if self._uses_compact_storage:
+            result += self._h1_diagonal_pairs[:, :, np.newaxis] * psi
+        else:
+            result += self.h1_diagonal[:, np.newaxis, :, np.newaxis] * psi
+        return result
+
+    def apply_one_body_coordinate2(self, psi: np.ndarray) -> np.ndarray:
+        """Apply the second-coordinate one-body Hamiltonian."""
+
+        psi = self._validated_state(psi)
+        if self.radial_operator_mode == "global":
+            if self._uses_compact_storage:
+                return np.matmul(psi, self._h2_pairs_transpose)
+            return np.matmul(psi, self.h2_transpose)
+
+        result = self.kinetic_prefactor2 * self.grid2.apply_local_second_derivative(
+            psi, axis=-1
+        )
+        if self._uses_compact_storage:
+            result += self._h2_diagonal_pairs[:, np.newaxis, :] * psi
+        else:
+            result += self.h2_diagonal[np.newaxis, :, np.newaxis, :] * psi
+        return result
 
     def apply_coulomb(
         self, psi: np.ndarray, *, out: np.ndarray | None = None
@@ -91,10 +148,7 @@ class TwoRadialHamiltonian:
         dense ``y`` and ``y_bar`` tensors are never constructed.
         """
 
-        psi = np.asarray(psi)
-        if psi.shape != self.psi_shape:
-            raise ValueError(f"psi has shape {psi.shape}; expected {self.psi_shape}")
-        psi = np.ascontiguousarray(psi)
+        psi = self._validated_state(psi)
         dtype = np.result_type(psi.dtype, self._radial_flat.dtype)
         if out is None:
             out = np.zeros(self.psi_shape, dtype=dtype)
@@ -144,6 +198,10 @@ class TwoRadialHamiltonian:
         return output.reshape(self.psi_shape)
 
     def _validate_shapes(self) -> None:
+        if self.radial_operator_mode not in {"global", "element-local"}:
+            raise ValueError(
+                "radial_operator_mode must be 'global' or 'element-local'"
+            )
         if self.h1.ndim != 3 or self.h1.shape[1] != self.h1.shape[2]:
             raise ValueError("h1 must have shape (channels1, r1, r1)")
         if self.h2.ndim != 3 or self.h2.shape[1] != self.h2.shape[2]:
@@ -163,6 +221,42 @@ class TwoRadialHamiltonian:
             )
         if c.n_pairs and c.radial_index.max() >= expected[0]:
             raise ValueError("Coulomb coupling references a missing radial multipole")
+        if self.radial_operator_mode == "element-local":
+            self._validate_element_local_data()
+
+    def _validate_element_local_data(self) -> None:
+        if self.grid1 is None or self.grid2 is None:
+            raise ValueError(
+                "element-local radial operators require both prepared radial grids"
+            )
+        if self.grid1.family != "femdvr" or self.grid2.family != "femdvr":
+            raise ValueError("element-local radial operators require FEM-DVR grids")
+        if self.kinetic_prefactor1 is None or self.kinetic_prefactor2 is None:
+            raise ValueError(
+                "element-local radial operators require both kinetic prefactors"
+            )
+        if not np.isfinite(self.kinetic_prefactor1) or not np.isfinite(
+            self.kinetic_prefactor2
+        ):
+            raise ValueError("kinetic prefactors must be finite")
+        expected1 = (self.h1.shape[0], self.h1.shape[1])
+        expected2 = (self.h2.shape[0], self.h2.shape[1])
+        if self.h1_diagonal is None or self.h1_diagonal.shape != expected1:
+            actual = None if self.h1_diagonal is None else self.h1_diagonal.shape
+            raise ValueError(
+                f"h1_diagonal has shape {actual}; expected {expected1}"
+            )
+        if self.h2_diagonal is None or self.h2_diagonal.shape != expected2:
+            actual = None if self.h2_diagonal is None else self.h2_diagonal.shape
+            raise ValueError(
+                f"h2_diagonal has shape {actual}; expected {expected2}"
+            )
+
+    def _validated_state(self, psi: np.ndarray) -> np.ndarray:
+        psi = np.asarray(psi)
+        if psi.shape != self.psi_shape:
+            raise ValueError(f"psi has shape {psi.shape}; expected {self.psi_shape}")
+        return np.ascontiguousarray(psi)
 
 
 def _compact_coupling_arrays(

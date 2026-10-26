@@ -170,6 +170,34 @@ def test_velocity_action_matches_direct_reduced_radial_contraction(coordinate):
     np.testing.assert_allclose(actual, expected, atol=3.0e-14, rtol=3.0e-14)
 
 
+@pytest.mark.parametrize("M_tot", [None, 0])
+@pytest.mark.parametrize("coordinate", [1, 2])
+def test_element_local_velocity_action_matches_global_path(M_tot, coordinate):
+    system = _system(M_tot=M_tot)
+    state = _random_state(system)
+    global_operator = AxialCoordinateDipole(
+        system,
+        coordinate,
+        gauge="velocity",
+        coupling=-1.27,
+        radial_operator_mode="global",
+    )
+    local_operator = AxialCoordinateDipole(
+        system,
+        coordinate,
+        gauge="velocity",
+        coupling=-1.27,
+        radial_operator_mode="element-local",
+    )
+
+    np.testing.assert_allclose(
+        local_operator(state),
+        global_operator(state),
+        atol=4.0e-13,
+        rtol=4.0e-13,
+    )
+
+
 def test_velocity_action_on_s_wave_matches_analytic_radial_derivative():
     system = _system()
     state = np.zeros(system.psi_shape)

@@ -29,6 +29,7 @@ PHASE = 0.0
 
 TIME_STEP = 0.5
 FINAL_TIME = 10.0
+RADIAL_OPERATOR_MODE = "element-local"
 
 # Each CAP begins at 80% of its coordinate's radial interval. Thus the
 # electronic and internuclear onsets are 0.8 * r_max and 0.8 * R_max.
@@ -63,6 +64,7 @@ calculation = NonBornOppenheimerDiatomicIonTDSE(
     mu_max=initial_state.multipoles.mu_max,
     M_tot=0,
     codata_set=CODATA_SET,
+    radial_operator_mode=RADIAL_OPERATOR_MODE,
     integrator="crank-nicolson",
     integrator_options={
         "solver": "bicgstab",
@@ -86,6 +88,7 @@ norm_t = result.norm_history
 print(f"System:                 {calculation.system_name}")
 print(f"CODATA set:             {calculation.parameters.codata_set}")
 print(f"Field gauge:            {FIELD_GAUGE}")
+print(f"Radial operator mode:   {calculation.radial_operator_mode}")
 print(f"Integrator:             {calculation.integrator}")
 print(f"Time step:              {result.time_step:.12f} a.u.")
 print(f"Number of steps:        {result.n_steps}")

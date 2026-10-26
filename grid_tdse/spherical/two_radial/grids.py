@@ -51,6 +51,53 @@ class RadialGrid:
             return self.dvr.D2_l[l]
         return self.dvr.D2[1:-1, 1:-1]
 
+    def apply_local_second_derivative(
+        self, values: np.ndarray, *, axis: int = -1
+    ) -> np.ndarray:
+        """Apply the FEM-DVR second derivative with zero boundary values.
+
+        Two-radial states omit the two endpoints of a FEM-DVR grid. The
+        element-local operator supplied by ``grid-lib`` acts on the complete
+        grid, so this method inserts homogeneous Dirichlet boundary values,
+        applies the local operator, and returns only the interior action.
+        """
+
+        return self._apply_local_derivative(
+            values, axis=axis, method="apply_local_second_derivative"
+        )
+
+    def apply_local_first_derivative(
+        self, values: np.ndarray, *, axis: int = -1
+    ) -> np.ndarray:
+        """Apply the FEM-DVR first derivative with zero boundary values."""
+
+        return self._apply_local_derivative(
+            values, axis=axis, method="apply_local_first_derivative"
+        )
+
+    def _apply_local_derivative(
+        self, values: np.ndarray, *, axis: int, method: str
+    ) -> np.ndarray:
+        if self.family != "femdvr":
+            raise ValueError("element-local derivatives require a FEM-DVR grid")
+        values = np.asarray(values)
+        axis = int(axis)
+        if axis < 0:
+            axis += values.ndim
+        if axis < 0 or axis >= values.ndim:
+            raise np.exceptions.AxisError(axis, ndim=values.ndim)
+        if values.shape[axis] != self.n_points:
+            raise ValueError(
+                f"values axis has length {values.shape[axis]}; expected "
+                f"{self.n_points}"
+            )
+
+        moved = np.moveaxis(values, axis, -1)
+        full = np.zeros((*moved.shape[:-1], self.dvr.r.size), dtype=values.dtype)
+        full[..., 1:-1] = moved
+        action = getattr(self.dvr, method)(full, axis=-1)
+        return np.ascontiguousarray(np.moveaxis(action[..., 1:-1], -1, axis))
+
     def _validate_l(self, l: int) -> None:
         if not 0 <= l <= self.l_max:
             raise ValueError(f"l must satisfy 0 <= l <= {self.l_max}; got {l}")
