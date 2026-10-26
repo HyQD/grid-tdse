@@ -2,7 +2,8 @@
 
 The benchmark loads the archived H2+ ground state used by the high-level
 examples.  For each requested gauge, it applies one Crank--Nicolson step to
-the same state with and without the production one-body preconditioner.
+the same state with selected serial and distributed-compatible
+preconditioners, plus an unpreconditioned reference.
 
 The default step is centered near the largest absolute value of the selected
 one-cycle sine-square pulse profile.  Length and velocity gauge generally
@@ -46,7 +47,7 @@ from scipy import __version__ as scipy_version
 
 from grid_tdse.spherical.two_radial import (
     NonBornOppenheimerDiatomicIonTDSE,
-    TwoRadialRealTimePreconditioner,
+    build_two_radial_real_time_preconditioner,
     load_two_radial_state,
 )
 
@@ -71,6 +72,13 @@ THREAD_ENVIRONMENT_VARIABLES = (
     "MKL_NUM_THREADS",
     "NUMEXPR_NUM_THREADS",
     "NUMBA_NUM_THREADS",
+)
+PRECONDITIONER_CHOICES = (
+    "spectral",
+    "diagonal",
+    "element-block-jacobi",
+    "additive-schwarz",
+    "none",
 )
 
 
@@ -100,8 +108,8 @@ class SolveAttempt:
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description=(
-            "Compare one-body-preconditioned and unpreconditioned CN steps "
-            "for an archived non-BO H2+ ground state."
+            "Compare CN preconditioners for an archived non-BO H2+ ground "
+            "state."
         )
     )
     parser.add_argument(
@@ -116,6 +124,29 @@ def parse_arguments():
         choices=("length", "velocity"),
         default=("length", "velocity"),
         help="field gauges to benchmark",
+    )
+    parser.add_argument(
+        "--preconditioners",
+        nargs="+",
+        choices=PRECONDITIONER_CHOICES,
+        default=PRECONDITIONER_CHOICES,
+        help="preconditioners to benchmark in the requested order",
+    )
+    parser.add_argument(
+        "--partition-coordinate",
+        type=int,
+        choices=(1, 2),
+        default=2,
+        help=(
+            "element-preconditioner partition axis; 2 is internuclear R "
+            "for the non-BO diatomic representation"
+        ),
+    )
+    parser.add_argument(
+        "--overlap-elements",
+        type=int,
+        default=1,
+        help="neighboring-element layers in additive Schwarz",
     )
     parser.add_argument(
         "--field-strength",
@@ -241,6 +272,8 @@ def validate_arguments(args):
     for name in ("max_iterations", "warmups", "repeats", "tile_size"):
         if getattr(args, name) < 1:
             raise ValueError(f"{name.replace('_', '-')} must be positive")
+    if args.overlap_elements < 0:
+        raise ValueError("overlap-elements must be nonnegative")
     if args.gmres_restart is not None and args.gmres_restart < 1:
         raise ValueError("gmres-restart must be positive")
     if args.json_output is not None:
@@ -466,6 +499,22 @@ def state_comparison(left, right, representation):
     }
 
 
+def construct_preconditioner(name, representation, args):
+    if name == "none":
+        return None
+    options = {}
+    if name in {"element-block-jacobi", "additive-schwarz"}:
+        options["partition_coordinate"] = args.partition_coordinate
+    if name == "additive-schwarz":
+        options["overlap_elements"] = args.overlap_elements
+    return build_two_radial_real_time_preconditioner(
+        representation,
+        args.time_step,
+        name,
+        options=options,
+    )
+
+
 def package_versions():
     result = {
         "python": platform.python_version(),
@@ -572,12 +621,9 @@ def print_report(report):
             f"{gauge_result['temporal_field_value']:.12e}"
         )
         print(
-            f"Preconditioner construction:    "
-            f"{gauge_result['preconditioner_construction_seconds']:.2g} s"
-        )
-        print(
-            f"{'Configuration':18s} "
+            f"{'Configuration':22s} "
             f"{'status':>24s} "
+            f"{'setup / s':>12s} "
             f"{'minimum / s':>14s} "
             f"{'median / s':>14s} "
             f"{'iterations':>18s} "
@@ -585,8 +631,8 @@ def print_report(report):
             f"{'max residual':>14s} "
             f"{'norm change':>14s}"
         )
-        print("-" * 146)
-        for name in ("one_body", "none"):
+        print("-" * 164)
+        for name in configuration["preconditioners"]:
             result = gauge_result["configurations"][name]
             diagnostics = result["state_diagnostics"]
             norm_change = (
@@ -595,8 +641,9 @@ def print_report(report):
                 else f"{diagnostics['absolute_norm_change']:.2e}"
             )
             print(
-                f"{name:18s} "
+                f"{name:22s} "
                 f"{result['status']:>24s} "
+                f"{result['setup_seconds']:12.2g} "
                 f"{result['minimum_seconds']:14.2g} "
                 f"{result['median_seconds']:14.2g} "
                 f"{range_text(result, 'iterations'):>18s} "
@@ -604,12 +651,13 @@ def print_report(report):
                 f"{result['maximum_residual_norm']:14.2e} "
                 f"{norm_change:>14s}"
             )
-        comparison = gauge_result["state_comparison"]
-        if comparison is None:
-            print("State comparison:               unavailable")
-        else:
+        reference = gauge_result["comparison_reference"]
+        for name, comparison in gauge_result["state_comparisons"].items():
+            if comparison is None:
+                print(f"{name} vs {reference}: unavailable")
+                continue
             print(
-                "Relative state difference:       "
+                f"{name} vs {reference}, relative state difference: "
                 f"{comparison['relative_physical_difference']:.3e}"
             )
 
@@ -623,7 +671,7 @@ def main():
 
     report = {
         "format": "grid-tdse-non-bo-cn-preconditioner-benchmark",
-        "format_version": 1,
+        "format_version": 2,
         "environment": environment_metadata(),
         "configuration": {
             "state_path": str(args.state_path.resolve()),
@@ -651,6 +699,9 @@ def main():
             "ncycles": args.ncycles,
             "phase": args.phase,
             "requested_step_start_time": args.step_start_time,
+            "preconditioners": list(dict.fromkeys(args.preconditioners)),
+            "partition_coordinate": args.partition_coordinate,
+            "overlap_elements": args.overlap_elements,
         },
         "gauges": {},
     }
@@ -675,19 +726,14 @@ def main():
         report["configuration"]["state_mebibytes"] = state.nbytes / 2**20
         report["configuration"]["initial_norm"] = initial_norm
 
-        setup_start = perf_counter()
-        preconditioner = TwoRadialRealTimePreconditioner(
-            representation,
-            args.time_step,
-        )
-        preconditioner_setup = perf_counter() - setup_start
-
         configurations = {}
         states = {}
-        for name, selected_preconditioner in (
-            ("one_body", preconditioner),
-            ("none", None),
-        ):
+        for name in report["configuration"]["preconditioners"]:
+            setup_start = perf_counter()
+            selected_preconditioner = construct_preconditioner(
+                name, representation, args
+            )
+            setup_seconds = perf_counter() - setup_start
             result, final_state = benchmark_solver(
                 state,
                 calculation.hamiltonian,
@@ -700,20 +746,32 @@ def main():
                 initial_norm,
                 representation,
             )
+            result["setup_seconds"] = setup_seconds
             configurations[name] = result
             states[name] = final_state
+
+        comparison_reference = (
+            "none"
+            if "none" in states
+            else report["configuration"]["preconditioners"][0]
+        )
+        comparisons = {
+            name: state_comparison(
+                final_state,
+                states[comparison_reference],
+                representation,
+            )
+            for name, final_state in states.items()
+            if name != comparison_reference
+        }
 
         report["gauges"][gauge] = {
             "step_start": step_start,
             "midpoint": midpoint,
             "temporal_field_value": field_value,
-            "preconditioner_construction_seconds": preconditioner_setup,
             "configurations": configurations,
-            "state_comparison": state_comparison(
-                states["one_body"],
-                states["none"],
-                representation,
-            ),
+            "comparison_reference": comparison_reference,
+            "state_comparisons": comparisons,
         }
 
     print_report(report)

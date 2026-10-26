@@ -64,6 +64,38 @@ def test_atomic_interface_propagates_array_and_records_builtin_observables():
     assert calculation.integrator == "crank-nicolson"
 
 
+@pytest.mark.parametrize(
+    "preconditioner",
+    ["spectral", "diagonal", "element-block-jacobi", "additive-schwarz"],
+)
+def test_atomic_interface_exposes_named_cn_preconditioners(preconditioner):
+    initial = _atomic_initial_state()
+    preconditioner_options = (
+        {"overlap_elements": 0}
+        if preconditioner == "additive-schwarz"
+        else {}
+    )
+    calculation = TwoElectronAtomTDSE(
+        "He",
+        grid=GRID,
+        initial_state=initial,
+        l_max=1,
+        M_tot=0,
+        integrator="crank-nicolson",
+        integrator_options={
+            "preconditioner": preconditioner,
+            "preconditioner_options": preconditioner_options,
+        },
+        final_time=0.001,
+        time_step=0.001,
+    )
+
+    assert calculation.preconditioner.name == preconditioner
+    assert calculation.preconditioner_name == preconditioner
+    result = calculation.run(progress=False)
+    assert result.n_steps == 1
+
+
 def test_atomic_interface_accepts_axial_field_and_rejects_transverse_field():
     initial = _atomic_initial_state()
 

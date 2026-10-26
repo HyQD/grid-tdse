@@ -4,8 +4,12 @@ import pytest
 from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
+    TwoRadialAdditiveSchwarzRealTimePreconditioner,
+    TwoRadialDiagonalRealTimePreconditioner,
+    TwoRadialElementBlockJacobiRealTimePreconditioner,
     TwoRadialOneBodyPreconditioner,
     TwoRadialRealTimePreconditioner,
+    build_two_radial_real_time_preconditioner,
     load_two_radial_state,
 )
 
@@ -348,6 +352,149 @@ def test_real_time_preconditioner_matches_direct_complex_block_inverse():
     )
     expected = np.linalg.solve(matrix, state[0, 0].ravel()).reshape(actual.shape)
     np.testing.assert_allclose(actual, expected, atol=2.0e-12, rtol=2.0e-12)
+
+
+def test_diagonal_real_time_preconditioner_matches_one_body_diagonal():
+    representation = _calculation(M_tot=0).representation
+    time_step = 0.07
+    preconditioner = TwoRadialDiagonalRealTimePreconditioner(
+        representation, time_step
+    )
+    rng = np.random.default_rng(91)
+    state = rng.normal(size=representation.psi_shape) + 1j * rng.normal(
+        size=representation.psi_shape
+    )
+
+    actual = preconditioner(state)
+    expected = np.empty_like(actual)
+    for pair, (i, j) in enumerate(representation.angular_pairs.pairs):
+        diagonal = 1.0 + 0.5j * time_step * (
+            np.diag(representation.h1[i])[:, None]
+            + np.diag(representation.h2[j])[None, :]
+        )
+        expected[pair] = state[pair] / diagonal
+
+    np.testing.assert_allclose(actual, expected, atol=2.0e-13, rtol=2.0e-13)
+
+
+@pytest.mark.parametrize(
+    "preconditioner_class",
+    [
+        TwoRadialElementBlockJacobiRealTimePreconditioner,
+        TwoRadialAdditiveSchwarzRealTimePreconditioner,
+    ],
+)
+def test_element_real_time_preconditioner_matches_direct_subdomain_solves(
+    preconditioner_class,
+):
+    representation = _calculation(M_tot=0).representation
+    time_step = 0.07
+    options = (
+        {"overlap_elements": 1}
+        if preconditioner_class
+        is TwoRadialAdditiveSchwarzRealTimePreconditioner
+        else {}
+    )
+    preconditioner = preconditioner_class(
+        representation, time_step, **options
+    )
+    rng = np.random.default_rng(92)
+    state = np.zeros(representation.psi_shape, dtype=complex)
+    state[0] = rng.normal(size=state.shape[1:]) + 1j * rng.normal(
+        size=state.shape[1:]
+    )
+
+    actual = preconditioner(state)[0]
+    i, j = representation.angular_pairs.pairs[0]
+    h1 = representation.h1[i]
+    expected = np.zeros_like(actual)
+    for indices, scatter_weights in zip(
+        preconditioner.subdomain_indices,
+        preconditioner.subdomain_weights,
+    ):
+        h2 = representation.h2[j][np.ix_(indices, indices)]
+        dimension1 = h1.shape[0]
+        dimension2 = h2.shape[0]
+        matrix = np.eye(dimension1 * dimension2) + 0.5j * time_step * (
+            np.kron(h1, np.eye(dimension2))
+            + np.kron(np.eye(dimension1), h2)
+        )
+        local = np.linalg.solve(
+            matrix, state[0][:, indices].ravel()
+        ).reshape(dimension1, dimension2)
+        expected[:, indices] += local * scatter_weights[None, :]
+
+    np.testing.assert_allclose(actual, expected, atol=3.0e-12, rtol=3.0e-12)
+
+
+def test_element_preconditioner_subdomains_have_expected_coverage():
+    representation = _calculation(M_tot=0).representation
+    block_jacobi = TwoRadialElementBlockJacobiRealTimePreconditioner(
+        representation, 0.07
+    )
+    schwarz = TwoRadialAdditiveSchwarzRealTimePreconditioner(
+        representation, 0.07, overlap_elements=1
+    )
+
+    owned = np.concatenate(block_jacobi.subdomain_indices)
+    np.testing.assert_array_equal(
+        np.sort(owned), np.arange(representation.grid2.n_points)
+    )
+    partition_of_unity = np.zeros(representation.grid2.n_points)
+    for indices, weights in zip(
+        schwarz.subdomain_indices, schwarz.subdomain_weights
+    ):
+        partition_of_unity[indices] += weights
+    np.testing.assert_allclose(partition_of_unity, 1.0)
+
+
+@pytest.mark.parametrize(
+    ("selector", "expected_type"),
+    [
+        (True, TwoRadialRealTimePreconditioner),
+        ("spectral", TwoRadialRealTimePreconditioner),
+        ("diagonal", TwoRadialDiagonalRealTimePreconditioner),
+        (
+            "element-block-jacobi",
+            TwoRadialElementBlockJacobiRealTimePreconditioner,
+        ),
+        (
+            "additive-schwarz",
+            TwoRadialAdditiveSchwarzRealTimePreconditioner,
+        ),
+    ],
+)
+def test_real_time_preconditioner_factory(selector, expected_type):
+    representation = _calculation(M_tot=0).representation
+    options = {"overlap_elements": 0} if selector == "additive-schwarz" else None
+    actual = build_two_radial_real_time_preconditioner(
+        representation, 0.07, selector, options=options
+    )
+    assert isinstance(actual, expected_type)
+
+
+def test_real_time_preconditioner_factory_disables_and_validates_options():
+    representation = _calculation(M_tot=0).representation
+    assert (
+        build_two_radial_real_time_preconditioner(
+            representation, 0.07, False
+        )
+        is None
+    )
+    with pytest.raises(ValueError, match="unknown diagonal"):
+        build_two_radial_real_time_preconditioner(
+            representation,
+            0.07,
+            "diagonal",
+            options={"overlap_elements": 1},
+        )
+    with pytest.raises(TypeError, match="partition_coordinate"):
+        build_two_radial_real_time_preconditioner(
+            representation,
+            0.07,
+            "element-block-jacobi",
+            options={"partition_coordinate": True},
+        )
 
 
 def test_high_level_solve_returns_physical_metadata_and_preserves_symmetry():
