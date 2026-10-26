@@ -30,6 +30,9 @@ PHASE = 0.0
 TIME_STEP = 0.5
 FINAL_TIME = 10.0
 RADIAL_OPERATOR_MODE = "element-local"
+# The CAP makes the Hamiltonian non-Hermitian, so use Arnoldi/SIA rather than
+# Lanczos/SIL.
+INTEGRATOR = "sia"
 
 # Each CAP begins at 80% of its coordinate's radial interval. Thus the
 # electronic and internuclear onsets are 0.8 * r_max and 0.8 * R_max.
@@ -65,12 +68,14 @@ calculation = NonBornOppenheimerDiatomicIonTDSE(
     M_tot=0,
     codata_set=CODATA_SET,
     radial_operator_mode=RADIAL_OPERATOR_MODE,
-    integrator="crank-nicolson",
+    integrator=INTEGRATOR,
     integrator_options={
-        "solver": "bicgstab",
-        "rtol": 0.0,
-        "atol": 1.0e-10,
-        "preconditioner": True,
+        "max_krylov_dimension": 20,
+        "rtol": 1.0e-10,
+        "atol": 0.0,
+        "max_refinements": 8,
+        "reorthogonalize": True,
+        "breakdown_tolerance": 1.0e-14,
     },
     time_step=TIME_STEP,
     final_time=FINAL_TIME,
