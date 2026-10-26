@@ -8,10 +8,11 @@ three objects:
 - a Hamiltonian action `hamiltonian(state, time)`;
 - the physical inner product for that representation.
 
-The propagator advances the equation `i dPsi/dt = H(t) Psi` using the
-matrix-free implicit midpoint/Crank--Nicolson implementation from
-`integrator-lib`. The Hamiltonian is evaluated at the midpoint of every time
-step, which is required when fields make it explicitly time dependent.
+The propagator advances the equation `i dPsi/dt = H(t) Psi` using one of three
+matrix-free methods from `integrator-lib`: Crank--Nicolson, short-iterative
+Lanczos (SIL), or short-iterative Arnoldi (SIA). The Hamiltonian is evaluated
+at the midpoint of every time step, which is required when fields make it
+explicitly time dependent.
 
 ## Propagation interval
 
@@ -22,6 +23,7 @@ propagator = RealTimePropagator(
     initial_time=0.0,
     final_time=20.0,
     time_step=0.1,
+    integrator="crank-nicolson",
     linear_solver="gmres",
     linear_rtol=0.0,
     linear_atol=1.0e-12,
@@ -48,6 +50,45 @@ Two-radial FEM-DVR calculations can use
 Crank--Nicolson inverse with the separable one-coordinate Hamiltonians while
 omitting the Coulomb and explicitly time-dependent interactions.
 
+## Integrator selection
+
+Use `integrator="crank-nicolson"` for the implicit Cayley step. Its linear
+solver is controlled by `linear_solver`, `linear_rtol`, `linear_atol`,
+`linear_max_iterations`, and `gmres_restart`. An optional preconditioner is
+accepted only by this method.
+
+Use `integrator="sil"` for a Hermitian Hamiltonian without a CAP:
+
+```python
+propagator = RealTimePropagator(
+    final_time=20.0,
+    time_step=0.1,
+    integrator="sil",
+    max_krylov_dimension=20,
+    krylov_rtol=1.0e-10,
+    krylov_atol=0.0,
+    max_krylov_refinements=8,
+    krylov_reorthogonalize=True,
+    krylov_breakdown_tolerance=1.0e-14,
+)
+```
+
+SIL builds a tridiagonal projection by exploiting Hermiticity. The two-radial
+high-level interfaces reject SIL when a CAP is present. A mask is compatible
+because it is applied after the otherwise Hermitian propagation step rather
+than included in the Hamiltonian.
+
+Use `integrator="sia"` with the same Krylov options for a general generator.
+SIA uses an Arnoldi projection and supports the non-Hermitian Hamiltonian
+created by a CAP. SIA may also be used without a CAP, although SIL is the more
+specialized method for a Hermitian problem.
+
+Both exponential propagators increase the Krylov dimension up to
+`max_krylov_dimension`. If the requested tolerance is not reached, they bisect
+the requested interval recursively up to `max_krylov_refinements`. Every
+accepted or refined substep evaluates the Hamiltonian at its own temporal
+midpoint.
+
 ## Results and diagnostics
 
 `RealTimePropagationResult` contains:
@@ -58,8 +99,11 @@ omitting the Coulomb and explicitly time-dependent interactions.
 - the initial norm;
 - one diagnostic record for every accepted step.
 
-The `times` and `norm_history` properties include the initial point. Linear
-iteration counts and residual norms are recorded for every step. The norm is
+The `times` and `norm_history` properties include the initial point. CN records
+linear iteration counts and residual norms for every step. SIL and SIA instead
+record Hamiltonian calls, accepted and rejected Krylov substeps, maximum
+refinement depth, maximum accepted Krylov dimension, and an accumulated error
+estimate. Non-applicable CN or Krylov diagnostics are zero. The norm is
 computed as `inner_product(state, state)`, following the established dynamics
 convention in which the norm is the total represented probability rather than
 its square root. This is also the denominator needed to form conditional
@@ -122,12 +166,14 @@ calculation = TwoElectronAtomTDSE(
     M_tot=0,
     radial_coulomb_method="poisson",
     radial_operator_mode="element-local",
-    integrator="crank-nicolson",
+    integrator="sil",
     integrator_options={
-        "solver": "bicgstab",
-        "rtol": 0.0,
-        "atol": 1.0e-10,
-        "preconditioner": True,
+        "max_krylov_dimension": 20,
+        "rtol": 1.0e-10,
+        "atol": 0.0,
+        "max_refinements": 8,
+        "reorthogonalize": True,
+        "breakdown_tolerance": 1.0e-14,
     },
     time_step=0.5,
     final_time=10.0,
@@ -135,9 +181,12 @@ calculation = TwoElectronAtomTDSE(
 result = calculation.run(progress=True)
 ```
 
-Only `crank-nicolson` is currently implemented. The separate `integrator` and
-`integrator_options` arguments provide the dispatch point for future methods
-such as SIL without changing either physical-system interface.
+The high-level `integrator` choices are `"crank-nicolson"`, `"sil"`, and
+`"sia"`. The `rtol` and `atol` entries control the selected method. CN accepts
+the additional `solver`, `max_iterations`, `restart`, and `preconditioner`
+options. SIL and SIA accept `max_krylov_dimension`, `max_refinements`,
+`reorthogonalize`, and `breakdown_tolerance`. Options belonging only to another
+method are rejected rather than silently ignored.
 
 FEM-DVR uses `radial_coulomb_method="poisson"` by default. Setting it to
 `"analytic"` evaluates the radial multipole expression directly on the two
@@ -194,9 +243,10 @@ A mask is applied once after every accepted time step, before the norm,
 observables, and checkpoint are recorded. It is not applied to the initial
 state. A CAP is instead included as a diagonal, non-Hermitian term in every
 real-time Hamiltonian action. CAP terms are excluded from ground-state
-construction and from the current separable preconditioner. The latter remains
-an approximation to the Hermitian one-coordinate part of the
-Crank--Nicolson system.
+construction and from the current separable CN preconditioner. The latter
+remains an approximation to the Hermitian one-coordinate part of the
+Crank--Nicolson system. A CAP also makes SIL inapplicable; select SIA or CN
+instead.
 
 Neither absorber renormalizes the state. Consequently, norm loss represents
 absorbed probability and all recorded expectation values remain unnormalized.
@@ -229,9 +279,11 @@ a new propagation unless `checkpoint_overwrite=True` is explicit. No filename
 extension is added.
 
 The archive contains the current state, time and completed-step count, norm
-history, named samples, linear-solver diagnostics, integrator configuration,
-and user-supplied metadata. State and trajectory checksums are verified while
-loading, and loading never enables NumPy pickle support.
+history, named samples, method-specific CN or Krylov diagnostics, integrator
+configuration, and user-supplied metadata. State and trajectory checksums are
+verified while loading, and loading never enables NumPy pickle support.
+Checkpoint format version 2 adds the Krylov diagnostics; version 1 CN
+checkpoints remain readable.
 
 Use `resume` for exact recovery of an interrupted propagation:
 
@@ -243,7 +295,8 @@ propagator = RealTimePropagator(
     initial_time=checkpoint.current_time,
     final_time=checkpoint.latest_segment.target_final_time,
     time_step=checkpoint.latest_segment.requested_time_step,
-    # Use the same linear-solver settings as the interrupted segment.
+    # Use the same integrator and method-specific options as the interrupted
+    # segment.
 )
 result = propagator.resume(
     checkpoint,
@@ -309,6 +362,7 @@ metadata.
 
 [`examples/tdse_he_atom_high_level.py`](../examples/tdse_he_atom_high_level.py)
 loads an archived helium ground state and performs the same type of calculation
-through `TwoElectronAtomTDSE`. The corresponding non-Born--Oppenheimer H2+
-workflow is shown in
-[`examples/tdse_non_bo_h2p.py`](../examples/tdse_non_bo_h2p.py).
+through `TwoElectronAtomTDSE` and demonstrates SIL with a post-step mask. The
+corresponding non-Born--Oppenheimer H2+ workflow is shown in
+[`examples/tdse_non_bo_h2p.py`](../examples/tdse_non_bo_h2p.py), which uses SIA
+because its CAP makes the Hamiltonian non-Hermitian.
