@@ -23,7 +23,7 @@ from .diatomic import (
 )
 from .dipole import DipoleGauge, TwoRadialAxialDipoleInteraction
 from .grids import FEMDVRGridSpec
-from .preconditioner import TwoRadialRealTimePreconditioner
+from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
 from .system import (
     CoordinateSpec,
@@ -61,6 +61,7 @@ class _TwoRadialTDSE:
             "max_iterations",
             "restart",
             "preconditioner",
+            "preconditioner_options",
             "reality_tolerance",
         },
         "sil": {
@@ -162,20 +163,20 @@ class _TwoRadialTDSE:
             progress_interval=progress_interval,
         )
         if integrator == "crank-nicolson":
-            use_preconditioner = options.get("preconditioner", True)
-            if not isinstance(use_preconditioner, (bool, np.bool_)):
-                raise TypeError(
-                    "integrator option 'preconditioner' must be boolean"
-                )
-            self.preconditioner = (
-                TwoRadialRealTimePreconditioner(
-                    self.representation, self.propagator.time_step
-                )
-                if use_preconditioner
-                else None
+            self.preconditioner = build_two_radial_real_time_preconditioner(
+                self.representation,
+                self.propagator.time_step,
+                options.get("preconditioner", True),
+                options=options.get("preconditioner_options"),
+            )
+            self.preconditioner_name = (
+                None
+                if self.preconditioner is None
+                else self.preconditioner.name
             )
         else:
             self.preconditioner = None
+            self.preconditioner_name = None
 
         self.progress_interval = progress_interval
         self.checkpoint_path = checkpoint_path
