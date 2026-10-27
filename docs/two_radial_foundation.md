@@ -232,4 +232,6 @@ The layout is documented in [Distributed two-radial state
 layout](distributed_two_radial_state.md). The [distributed Hamiltonian and
 reductions](distributed_two_radial_hamiltonian.md) use neighboring bridge
 exchange for coordinate 2 while keeping coordinate 1, angular couplings, and
-Coulomb actions local.
+Coulomb actions local. The [distributed ground-state
+solver](distributed_ground_state.md) connects those operations to SIL
+imaginary-time propagation.

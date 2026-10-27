@@ -18,6 +18,10 @@ Packaging, tqdm, and Matplotlib. Supported Python and numerical-library
 versions are declared in [`pyproject.toml`](../pyproject.toml), which is the
 authoritative dependency specification.
 
+Distributed calculations additionally require `mpi4py` and a compatible MPI
+implementation. This dependency is optional so that serial installations do
+not require an MPI runtime.
+
 Spatial discretizations should be implemented in `grid-lib` and consumed by
 `grid-tdse`. General-purpose integration algorithms should similarly be added
 to `integrator-lib`; `grid-tdse` is responsible for adapting these components

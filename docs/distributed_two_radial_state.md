@@ -133,9 +133,11 @@ not intended as the final scalable checkpoint implementation.
 This layer defines ownership, local and halo ranges, element-local maps,
 scatter/gather behavior, and serial archive compatibility. The separate
 Hamiltonian layer now supplies halo exchange, the field-free action, and
-physical reductions. The combined distributed implementation does not yet:
+physical reductions, and the distributed ground-state layer supplies SIL
+imaginary-time propagation. The combined distributed implementation does not
+yet:
 
-- propagate a state with MPI;
+- propagate a state in real time with MPI;
 - apply time-dependent fields, CAPs, or masks;
 - write sharded or parallel-I/O checkpoints.
 

@@ -19,6 +19,7 @@ foundation:
 - [Two-radial state archives](two_radial_state_archives.md)
 - [Distributed two-radial state layout](distributed_two_radial_state.md)
 - [Distributed two-radial Hamiltonian and reductions](distributed_two_radial_hamiltonian.md)
+- [Distributed non-BO diatomic ground states](distributed_ground_state.md)
 - [Axial two-radial dipole interactions](two_radial_dipole_interaction.md)
 - [Real-time propagation](real_time_propagation.md)
 
