@@ -72,12 +72,13 @@ selectors are:
   a partition of unity.
 
 The element methods partition coordinate 2 by default. For a non-BO diatomic
-calculation this is the internuclear coordinate $R$, matching the planned MPI
-layout in which a rank owns an element-aligned $R$ interval but retains the
-full electronic coordinate $r$ and every local angular channel. A future MPI
-implementation will need only neighboring halo data for the overlapping
-method; the present implementation is serial and establishes the numerical
-algorithm and comparison baseline.
+calculation this is the internuclear coordinate $R$, matching the distributed
+state layout in which a rank owns an element-aligned $R$ interval but retains
+the full electronic coordinate $r$ and every angular channel. The state layer
+now records neighboring bridge halos. Distributed Hamiltonian and
+preconditioner actions remain future work; the present preconditioner
+implementation is serial and establishes the numerical algorithm and
+comparison baseline.
 
 Select a method through the CN integrator options:
 

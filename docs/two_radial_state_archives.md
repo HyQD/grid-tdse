@@ -63,3 +63,10 @@ The lower-level `save_two_radial_state` function is available for custom
 states. It requires a prepared `TwoRadialSystem` and an explicit physical-state
 description so the resulting file retains the information needed to interpret
 the coefficients.
+
+Distributed calculations retain this archive format. The collective
+`load_distributed_two_radial_state` and
+`save_distributed_two_radial_state` helpers perform validation and file I/O on
+the root rank, then scatter or gather the permanently owned radial blocks. See
+[Distributed two-radial state layout](distributed_two_radial_state.md) for the
+ownership convention and current scalability limitations.
