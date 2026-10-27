@@ -6,7 +6,11 @@ from typing import Literal
 
 import numpy as np
 
-from integrator_lib import CrankNicolson
+from integrator_lib import (
+    ArnoldiExponential,
+    CrankNicolson,
+    ShortIterativeLanczos,
+)
 from scipy.sparse.linalg import LinearOperator
 
 
@@ -21,8 +25,14 @@ class GroundStateIteration:
     state_change: float
     residual_norm: float
     norm: float
-    linear_iterations: int
-    linear_residual_norm: float
+    linear_iterations: int = 0
+    linear_residual_norm: float = 0.0
+    krylov_operator_calls: int = 0
+    krylov_accepted_substeps: int = 0
+    krylov_rejected_substeps: int = 0
+    krylov_refinement_depth: int = 0
+    krylov_dimension: int = 0
+    krylov_error_estimate: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -36,6 +46,7 @@ class GroundStateResult:
     converged: bool
     iterations: int
     imaginary_time: float
+    integrator: Literal["crank-nicolson", "sil", "sia"]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
 
@@ -63,6 +74,30 @@ class GroundStateResult:
 
         return self.history[-1].norm
 
+    @property
+    def linear_iterations(self) -> np.ndarray:
+        """Linear iterations used by every Crank--Nicolson step."""
+
+        return np.asarray(
+            [record.linear_iterations for record in self.history], dtype=int
+        )
+
+    @property
+    def krylov_operator_calls(self) -> np.ndarray:
+        """Hamiltonian calls made by the exponential integrator per step."""
+
+        return np.asarray(
+            [record.krylov_operator_calls for record in self.history], dtype=int
+        )
+
+    @property
+    def krylov_dimensions(self) -> np.ndarray:
+        """Largest accepted exponential Krylov dimension in every step."""
+
+        return np.asarray(
+            [record.krylov_dimension for record in self.history], dtype=int
+        )
+
 
 class ImaginaryTimeGroundStateSolver:
     """Find the lowest state represented in an initial wavefunction.
@@ -73,10 +108,12 @@ class ImaginaryTimeGroundStateSolver:
     physical inner product.
 
     Each iteration advances ``d psi / d tau = -H psi`` by one matrix-free
-    Crank--Nicolson step, normalizes the result, and evaluates the energy
-    change, phase-invariant state change, and normalized eigenstate residual.
+    Crank--Nicolson, short-iterative Lanczos (SIL), or short-iterative Arnoldi
+    (SIA) step. It normalizes the result and evaluates the energy change,
+    phase-invariant state change, and normalized eigenstate residual.
     """
 
+    _INTEGRATORS = {"crank-nicolson", "sil", "sia"}
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
 
     def __init__(
@@ -87,11 +124,18 @@ class ImaginaryTimeGroundStateSolver:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
+        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
         linear_solver: str = "gmres",
         linear_rtol: float = 1.0e-10,
         linear_atol: float = 0.0,
         linear_max_iterations: int | None = None,
         gmres_restart: int | None = None,
+        max_krylov_dimension: int = 20,
+        krylov_rtol: float = 1.0e-10,
+        krylov_atol: float = 0.0,
+        max_krylov_refinements: int = 8,
+        krylov_reorthogonalize: bool = True,
+        krylov_breakdown_tolerance: float = 1.0e-14,
         reality_tolerance: float = 1.0e-10,
         progress_interval: int | None = 10,
     ) -> None:
@@ -102,6 +146,10 @@ class ImaginaryTimeGroundStateSolver:
         self.residual_tolerance = _positive_real(
             residual_tolerance, "residual_tolerance"
         )
+        if integrator not in self._INTEGRATORS:
+            choices = ", ".join(sorted(self._INTEGRATORS))
+            raise ValueError(f"integrator must be one of: {choices}")
+        self.integrator = integrator
         if linear_solver not in self._LINEAR_SOLVERS:
             choices = ", ".join(sorted(self._LINEAR_SOLVERS))
             raise ValueError(f"linear_solver must be one of: {choices}")
@@ -113,7 +161,26 @@ class ImaginaryTimeGroundStateSolver:
         self.linear_max_iterations = _optional_positive_integer(
             linear_max_iterations, "linear_max_iterations"
         )
-        self.gmres_restart = _optional_positive_integer(gmres_restart, "gmres_restart")
+        self.gmres_restart = _optional_positive_integer(
+            gmres_restart, "gmres_restart"
+        )
+        self.max_krylov_dimension = _positive_integer(
+            max_krylov_dimension, "max_krylov_dimension"
+        )
+        self.krylov_rtol = _nonnegative_real(krylov_rtol, "krylov_rtol")
+        self.krylov_atol = _nonnegative_real(krylov_atol, "krylov_atol")
+        if self.krylov_rtol == self.krylov_atol == 0.0:
+            raise ValueError("at least one Krylov tolerance must be positive")
+        self.max_krylov_refinements = _nonnegative_integer(
+            max_krylov_refinements, "max_krylov_refinements"
+        )
+        if not isinstance(krylov_reorthogonalize, (bool, np.bool_)):
+            raise TypeError("krylov_reorthogonalize must be boolean")
+        self.krylov_reorthogonalize = bool(krylov_reorthogonalize)
+        self.krylov_breakdown_tolerance = _positive_real(
+            krylov_breakdown_tolerance,
+            "krylov_breakdown_tolerance",
+        )
         self.reality_tolerance = _nonnegative_real(
             reality_tolerance, "reality_tolerance"
         )
@@ -144,7 +211,8 @@ class ImaginaryTimeGroundStateSolver:
             Physical inner product for the representation.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
-            :class:`integrator_lib.CrankNicolson`.
+            :class:`integrator_lib.CrankNicolson`. It is rejected for SIL and
+            SIA.
         """
 
         if not callable(hamiltonian):
@@ -158,14 +226,7 @@ class ImaginaryTimeGroundStateSolver:
         initial_action = _hamiltonian_action(hamiltonian, state, shape)
         previous_energy = self._energy(state, initial_action, inner_product)
 
-        integrator = CrankNicolson(
-            solver=self.linear_solver,
-            rtol=self.linear_rtol,
-            atol=self.linear_atol,
-            maxiter=self.linear_max_iterations,
-            restart=self.gmres_restart,
-            preconditioner=preconditioner,
-        )
+        integrator = self._build_integrator(inner_product, preconditioner)
 
         def imaginary_time_rhs(values, time):
             del time
@@ -198,8 +259,7 @@ class ImaginaryTimeGroundStateSolver:
                 state_change=state_change,
                 residual_norm=residual_norm,
                 norm=norm,
-                linear_iterations=int(integrator.last_iterations),
-                linear_residual_norm=float(integrator.last_residual_norm),
+                **self._step_diagnostics(integrator),
             )
             history.append(record)
 
@@ -227,11 +287,55 @@ class ImaginaryTimeGroundStateSolver:
             converged=converged,
             iterations=final.iteration,
             imaginary_time=final.imaginary_time,
+            integrator=self.integrator,
             termination_reason=("converged" if converged else "maximum_iterations"),
             history=tuple(history),
         )
 
     __call__ = solve
+
+    def _build_integrator(self, inner_product, preconditioner):
+        if self.integrator == "crank-nicolson":
+            return CrankNicolson(
+                solver=self.linear_solver,
+                rtol=self.linear_rtol,
+                atol=self.linear_atol,
+                maxiter=self.linear_max_iterations,
+                restart=self.gmres_restart,
+                preconditioner=preconditioner,
+            )
+        if preconditioner is not None:
+            raise ValueError(
+                f"preconditioner is not supported by integrator "
+                f"{self.integrator!r}"
+            )
+        common = {
+            "max_krylov_dimension": self.max_krylov_dimension,
+            "rtol": self.krylov_rtol,
+            "atol": self.krylov_atol,
+            "max_refinements": self.max_krylov_refinements,
+            "reorthogonalize": self.krylov_reorthogonalize,
+            "inner_product": inner_product,
+            "breakdown_tolerance": self.krylov_breakdown_tolerance,
+        }
+        if self.integrator == "sil":
+            return ShortIterativeLanczos(generator_factor=-1.0, **common)
+        return ArnoldiExponential(**common)
+
+    def _step_diagnostics(self, integrator) -> dict[str, int | float]:
+        if self.integrator == "crank-nicolson":
+            return {
+                "linear_iterations": int(integrator.last_iterations),
+                "linear_residual_norm": float(integrator.last_residual_norm),
+            }
+        return {
+            "krylov_operator_calls": int(integrator.last_operator_calls),
+            "krylov_accepted_substeps": int(integrator.last_accepted_substeps),
+            "krylov_rejected_substeps": int(integrator.last_rejected_substeps),
+            "krylov_refinement_depth": int(integrator.last_refinement_depth),
+            "krylov_dimension": int(integrator.last_krylov_dimension),
+            "krylov_error_estimate": float(integrator.last_error_estimate),
+        }
 
     def _normalize(self, state, inner_product):
         norm = self._norm(state, inner_product)
@@ -337,6 +441,15 @@ def _positive_integer(value, name: str) -> int:
     result = int(value)
     if result <= 0:
         raise ValueError(f"{name} must be positive")
+    return result
+
+
+def _nonnegative_integer(value, name: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise TypeError(f"{name} must be a non-negative integer")
+    result = int(value)
+    if result < 0:
+        raise ValueError(f"{name} must be non-negative")
     return result
 
 

@@ -88,8 +88,9 @@ with the two-radial quadrature.
 
 ## Solver and result
 
-The calculation uses matrix-free Crank--Nicolson imaginary-time steps. By
-default, the Krylov solve is preconditioned with the inverse of
+The calculation supports matrix-free Crank--Nicolson, SIL, and SIA
+imaginary-time steps. Crank--Nicolson remains the default and may be
+preconditioned with the inverse of
 
 $$
 I+\frac{\Delta\tau}{2}(h_1+h_2),
@@ -98,6 +99,11 @@ $$
 where the one-electron Hamiltonians are diagonalized in their
 quadrature-weighted Hermitian representations. Electron--electron repulsion
 is omitted from the preconditioner but retained in every Hamiltonian action.
+
+Select the exponential alternatives with `integrator="sil"` or
+`integrator="sia"` and set `use_preconditioner=False`. SIL is the preferred
+exponential path for the Hermitian atomic Hamiltonian, while SIA provides a
+general reference implementation.
 
 The current energy, energy change, phase-invariant state change, and
 eigenstate residual are printed every ten steps by default. Set
