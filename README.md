@@ -29,6 +29,7 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Non-BO ground-state integrator comparison](docs/non_bo_diatomic_ground_state_integrator_benchmark.md)
 - [Two-electron atomic ground states](docs/two_electron_atomic_ground_state.md)
 - [Distributed two-radial state layout](docs/distributed_two_radial_state.md)
+- [Distributed two-radial Hamiltonian and reductions](docs/distributed_two_radial_hamiltonian.md)
 
 Feature documentation will be added alongside each implemented and tested
 solver.
