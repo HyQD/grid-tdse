@@ -219,3 +219,15 @@ The atomic and molecular-ion interfaces own physical validation, particle
 parameters, symmetry defaults, initial states, and imaginary-time
 ground-state propagation. This foundation owns only the reusable
 discretization and Hamiltonian action.
+
+## Distributed state foundation
+
+`TwoRadialDistributedLayout` partitions the second FEM-DVR coordinate into
+contiguous element ranges while retaining every angular channel and the full
+first radial coordinate on each rank. It records permanent ownership, bridge
+halos, neighboring ranks, and element-local maps. Pure and communicator-based
+scatter/gather operations support full and compact fixed-`M_tot` states.
+
+The layout is documented in [Distributed two-radial state
+layout](distributed_two_radial_state.md). Distributed Hamiltonian actions and
+physical reductions are intentionally left to the next implementation layer.
