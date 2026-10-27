@@ -4,7 +4,7 @@ This guide describes a project-local development installation of `grid-tdse`
 and its HyQD dependencies on Saga. It also explains how to update an existing
 installation safely.
 
-The commands and module names were last verified on 2026-10-25.
+The commands and module names were last verified on 2026-10-27.
 
 The commands use the following placeholders:
 
@@ -363,6 +363,200 @@ Run a short API check:
 ```bash
 python -c 'import inspect; from grid_tdse.spherical.two_radial import NonBornOppenheimerDiatomicIonGroundState as C; assert "radial_coulomb_method" in inspect.signature(C).parameters; print("Updated grid-tdse API found")'
 ```
+
+## Optional MPI setup on Saga
+
+Distributed calculations require `mpi4py` to be built against the same MPI
+implementation loaded by the Slurm job. On Saga, use a cluster Open MPI module
+rather than installing Open MPI from Conda.
+
+### Select the cluster MPI implementation
+
+First confirm that the project environment does not already contain `mpi4py`
+or a Conda-provided MPI implementation:
+
+```bash
+command -v python
+python -m pip show mpi4py
+conda list | grep -E '^(mpi4py|openmpi|mpich|mpi)[[:space:]]'
+```
+
+The Python path must point into `${ENV_PREFIX}`. It is fine for the latter two
+commands to report no matching packages at this stage.
+
+Inspect the available Open MPI modules and the prerequisites for the selected
+version:
+
+```bash
+module spider OpenMPI
+module spider OpenMPI/5.0.10-GCC-15.2.0
+```
+
+The setup verified for this guide uses the standard Saga CPU environment and:
+
+```bash
+StdEnv
+OpenMPI/5.0.10-GCC-15.2.0
+```
+
+`Zen2Env` is not needed for the normal Saga CPU nodes used here. Record the
+chosen Open MPI module in `grid_tdse_paths.sh` by adding:
+
+```bash
+export GRID_TDSE_MPI_MODULE="OpenMPI/5.0.10-GCC-15.2.0"
+```
+
+Do not add MPI directories to `PATH` or `LD_LIBRARY_PATH` manually. The module
+system manages those paths.
+
+### Load Open MPI and activate the Conda environment
+
+Use the following order in an interactive shell and in every MPI job script:
+
+```bash
+module --quiet reset
+module load StdEnv
+module load Miniconda3/25.7.0-2
+source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
+source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
+module load "${GRID_TDSE_MPI_MODULE}"
+
+conda activate base
+conda activate "${ENV_PREFIX}"
+hash -r
+```
+
+Confirm that `python` comes from the project environment and `mpicc` comes
+from the selected cluster module:
+
+```bash
+module list
+command -v python
+command -v mpicc
+mpicc --showme:version
+```
+
+The expected paths begin with `${ENV_PREFIX}/bin/python` and
+`/cluster/software/OpenMPI/5.0.10-GCC-15.2.0/bin/mpicc`, respectively.
+
+### Build mpi4py against Saga's Open MPI
+
+If `mpi4py` was installed previously against another MPI implementation,
+remove it first:
+
+```bash
+python -m pip uninstall -y mpi4py
+```
+
+Build `mpi4py` from source with the currently loaded `mpicc` wrapper:
+
+```bash
+MPICC="$(command -v mpicc)" \
+python -m pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4,<5"
+```
+
+Verify the linked library:
+
+```bash
+python -c 'import mpi4py; from mpi4py import MPI; print("mpi4py:", mpi4py.__version__); print(MPI.Get_library_version())'
+python -m pip check
+```
+
+The reported library must be Open MPI 5.0.10. If it reports a Conda Open MPI
+or MPICH build, remove `mpi4py`, restore the module setup above, and rebuild
+it.
+
+### Test mpi4py through Slurm
+
+MPI programs should run on compute nodes assigned by Slurm, not directly on a
+login node. Create
+`${PROJECT_ROOT}/jobs/grid-tdse/test_mpi.sh` with:
+
+```bash
+#!/bin/bash
+
+#SBATCH --account=<project-id>
+#SBATCH --job-name=test-mpi
+#SBATCH --qos=devel
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=1G
+#SBATCH --time=00:05:00
+#SBATCH --output=test-mpi-%j.out
+
+set -euo pipefail
+
+project_root="/cluster/projects/<project-id>/<username>"
+
+module --quiet reset
+module load StdEnv
+module load Miniconda3/25.7.0-2
+source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
+source "${project_root}/grid_tdse_paths.sh"
+module load "${GRID_TDSE_MPI_MODULE}"
+
+conda activate base
+conda activate "${ENV_PREFIX}"
+hash -r
+
+if [[ "$(command -v python)" != "${ENV_PREFIX}/bin/python" ]]; then
+    echo "Failed to activate ${ENV_PREFIX}" >&2
+    exit 1
+fi
+
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMBA_NUM_THREADS=1
+
+# HCOLL is an optional HPC-X collective component. It is not needed for this
+# mpi4py validation and can emit harmless multicast/hierarchy warnings.
+export OMPI_MCA_coll="^hcoll"
+
+echo "Starting job ${SLURM_JOB_ID} on $(hostname) at $(date)"
+echo "Python:       $(command -v python)"
+echo "MPI compiler: $(command -v mpicc)"
+
+srun --mpi=pmix \
+    python -c 'from mpi4py import MPI; c=MPI.COMM_WORLD; print(f"rank {c.rank} of {c.size}; sum={c.allreduce(c.rank + 1)}", flush=True)'
+```
+
+On Saga, `devel` is a quality of service, not a partition. Therefore use
+`#SBATCH --qos=devel`, not `#SBATCH --partition=devel`. The normal CPU
+partition is selected by default.
+
+Submit and inspect the test with:
+
+```bash
+cd "${PROJECT_ROOT}/jobs/grid-tdse"
+sbatch test_mpi.sh
+squeue --me
+cat test-mpi-<job-id>.out
+```
+
+The rank lines may appear in either order, but both ranks must report
+`sum=3`. The job must exit normally.
+
+Load the same `GRID_TDSE_MPI_MODULE` in every subsequent MPI batch job. Use
+`srun`, not `mpiexec` or `mpirun`, on Saga. For Open MPI, Sigma2 recommends:
+
+```bash
+srun --mpi=pmix python mpi_program.py
+```
+
+Do not use the laptop-only option `--mca btl self,sm` on Saga. It restricts
+Open MPI to local shared-memory communication and is unsuitable for
+multi-node jobs.
+
+If HCOLL emits messages such as `No MCAST components selected` or
+`hcoll_mcast_base_select`, the MPI program can still complete using fallback
+collectives. Keep `OMPI_MCA_coll="^hcoll"` in the job scripts used for these
+benchmarks to disable that optional component and avoid the warnings.
+
+Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, 4-, and
+8-rank submission helper, are provided in
+[`examples/Saga`](../examples/Saga/README.md).
 
 ## 9. Run the test suite through Slurm
 
