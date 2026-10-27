@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from scipy.linalg import expm
 
 from grid_tdse.ground_state import ImaginaryTimeGroundStateSolver
 
@@ -81,6 +82,80 @@ def test_one_iteration_matches_normalized_imaginary_time_cayley_step():
     assert result.norm == pytest.approx(1.0)
     assert result.history[0].linear_iterations > 0
     assert result.history[0].linear_residual_norm < 1.0e-12
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_one_iteration_matches_normalized_imaginary_time_exponential(integrator):
+    hamiltonian = np.array([[0.8, 0.2], [0.2, 1.4]])
+    initial = np.array([1.0, -0.3])
+    time_step = 0.2
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator=integrator,
+        time_step=time_step,
+        max_iterations=1,
+        energy_tolerance=1.0e-30,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0e-30,
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+    )
+
+    result = solver.solve(initial, lambda state: hamiltonian @ state, np.vdot)
+
+    normalized = initial / np.linalg.norm(initial)
+    expected = expm(-time_step * hamiltonian) @ normalized
+    expected /= np.linalg.norm(expected)
+    np.testing.assert_allclose(result.state, expected, atol=2.0e-13)
+    assert result.integrator == integrator
+    assert result.history[0].linear_iterations == 0
+    assert result.history[0].krylov_operator_calls == 2
+    assert result.history[0].krylov_dimension == 2
+    assert result.history[0].krylov_error_estimate == 0.0
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_itp_converges_to_lowest_represented_eigenstate(integrator):
+    eigenvalues = np.array([0.5, 1.5, 3.0])
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator=integrator,
+        time_step=0.4,
+        max_iterations=200,
+        energy_tolerance=1.0e-12,
+        residual_tolerance=1.0e-10,
+        max_krylov_dimension=3,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+    )
+
+    result = solver.solve(
+        np.ones(3),
+        lambda state: eigenvalues * state,
+        np.vdot,
+    )
+
+    assert result.converged
+    assert result.energy == pytest.approx(eigenvalues[0], abs=1.0e-12)
+    assert result.residual_norm <= solver.residual_tolerance
+    assert np.all(result.linear_iterations == 0)
+    assert np.all(result.krylov_operator_calls > 0)
+    assert np.all(result.krylov_dimensions > 0)
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_itp_rejects_a_preconditioner(integrator):
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator=integrator,
+        max_iterations=1,
+    )
+
+    with pytest.raises(ValueError, match="preconditioner is not supported"):
+        solver.solve(
+            np.ones(2),
+            lambda state: state,
+            np.vdot,
+            preconditioner=lambda state: state,
+        )
 
 
 def test_itp_supports_complex_shaped_states_and_a_shaped_preconditioner():
@@ -189,8 +264,13 @@ def test_itp_rejects_invalid_representation_operations(
         ("energy_tolerance", -1.0, ValueError),
         ("state_tolerance", 0.0, ValueError),
         ("residual_tolerance", 0.0, ValueError),
+        ("integrator", "invalid", ValueError),
         ("linear_solver", "invalid", ValueError),
         ("linear_rtol", 0.0, ValueError),
+        ("max_krylov_dimension", 0, ValueError),
+        ("krylov_rtol", 0.0, ValueError),
+        ("max_krylov_refinements", -1, ValueError),
+        ("krylov_reorthogonalize", 1, TypeError),
         ("progress_interval", 0, ValueError),
     ],
 )
@@ -198,6 +278,8 @@ def test_itp_validates_solver_options(keyword, value, error):
     options = {keyword: value}
     if keyword == "linear_rtol":
         options["linear_atol"] = 0.0
+    if keyword == "krylov_rtol":
+        options["krylov_atol"] = 0.0
     with pytest.raises(error):
         ImaginaryTimeGroundStateSolver(**options)
 

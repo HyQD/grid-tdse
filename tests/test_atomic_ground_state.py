@@ -21,6 +21,8 @@ def _calculation(
     initial_state="product",
     max_iterations=1,
     M_tot=None,
+    integrator="crank-nicolson",
+    use_preconditioner=False,
 ):
     return TwoElectronAtomGroundState(
         atom,
@@ -38,12 +40,43 @@ def _calculation(
         energy_tolerance=1.0e-8,
         state_tolerance=1.0e-7,
         residual_tolerance=1.0e-7,
+        integrator=integrator,
         linear_solver="bicgstab",
         linear_rtol=0.0,
         linear_atol=1.0e-11,
+        max_krylov_dimension=12,
+        krylov_rtol=1.0e-10,
+        krylov_atol=1.0e-12,
         progress_interval=None,
-        use_preconditioner=False,
+        use_preconditioner=use_preconditioner,
     )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_atomic_krylov_ground_state_integrators_are_exposed(integrator):
+    calculation = _calculation(
+        integrator=integrator,
+        M_tot=0,
+        max_iterations=2,
+    )
+
+    result = calculation.solve()
+
+    assert result.integrator == integrator
+    assert calculation.integrator == integrator
+    assert result.history[-1].linear_iterations == 0
+    assert result.history[-1].krylov_operator_calls > 0
+    assert result.inversion_expectation == pytest.approx(1.0, abs=1.0e-12)
+    assert result.electron_exchange_expectation == pytest.approx(1.0, abs=1.0e-12)
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_atomic_krylov_ground_state_rejects_cn_preconditioner(integrator):
+    with pytest.raises(ValueError, match="use_preconditioner=True"):
+        _calculation(
+            integrator=integrator,
+            use_preconditioner=True,
+        )
 
 
 @pytest.mark.parametrize(
@@ -223,6 +256,7 @@ def test_atomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.physical_state["parameters"]["nuclear_charge"] == 2.0
     assert stored.physical_state["symmetry"]["spin_multiplicity"] == 1
     assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["integrator"] == "crank-nicolson"
     assert stored.calculation["radial_operator_mode"] == "global"
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
