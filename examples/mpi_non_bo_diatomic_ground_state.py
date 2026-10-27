@@ -4,8 +4,8 @@ Install the optional MPI support and launch, for example, with::
 
     mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py
 
-The internuclear grid has eight FEM-DVR elements and therefore supports at
-most eight ranks with the current element-aligned decomposition.
+The internuclear grid has four FEM-DVR elements and therefore supports at
+most four ranks with the current element-aligned decomposition.
 """
 
 import argparse
@@ -81,12 +81,12 @@ MAX_KRYLOV_REFINEMENTS = 8
 PROGRESS_INTERVAL = 10
 
 electronic_grid = FEMDVRGridSpec(
-    nodes=[0.0, 2.0, 5.0],
-    n_points=[5, 5],
+    nodes=[0.0, 4.0, 8.0, 12.0, 16.0],
+    n_points=[11, 11, 11, 11],
 )
 internuclear_grid = FEMDVRGridSpec(
-    nodes=np.linspace(0.0, 8.0, 9),
-    n_points=[5] * 8,
+    nodes=[0.0, 2.0, 4.0, 6.0, 8.0],
+    n_points=[21, 21, 21, 21],
 )
 
 # This high-level object prepares the physical representation and deterministic

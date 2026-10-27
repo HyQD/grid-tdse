@@ -21,7 +21,7 @@ for l_max in "${l_max_values[@]}"; do
         exit 2
     fi
 
-    for ranks in 1 2 4 8; do
+    for ranks in 1 2 4; do
         sbatch \
             --job-name="ang_${system_label}_l${l_max}_${ranks}r" \
             --ntasks="${ranks}" \
