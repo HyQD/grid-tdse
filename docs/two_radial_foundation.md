@@ -229,5 +229,7 @@ halos, neighboring ranks, and element-local maps. Pure and communicator-based
 scatter/gather operations support full and compact fixed-`M_tot` states.
 
 The layout is documented in [Distributed two-radial state
-layout](distributed_two_radial_state.md). Distributed Hamiltonian actions and
-physical reductions are intentionally left to the next implementation layer.
+layout](distributed_two_radial_state.md). The [distributed Hamiltonian and
+reductions](distributed_two_radial_hamiltonian.md) use neighboring bridge
+exchange for coordinate 2 while keeping coordinate 1, angular couplings, and
+Coulomb actions local.

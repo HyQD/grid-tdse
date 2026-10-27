@@ -149,11 +149,56 @@ class TwoRadialHamiltonian:
         """
 
         psi = self._validated_state(psi)
-        dtype = np.result_type(psi.dtype, self._radial_flat.dtype)
+        return self._apply_coulomb_values(psi, self._radial_flat, out=out)
+
+    def apply_coulomb_R_slice(
+        self,
+        psi: np.ndarray,
+        R_indices: np.ndarray,
+        *,
+        out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Apply the point-local Coulomb action on selected coordinate-2 points.
+
+        The angular and first-radial axes remain complete.  This method is the
+        distributed-state path and does not construct a full coordinate-2
+        state or output array.
+        """
+
+        indices = np.asarray(R_indices)
+        if indices.ndim != 1 or indices.size == 0:
+            raise ValueError("R_indices must be a nonempty one-dimensional array")
+        if indices.dtype.kind not in "iu" or indices.dtype.kind == "b":
+            raise TypeError("R_indices must contain integers")
+        indices = np.asarray(indices, dtype=int)
+        if np.any(indices < 0) or np.any(indices >= self.psi_shape[-1]):
+            raise ValueError("R_indices contains an out-of-range index")
+        if np.any(np.diff(indices) <= 0):
+            raise ValueError("R_indices must be strictly increasing")
+
+        expected_shape = (*self.psi_shape[:-1], indices.size)
+        psi = self._validated_shape(psi, expected_shape)
+        radial = np.ascontiguousarray(
+            self.radial_multipoles.values[..., indices].reshape(
+                self.radial_multipoles.values.shape[0],
+                -1,
+            )
+        )
+        return self._apply_coulomb_values(psi, radial, out=out)
+
+    def _apply_coulomb_values(
+        self,
+        psi: np.ndarray,
+        radial_flat: np.ndarray,
+        *,
+        out: np.ndarray | None,
+    ) -> np.ndarray:
+        expected_shape = psi.shape
+        dtype = np.result_type(psi.dtype, radial_flat.dtype)
         if out is None:
-            out = np.zeros(self.psi_shape, dtype=dtype)
-        elif out.shape != self.psi_shape:
-            raise ValueError(f"out has shape {out.shape}; expected {self.psi_shape}")
+            out = np.zeros(expected_shape, dtype=dtype)
+        elif out.shape != expected_shape:
+            raise ValueError(f"out has shape {out.shape}; expected {expected_shape}")
         elif not np.can_cast(dtype, out.dtype, casting="same_kind"):
             raise TypeError(
                 f"cannot accumulate {dtype} Coulomb action in {out.dtype} output"
@@ -162,15 +207,15 @@ class TwoRadialHamiltonian:
             raise ValueError("out must be C-contiguous")
 
         if self._uses_compact_storage:
-            output = out.reshape(self.psi_shape[0], -1)
-            wavefunction = psi.reshape(self.psi_shape[0], -1)
+            output = out.reshape(expected_shape[0], -1)
+            wavefunction = psi.reshape(expected_shape[0], -1)
             output_pair, offsets, input_pair, radial_index, coefficient = (
                 self._compact_couplings
             )
             _apply_compact_coulomb_kernel(
                 output,
                 wavefunction,
-                self._radial_flat,
+                radial_flat,
                 output_pair,
                 offsets,
                 input_pair,
@@ -179,13 +224,13 @@ class TwoRadialHamiltonian:
                 self.tile_size,
             )
         else:
-            output = out.reshape(self.psi_shape[0], self.psi_shape[1], -1)
-            wavefunction = psi.reshape(self.psi_shape[0], self.psi_shape[1], -1)
+            output = out.reshape(expected_shape[0], expected_shape[1], -1)
+            wavefunction = psi.reshape(expected_shape[0], expected_shape[1], -1)
             c = self.couplings
             _apply_coulomb_kernel(
                 output,
                 wavefunction,
-                self._radial_flat,
+                radial_flat,
                 c.output_1,
                 c.output_2,
                 c.offsets,
@@ -195,7 +240,7 @@ class TwoRadialHamiltonian:
                 c.coefficient,
                 self.tile_size,
             )
-        return output.reshape(self.psi_shape)
+        return output.reshape(expected_shape)
 
     def _validate_shapes(self) -> None:
         if self.radial_operator_mode not in {"global", "element-local"}:
@@ -253,9 +298,13 @@ class TwoRadialHamiltonian:
             )
 
     def _validated_state(self, psi: np.ndarray) -> np.ndarray:
+        return self._validated_shape(psi, self.psi_shape)
+
+    @staticmethod
+    def _validated_shape(psi: np.ndarray, expected_shape: tuple[int, ...]) -> np.ndarray:
         psi = np.asarray(psi)
-        if psi.shape != self.psi_shape:
-            raise ValueError(f"psi has shape {psi.shape}; expected {self.psi_shape}")
+        if psi.shape != expected_shape:
+            raise ValueError(f"psi has shape {psi.shape}; expected {expected_shape}")
         return np.ascontiguousarray(psi)
 
 
