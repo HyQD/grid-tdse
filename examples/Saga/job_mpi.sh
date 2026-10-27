@@ -35,7 +35,7 @@ fi
 cache_root="${TMPDIR:-/tmp}/grid-tdse-${SLURM_JOB_ID}"
 mkdir -p "${cache_root}/matplotlib" "${cache_root}/numba"
 export MPLCONFIGDIR="${cache_root}/matplotlib"
-export NUMBA_CACHE_DIR="${cache_root}/numba"
+export NUMBA_CACHE_ROOT="${cache_root}/numba"
 export NUMBA_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
@@ -54,11 +54,16 @@ echo "MPI module: ${GRID_TDSE_MPI_MODULE}"
 echo "MPI ranks:  ${SLURM_NTASKS}"
 echo "Script:     ${script}"
 module list
-python -c 'from mpi4py import MPI; print(MPI.Get_library_version())'
+python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
 
 time srun \
     --mpi=pmix \
     --ntasks="${SLURM_NTASKS}" \
     --cpus-per-task=1 \
     --cpu-bind=cores \
-    python "${script}" "$@"
+    bash -c '
+        rank_cache="${NUMBA_CACHE_ROOT}/rank-${SLURM_PROCID}"
+        mkdir -p "${rank_cache}"
+        export NUMBA_CACHE_DIR="${rank_cache}"
+        exec python "$@"
+    ' bash "${script}" "$@"
