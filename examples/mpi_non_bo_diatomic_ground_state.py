@@ -1,4 +1,4 @@
-"""Distributed Lanczos imaginary-time calculation for non-BO H2+.
+"""Distributed Lanczos imaginary-time calculation for a non-BO diatomic ion.
 
 Install the optional MPI support and launch, for example, with::
 
@@ -7,6 +7,8 @@ Install the optional MPI support and launch, for example, with::
 The internuclear grid has eight FEM-DVR elements and therefore supports at
 most eight ranks with the current element-aligned decomposition.
 """
+
+import argparse
 
 import numpy as np
 from mpi4py import MPI
@@ -22,14 +24,38 @@ from grid_tdse.spherical.two_radial import (
 )
 
 
-SYSTEM = "H2+"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--system",
+    choices=("H2+", "HD+", "D2+"),
+    default="H2+",
+)
+parser.add_argument(
+    "--no-serial-comparison",
+    action="store_false",
+    dest="compare_with_serial",
+    help="skip the serial reference after the distributed solve",
+)
+parser.add_argument(
+    "--max-iterations",
+    type=int,
+    default=4_000,
+    help="maximum number of imaginary-time steps (default: 4000)",
+)
+arguments = parser.parse_args()
+
+SYSTEM = arguments.system
 CODATA_SET = "2022"
 M_tot = 0
 l_max = 2
-COMPARE_WITH_SERIAL = True
+COMPARE_WITH_SERIAL = arguments.compare_with_serial
+
+IDENTICAL_PAIR = SYSTEM != "HD+"
+PAIR_EXCHANGE_PARITY = +1 if IDENTICAL_PAIR else None
+SYMMETRY_ADAPTED_BASIS = IDENTICAL_PAIR
 
 TIME_STEP = 0.5
-MAX_ITERATIONS = 4000
+MAX_ITERATIONS = arguments.max_iterations
 ENERGY_TOLERANCE = 1.0e-10
 STATE_TOLERANCE = 1.0e-8
 RESIDUAL_TOLERANCE = 1.0e-8
@@ -55,8 +81,8 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     electronic_grid=electronic_grid,
     internuclear_grid=internuclear_grid,
     inversion_parity=+1,
-    pair_exchange_parity=+1,
-    symmetry_adapted_basis=True,
+    pair_exchange_parity=PAIR_EXCHANGE_PARITY,
+    symmetry_adapted_basis=SYMMETRY_ADAPTED_BASIS,
     l_max=l_max,
     m_max=l_max,
     lambda_max=2 * l_max,
@@ -106,7 +132,22 @@ solver = TwoRadialDistributedGroundStateSolver(
     krylov_reorthogonalize=True,
     progress_interval=PROGRESS_INTERVAL,
 )
+
+# Warm the rank-local and communication paths before timing so first-call
+# compilation and setup do not contaminate the solve measurement.
+solver.hamiltonian(local_initial_state)
+
+# Synchronize before timing so the reported value is the slowest rank's solve
+# time rather than rank zero's local time. Warmup, state gathering, and the
+# optional serial reference are deliberately excluded from this measurement.
+communicator.Barrier()
+distributed_start = MPI.Wtime()
 result = solver.solve(local_initial_state)
+local_distributed_time = MPI.Wtime() - distributed_start
+distributed_time = communicator.allreduce(
+    local_distributed_time,
+    op=MPI.MAX,
+)
 state = gather_two_radial_state(result.state, communicator)
 
 if communicator.rank == 0:
@@ -120,6 +161,7 @@ if communicator.rank == 0:
     print(f"State change:             {result.state_change:.3e}")
     print(f"Eigenstate residual:      {result.residual_norm:.3e}")
     print(f"Norm:                     {result.norm:.12f}")
+    print(f"Distributed solve time:   {distributed_time:.6f} s")
 
     if COMPARE_WITH_SERIAL:
         serial_solver = ImaginaryTimeGroundStateSolver(
@@ -136,11 +178,13 @@ if communicator.rank == 0:
             krylov_reorthogonalize=True,
             progress_interval=None,
         )
+        serial_start = MPI.Wtime()
         serial = serial_solver.solve(
             calculation.initial_state,
             calculation.hamiltonian,
             calculation.representation.inner_product,
         )
+        serial_time = MPI.Wtime() - serial_start
         overlap = calculation.representation.inner_product(serial.state, state)
         aligned = (
             state
@@ -156,3 +200,5 @@ if communicator.rank == 0:
         )
         print(f"Serial energy difference: {abs(result.energy - serial.energy):.3e} Eh")
         print(f"Serial state difference:  {difference_norm:.3e}")
+        print(f"Serial solve time:        {serial_time:.6f} s")
+        print(f"Serial/MPI time ratio:    {serial_time / distributed_time:.6f}")
