@@ -17,6 +17,7 @@ foundation:
 - [Non-BO ground-state integrator comparison](non_bo_diatomic_ground_state_integrator_benchmark.md)
 - [Two-electron atomic ground states](two_electron_atomic_ground_state.md)
 - [Two-radial state archives](two_radial_state_archives.md)
+- [Distributed two-radial state layout](distributed_two_radial_state.md)
 - [Axial two-radial dipole interactions](two_radial_dipole_interaction.md)
 - [Real-time propagation](real_time_propagation.md)
 
