@@ -128,11 +128,11 @@ compute node.
 
 ## Submit an MPI correctness run
 
-Submit H2+ with one, two, four, and eight ranks while retaining the default
+Submit H2+ with one, two, and four ranks while retaining the default
 serial-reference comparison:
 
 ```bash
-for ranks in 1 2 4 8; do
+for ranks in 1 2 4; do
     sbatch \
         --job-name="correct_h2p_${ranks}r" \
         --ntasks="${ranks}" \
@@ -163,7 +163,7 @@ phase-aligned serial state before running timing-only jobs.
 
 ## Submit the initial rank series
 
-Submit separate one-node jobs with 1, 2, 4, and 8 ranks:
+Submit separate one-node jobs with 1, 2, and 4 ranks:
 
 ```bash
 bash submit_mpi_ground_state_rank_series.sh H2+
@@ -217,7 +217,7 @@ sbatch \
     --l-max 4
 ```
 
-The angular-scaling helper submits 1-, 2-, 4-, and 8-rank timing jobs for each
+The angular-scaling helper submits 1-, 2-, and 4-rank timing jobs for each
 requested cutoff. With no cutoff arguments, it starts conservatively with
 `l_max=2` and `4`:
 
@@ -266,8 +266,8 @@ time-to-solution measure.
 
 ## Notes
 
-- The current internuclear grid has eight FEM-DVR elements, so it supports at
-  most eight ranks with the element-aligned decomposition.
+- The current internuclear grid has four FEM-DVR elements, so it supports at
+  most four ranks with the element-aligned decomposition.
 - Keep all validation runs on identical grids, angular truncations, symmetry
   sectors, CODATA data, initial states, timesteps, and tolerances.
 - Use the `devel` quality of service only for short validation jobs. Remove

@@ -554,8 +554,8 @@ If HCOLL emits messages such as `No MCAST components selected` or
 collectives. Keep `OMPI_MCA_coll="^hcoll"` in the job scripts used for these
 benchmarks to disable that optional component and avoid the warnings.
 
-Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, 4-, and
-8-rank submission helper, are provided in
+Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, and 4-rank
+submission helper, are provided in
 [`examples/Saga`](../examples/Saga/README.md).
 
 ### Update an MPI-enabled installation
@@ -652,10 +652,10 @@ each rank so concurrent JIT initialization does not write to one cache entry.
 ### Validate the distributed H2+ ground state
 
 From `${PROJECT_ROOT}/jobs/grid-tdse`, submit correctness calculations with
-one, two, four, and eight ranks:
+one, two, and four ranks:
 
 ```bash
-for ranks in 1 2 4 8; do
+for ranks in 1 2 4; do
     sbatch \
         --job-name="correct_h2p_${ranks}r" \
         --ntasks="${ranks}" \
@@ -676,8 +676,8 @@ grep --text -H -E \
 
 All rank counts must converge to the same energy and iteration count, retain
 unit norm, satisfy the requested state and residual tolerances, and agree with
-the phase-aligned serial state. The current internuclear grid contains eight
-FEM-DVR elements, so eight ranks is its decomposition limit.
+the phase-aligned serial state. The current internuclear grid contains four
+FEM-DVR elements, so four ranks is its decomposition limit.
 
 ### Run an HD+ sanity check
 
@@ -727,7 +727,7 @@ sbatch \
 ```
 
 After correctness has been established, submit timing-only calculations on
-one, two, four, and eight ranks. With no cutoff arguments, the helper submits
+one, two, and four ranks. With no cutoff arguments, the helper submits
 `l_max=2` and `4`:
 
 ```bash
