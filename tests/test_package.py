@@ -26,3 +26,6 @@ def test_package_exports_spherical_two_radial_namespace():
     assert two_radial.two_radial_compatibility_metadata.__module__ == (
         "grid_tdse.spherical.two_radial.state_archive"
     )
+    assert two_radial.TwoRadialDistributedLayout.__module__ == (
+        "grid_tdse.spherical.two_radial.distributed_state"
+    )
