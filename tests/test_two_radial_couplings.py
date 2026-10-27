@@ -54,3 +54,27 @@ def test_sparse_coulomb_action_matches_dense_tensor_oracle(parity):
 
     assert np.allclose(actual, expected, atol=1e-12, rtol=1e-12)
     assert couplings.n_pairs < dense_ybar.size * dense_y.size
+
+
+@pytest.mark.parametrize("parity", [None, 1])
+def test_coulomb_R_slice_matches_selected_full_action(parity):
+    basis1 = AngularBasisSpec(2, 2, coordinate_parity=parity)
+    basis2 = AngularBasisSpec(2, 1, coordinate_parity=parity)
+    multipoles = CoulombMultipoleSpec(3, 2)
+    couplings = build_coulomb_couplings(basis1, basis2, multipoles)
+    rng = np.random.default_rng(71)
+    radial = rng.normal(size=(len(multipoles.lambdas), 3, 5))
+    psi = rng.normal(size=(basis1.n_channels, basis2.n_channels, 3, 5))
+    psi = psi + 1j * rng.normal(size=psi.shape)
+    hamiltonian = TwoRadialHamiltonian(
+        np.zeros((basis1.n_channels, 3, 3)),
+        np.zeros((basis2.n_channels, 5, 5)),
+        RadialCoulombMultipoles(radial, multipoles.lambdas, "test"),
+        couplings,
+    )
+    indices = np.asarray([0, 2, 4])
+
+    expected = hamiltonian.apply_coulomb(psi)[..., indices]
+    actual = hamiltonian.apply_coulomb_R_slice(psi[..., indices], indices)
+
+    np.testing.assert_allclose(actual, expected, atol=1.0e-13, rtol=1.0e-13)

@@ -34,6 +34,11 @@ from .distributed_state import (
     save_distributed_two_radial_state,
     scatter_two_radial_state,
 )
+from .distributed_hamiltonian import (
+    DistributedHamiltonianComponents,
+    TwoRadialDistributedHamiltonian,
+    TwoRadialDistributedReductions,
+)
 from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
 from .hamiltonian import TwoRadialHamiltonian
 from .observables import AngularMomentumExpectations
@@ -81,6 +86,7 @@ __all__ = [
     "DiatomicIonGroundStateResult",
     "DiatomicIonParameters",
     "DipoleGauge",
+    "DistributedHamiltonianComponents",
     "DistributedTwoRadialState",
     "FEMDVRGridSpec",
     "NonBornOppenheimerDiatomicIonGroundState",
@@ -99,6 +105,8 @@ __all__ = [
     "TwoRadialAxialDipoleInteraction",
     "TwoRadialAbsorbingBoundaries",
     "TwoRadialDistributedLayout",
+    "TwoRadialDistributedHamiltonian",
+    "TwoRadialDistributedReductions",
     "TwoRadialOneBodyPreconditioner",
     "TwoRadialRealTimePreconditioner",
     "TwoRadialRankLayout",

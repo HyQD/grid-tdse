@@ -1,9 +1,10 @@
 # Distributed two-radial state layout
 
-`TwoRadialDistributedLayout` defines the first distributed-memory state
-representation for non-Born--Oppenheimer diatomic calculations. It is a
-storage and communication foundation; distributed Hamiltonian actions are a
-separate implementation step.
+`TwoRadialDistributedLayout` defines the distributed-memory state
+representation for non-Born--Oppenheimer diatomic calculations. The
+field-free action and physical reductions built on this layout are documented
+in [Distributed two-radial Hamiltonian and
+reductions](distributed_two_radial_hamiltonian.md).
 
 ## Decomposition
 
@@ -130,12 +131,12 @@ not intended as the final scalable checkpoint implementation.
 ## Present scope
 
 This layer defines ownership, local and halo ranges, element-local maps,
-scatter/gather behavior, and serial archive compatibility. It does not yet:
+scatter/gather behavior, and serial archive compatibility. The separate
+Hamiltonian layer now supplies halo exchange, the field-free action, and
+physical reductions. The combined distributed implementation does not yet:
 
-- exchange halo values;
-- apply a distributed Hamiltonian;
-- perform distributed inner products or observable reductions;
 - propagate a state with MPI;
+- apply time-dependent fields, CAPs, or masks;
 - write sharded or parallel-I/O checkpoints.
 
 Those operations build on this layout in the subsequent MPI implementation
