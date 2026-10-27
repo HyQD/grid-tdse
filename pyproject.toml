@@ -39,6 +39,9 @@ dev = [
     "pytest>=8",
     "pytest-cov>=5",
 ]
+mpi = [
+    "mpi4py>=4,<5",
+]
 
 [tool.setuptools]
 include-package-data = true
