@@ -12,6 +12,8 @@ INVERSION_PARITY = +1
 ELECTRON_EXCHANGE_PARITY = +1
 INITIAL_STATE = "product"
 STATE_TOLERANCE = 1.0e-8
+INTEGRATOR = "crank-nicolson"  # Choose "crank-nicolson", "sil", or "sia".
+USE_PRECONDITIONER = INTEGRATOR == "crank-nicolson"
 l_max = 2
 
 radial_grid = FEMDVRGridSpec(
@@ -51,19 +53,28 @@ calculation = TwoElectronAtomGroundState(
     M_tot=M_tot,
     # Deterministic symmetry-adapted product-state guess.
     initial_state=INITIAL_STATE,
-    # Imaginary-time Crank--Nicolson iteration.
+    # Representation-independent imaginary-time iteration.
     time_step=0.25,
     max_iterations=2000,
     energy_tolerance=1.0e-10,
     state_tolerance=STATE_TOLERANCE,
     residual_tolerance=1.0e-8,
+    integrator=INTEGRATOR,
+    # Crank--Nicolson linear-solver options.
     linear_solver="bicgstab",
     linear_rtol=0.0,
     linear_atol=1.0e-12,
     linear_max_iterations=None,
     gmres_restart=None,
+    # SIL/SIA exponential-Krylov options.
+    max_krylov_dimension=20,
+    krylov_rtol=1.0e-10,
+    krylov_atol=0.0,
+    max_krylov_refinements=8,
+    krylov_reorthogonalize=True,
+    krylov_breakdown_tolerance=1.0e-14,
     progress_interval=10,
-    use_preconditioner=True,
+    use_preconditioner=USE_PRECONDITIONER,
     tile_size=2048,
 )
 
@@ -80,6 +91,7 @@ saved_path = result.save(
 print(f"System:                   {result.parameters.name}")
 print(f"Nuclear charge:           {result.parameters.nuclear_charge:.0f}")
 print(f"Spin multiplicity:        {result.spin_multiplicity}")
+print(f"ITP integrator:           {result.integrator}")
 print(f"Converged:                {result.converged}")
 print(f"Iterations:               {result.iterations}")
 print(f"Energy:                   {result.energy:.12f} Eh")

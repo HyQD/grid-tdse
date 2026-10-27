@@ -122,8 +122,10 @@ sector, rejects a zero projected state, and normalizes the result.
 
 ## Solver and result
 
-The calculation uses matrix-free Crank--Nicolson imaginary-time steps. By
-default, the Krylov solve is preconditioned with the inverse of
+The calculation supports matrix-free Crank--Nicolson, SIL, and SIA
+imaginary-time steps. Select them with `integrator="crank-nicolson"`,
+`integrator="sil"`, or `integrator="sia"`. Crank--Nicolson remains the
+default and may be preconditioned with the inverse of
 
 $$
 I+\frac{\Delta\tau}{2}(h_e+h_R),
@@ -132,6 +134,12 @@ $$
 where the two one-coordinate Hamiltonians are diagonalized in their
 quadrature-weighted Hermitian representations. The two-coordinate Coulomb
 interaction is not included in the preconditioner.
+
+SIL and SIA apply the imaginary-time exponential and do not use a
+preconditioner. Set `use_preconditioner=False` when selecting either method.
+SIL is the primary exponential path for this Hermitian Hamiltonian; SIA is
+retained as a general reference. The high-level interface exposes Krylov
+dimension, tolerance, refinement, reorthogonalization, and breakdown options.
 
 The current energy, energy change, phase-invariant state change, and
 eigenstate residual are printed every ten steps by default. Set
@@ -149,3 +157,8 @@ for a complete calculation with every grid, angular, symmetry, and solver
 option shown explicitly. Radial-grid, angular, Coulomb-multipole, and
 imaginary-time-step convergence must all be checked before treating an
 energy as converged.
+
+The serial comparison in
+[`benchmarks/non_bo_diatomic_ground_state_integrators.py`](../benchmarks/non_bo_diatomic_ground_state_integrators.py)
+runs CN, SIL, and SIA for H2+, HD+, and D2+ on selectable small or moderate
+FEM-DVR grids.

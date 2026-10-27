@@ -21,14 +21,29 @@ Imaginary-time evolution obeys
 \frac{\partial}{\partial\tau}\Psi(\tau)=-H\Psi(\tau).
 ```
 
-Each iteration uses the matrix-free Crank--Nicolson implementation from
-`integrator-lib`:
+The solver supports three matrix-free integrators from `integrator-lib`:
+
+- `integrator="crank-nicolson"` applies the Cayley step below and remains the
+  default;
+- `integrator="sil"` uses a Hermitian Lanczos projection to approximate the
+  imaginary-time exponential;
+- `integrator="sia"` uses a general Arnoldi projection as a validation and
+  fallback path.
+
+The Crank--Nicolson step is
 
 ```math
 \left(I+\frac{\Delta\tau}{2}H\right)\Psi_{n+1}
 =
 \left(I-\frac{\Delta\tau}{2}H\right)\Psi_n.
 ```
+
+SIL and SIA instead approximate `exp(-Delta tau H) Psi_n`. For SIL,
+`grid-tdse` configures `ShortIterativeLanczos` with
+`generator_factor=-1.0`. SIA consumes the generator `-H` directly. SIL is the
+preferred exponential method for the ordinary Hermitian ground-state problem
+because its projected matrix is tridiagonal and it requires less storage than
+Arnoldi.
 
 The updated state is normalized after every step using the supplied physical
 inner product. No Euclidean coefficient norm is assumed.
@@ -106,13 +121,14 @@ hamiltonian_matrix = np.array(
 )
 
 solver = ImaginaryTimeGroundStateSolver(
+    integrator="sil",
     time_step=0.2,
     max_iterations=500,
     energy_tolerance=1.0e-12,
     state_tolerance=1.0e-10,
     residual_tolerance=1.0e-10,
-    linear_solver="gmres",
-    linear_rtol=1.0e-12,
+    max_krylov_dimension=20,
+    krylov_rtol=1.0e-12,
 )
 
 result = solver.solve(
@@ -127,13 +143,19 @@ maximum number of iterations returns a result with
 `termination_reason == "maximum_iterations"`; it does not silently label the
 state as converged.
 
-Failure of the inner Crank--Nicolson Krylov solve raises
-`integrator_lib.LinearSolveError`.
+Failure of the inner Crank--Nicolson solve raises
+`integrator_lib.LinearSolveError`. Failure of an SIL or SIA exponential after
+the configured refinements raises `integrator_lib.KrylovConvergenceError`.
 
 Crank--Nicolson is not strongly damping for arbitrarily large imaginary-time
 steps. The time step should therefore be included in numerical convergence
 tests; increasing it without bound does not necessarily accelerate removal
 of high-energy components.
+
+The same time-step convergence requirement applies to the exponential
+methods. Although SIL and SIA accurately approximate the exponential for one
+chosen step, normalization and finite-precision convergence diagnostics are
+still evaluated only at step boundaries.
 
 ## Weighted two-radial states
 
@@ -155,12 +177,13 @@ result = solver.solve(
     initial_state=psi0,
     hamiltonian=system.hamiltonian(),
     inner_product=system.inner_product,
-    preconditioner=preconditioner,
+    preconditioner=None,
 )
 ```
 
-The construction of `psi0` and a two-radial preconditioner belongs to the
-atomic and molecular high-level interfaces.
+The construction of `psi0` belongs to the atomic and molecular high-level
+interfaces. A two-radial preconditioner may be supplied only when
+`integrator="crank-nicolson"`; SIL and SIA reject it.
 
 ## Diagnostics
 
@@ -173,8 +196,10 @@ atomic and molecular high-level interfaces.
 - convenience energy, state-change, and residual history arrays.
 
 Each iteration record includes the energy, energy change, phase-invariant
-state change, eigenstate residual, normalized state norm, and the iteration
-count and final residual reported by the inner Krylov solve.
+state change, eigenstate residual, and normalized state norm. CN records its
+linear iteration count and final residual. SIL and SIA record Hamiltonian
+calls, accepted and rejected substeps, refinement depth, Krylov dimension,
+and the exponential residual estimate.
 
 ## Progress reporting
 

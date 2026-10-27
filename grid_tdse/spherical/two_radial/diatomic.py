@@ -115,6 +115,10 @@ class DiatomicIonGroundStateResult:
         return self.ground_state.iterations
 
     @property
+    def integrator(self) -> str:
+        return self.ground_state.integrator
+
+    @property
     def history(self):
         return self.ground_state.history
 
@@ -156,6 +160,7 @@ class DiatomicIonGroundStateResult:
             },
             calculation={
                 "method": "imaginary_time_propagation",
+                "integrator": self.ground_state.integrator,
                 "radial_operator_mode": self.radial_operator_mode,
                 "energy": self.energy,
                 "norm": self.ground_state.norm,
@@ -221,11 +226,18 @@ class NonBornOppenheimerDiatomicIonGroundState:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
+        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
         linear_solver: str = "bicgstab",
         linear_rtol: float = 0.0,
         linear_atol: float = 1.0e-12,
         linear_max_iterations: int | None = None,
         gmres_restart: int | None = None,
+        max_krylov_dimension: int = 20,
+        krylov_rtol: float = 1.0e-10,
+        krylov_atol: float = 0.0,
+        max_krylov_refinements: int = 8,
+        krylov_reorthogonalize: bool = True,
+        krylov_breakdown_tolerance: float = 1.0e-14,
         progress_interval: int | None = 10,
         use_preconditioner: bool = True,
         radial_operator_mode: RadialOperatorMode = "global",
@@ -251,6 +263,11 @@ class NonBornOppenheimerDiatomicIonGroundState:
         if not isinstance(use_preconditioner, (bool, np.bool_)):
             raise TypeError("use_preconditioner must be boolean")
         self.use_preconditioner = bool(use_preconditioner)
+        if integrator in ("sil", "sia") and self.use_preconditioner:
+            raise ValueError(
+                f"use_preconditioner=True is not supported by integrator "
+                f"{integrator!r}"
+            )
 
         if not isinstance(electronic_grid, FEMDVRGridSpec):
             raise TypeError("electronic_grid must be a FEMDVRGridSpec")
@@ -349,13 +366,21 @@ class NonBornOppenheimerDiatomicIonGroundState:
             energy_tolerance=energy_tolerance,
             state_tolerance=state_tolerance,
             residual_tolerance=residual_tolerance,
+            integrator=integrator,
             linear_solver=linear_solver,
             linear_rtol=linear_rtol,
             linear_atol=linear_atol,
             linear_max_iterations=linear_max_iterations,
             gmres_restart=gmres_restart,
+            max_krylov_dimension=max_krylov_dimension,
+            krylov_rtol=krylov_rtol,
+            krylov_atol=krylov_atol,
+            max_krylov_refinements=max_krylov_refinements,
+            krylov_reorthogonalize=krylov_reorthogonalize,
+            krylov_breakdown_tolerance=krylov_breakdown_tolerance,
             progress_interval=progress_interval,
         )
+        self.integrator = self.solver.integrator
         self.preconditioner = (
             TwoRadialOneBodyPreconditioner(self.representation, time_step)
             if self.use_preconditioner

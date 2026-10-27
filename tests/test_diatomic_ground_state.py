@@ -31,6 +31,8 @@ def _calculation(
     M_tot=None,
     radial_coulomb_method="poisson",
     radial_operator_mode="global",
+    integrator="crank-nicolson",
+    use_preconditioner=False,
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -54,11 +56,94 @@ def _calculation(
         energy_tolerance=1.0e-8,
         state_tolerance=1.0e-7,
         residual_tolerance=1.0e-7,
+        integrator=integrator,
         linear_solver="bicgstab",
         linear_rtol=0.0,
         linear_atol=1.0e-11,
-        use_preconditioner=False,
+        max_krylov_dimension=12,
+        krylov_rtol=1.0e-10,
+        krylov_atol=1.0e-12,
+        use_preconditioner=use_preconditioner,
     )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    ("system", "pair_exchange_parity", "symmetry_adapted_basis"),
+    [
+        ("H2+", 1, True),
+        ("HD+", None, False),
+        ("D2+", 1, True),
+    ],
+)
+def test_krylov_ground_state_integrators_are_exposed(
+    integrator,
+    system,
+    pair_exchange_parity,
+    symmetry_adapted_basis,
+):
+    calculation = _calculation(
+        system,
+        pair_exchange_parity=pair_exchange_parity,
+        symmetry_adapted_basis=symmetry_adapted_basis,
+        integrator=integrator,
+        M_tot=0,
+        max_iterations=2,
+    )
+
+    result = calculation.solve()
+
+    assert result.integrator == integrator
+    assert calculation.integrator == integrator
+    assert result.state.shape == calculation.representation.psi_shape
+    assert result.history[-1].linear_iterations == 0
+    assert result.history[-1].krylov_operator_calls > 0
+    assert result.inversion_expectation == pytest.approx(1.0, abs=1.0e-12)
+    if pair_exchange_parity is None:
+        assert result.pair_exchange_expectation is None
+    else:
+        assert result.pair_exchange_expectation == pytest.approx(
+            1.0, abs=1.0e-12
+        )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_ground_state_integrators_reject_cn_preconditioner(integrator):
+    with pytest.raises(ValueError, match="use_preconditioner=True"):
+        _calculation(
+            integrator=integrator,
+            use_preconditioner=True,
+        )
+
+
+def test_short_serial_ground_state_steps_agree_between_integrators():
+    calculations = {
+        integrator: _calculation(
+            integrator=integrator,
+            M_tot=0,
+            max_iterations=1,
+        )
+        for integrator in ("crank-nicolson", "sil", "sia")
+    }
+    results = {
+        integrator: calculation.solve()
+        for integrator, calculation in calculations.items()
+    }
+    inner_product = calculations["sil"].representation.inner_product
+
+    np.testing.assert_allclose(
+        results["sil"].state,
+        results["sia"].state,
+        atol=3.0e-10,
+        rtol=3.0e-10,
+    )
+    reference = results["sil"].state
+    cayley_state = results["crank-nicolson"].state
+    overlap = inner_product(reference, cayley_state)
+    cayley_state = cayley_state * overlap.conjugate() / abs(overlap)
+    difference = cayley_state - reference
+    difference_norm = np.sqrt(inner_product(difference, difference).real)
+    assert difference_norm < 1.0e-5
 
 
 def test_element_local_ground_state_hamiltonian_matches_global_path():
@@ -529,6 +614,7 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     ]
     assert stored.physical_state["symmetry"]["pair_exchange_parity"] == 1
     assert stored.calculation["energy"] == pytest.approx(result.energy)
+    assert stored.calculation["integrator"] == "crank-nicolson"
     assert stored.calculation["radial_operator_mode"] == "global"
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
