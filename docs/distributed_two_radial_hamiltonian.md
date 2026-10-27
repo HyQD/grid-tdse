@@ -124,7 +124,8 @@ The complete prepared `TwoRadialSystem`, including setup tables, is still
 replicated on every rank. The state and coordinate-2 Hamiltonian action are
 distributed, but operator setup storage has not yet been partitioned.
 
-The implementation does not yet provide a distributed propagation driver,
-time-dependent dipole action, CAP action, mask application, or distributed
-checkpoint history. Krylov ground-state propagation is the next consumer of
-this foundation.
+The [distributed non-BO diatomic ground-state
+solver](distributed_ground_state.md) is the first propagation consumer of this
+foundation. The implementation does not yet provide time-dependent dipole
+actions, CAP actions, mask application, distributed real-time propagation, or
+distributed checkpoint histories.

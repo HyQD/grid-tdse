@@ -14,6 +14,16 @@ dependencies:
 python -m pip install -e ".[dev]"
 ```
 
+Install the optional MPI dependency for distributed calculations with:
+
+```bash
+python -m pip install -e ".[mpi]"
+```
+
+The `mpi4py` installation must match the MPI implementation used to launch
+the calculation. On an HPC system, load the intended compiler and MPI modules
+before installing this optional dependency.
+
 When developing several HyQD repositories together, install their local
 checkouts in editable mode before installing `grid-tdse`. For example, adjust
 the paths to match the workspace and run:
