@@ -102,9 +102,13 @@ cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_serial.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_angular_scaling.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
 
 cd "${PROJECT_ROOT}/jobs/grid-tdse"
-chmod +x job_mpi.sh job_serial.sh submit_mpi_ground_state_rank_series.sh
+chmod +x job_mpi.sh job_serial.sh \
+    submit_mpi_ground_state_rank_series.sh \
+    submit_mpi_angular_scaling.sh
 ```
 
 Replace `<project-id>` and `<username>` in the copied job scripts. Jobs
@@ -187,6 +191,78 @@ Compare the `Distributed solve time` lines from the four output files. Report
 speedup relative to the one-rank time as `T1 / Tp` and parallel efficiency as
 `T1 / (p * Tp)`. Treat this as an initial single-node performance indication,
 not the full strong- and weak-scaling benchmark planned for a later step.
+
+## Scale the angular cutoff
+
+The MPI example accepts `--l-max`. For this controlled study it derives the
+remaining angular cutoffs as:
+
+```text
+m_max = l_max
+lambda_max = 2*l_max
+mu_max = lambda_max
+```
+
+The radial grids, symmetry sector, initial state, timestep, and convergence
+tolerances remain fixed. Before timing a new cutoff, run a correctness case
+with the serial comparison enabled, for example:
+
+```bash
+sbatch \
+    --job-name=correct_h2p_l4_1r \
+    --ntasks=1 \
+    job_mpi.sh \
+    examples/mpi_non_bo_diatomic_ground_state.py \
+    --system H2+ \
+    --l-max 4
+```
+
+The angular-scaling helper submits 1-, 2-, 4-, and 8-rank timing jobs for each
+requested cutoff. With no cutoff arguments, it starts conservatively with
+`l_max=2` and `4`:
+
+```bash
+bash submit_mpi_angular_scaling.sh H2+
+```
+
+After inspecting their runtime and memory use, submit `l_max=6` and `8`:
+
+```bash
+bash submit_mpi_angular_scaling.sh H2+ 6 8
+```
+
+If the smaller runs indicate that a larger cutoff can exceed the template's
+30-minute `devel` limit, remove the `devel` quality-of-service directive from
+the copied `job_mpi.sh` and request an appropriate wall time before submitting
+the larger series.
+
+Extract the size and timing diagnostics with:
+
+```bash
+grep --text -H -E \
+    'MPI ranks|l_max:|Angular pairs|Coulomb couplings|Global coefficients|Local coefficients|Maximum local state|Iterations|Representation setup|Hamiltonian warmup|Distributed solve time|Solve time per iteration' \
+    ang_H2p_l*.out
+```
+
+Repeat each series at least three times and use the median solve time. The
+example reports the angular-pair and Coulomb-coupling counts, global and local
+coefficient counts, approximate maximum local state size, setup and warmup
+times, total distributed solve time, and solve time per iteration. Setup,
+warmup, state gathering, and the optional serial reference are excluded from
+`Distributed solve time`.
+
+For every fixed `l_max`, calculate strong-scaling speedup and efficiency from
+the one-rank MPI result:
+
+```text
+speedup(p) = T(1) / T(p)
+efficiency(p) = T(1) / (p*T(p))
+```
+
+Do not compare total solve times across angular cutoffs without also comparing
+their iteration counts. Use `Solve time per iteration` to assess how the local
+Hamiltonian workload grows, while retaining total solve time as the practical
+time-to-solution measure.
 
 ## Notes
 
