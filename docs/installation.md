@@ -24,6 +24,10 @@ The `mpi4py` installation must match the MPI implementation used to launch
 the calculation. On an HPC system, load the intended compiler and MPI modules
 before installing this optional dependency.
 
+For a reproducible local Conda installation using Open MPI, including compiler
+setup, linkage checks, and a multi-rank validation command, see
+[Distributed non-BO diatomic ground states](distributed_ground_state.md#local-conda-mpi-installation).
+
 When developing several HyQD repositories together, install their local
 checkouts in editable mode before installing `grid-tdse`. For example, adjust
 the paths to match the workspace and run:
