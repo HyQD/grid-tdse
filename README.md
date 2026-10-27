@@ -30,6 +30,7 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Two-electron atomic ground states](docs/two_electron_atomic_ground_state.md)
 - [Distributed two-radial state layout](docs/distributed_two_radial_state.md)
 - [Distributed two-radial Hamiltonian and reductions](docs/distributed_two_radial_hamiltonian.md)
+- [Distributed non-BO diatomic ground states](docs/distributed_ground_state.md)
 
 Feature documentation will be added alongside each implemented and tested
 solver.
@@ -46,4 +47,10 @@ For development, install it in editable mode with the test dependencies:
 
 ```bash
 python -m pip install -e ".[dev]"
+```
+
+Install the optional `mpi4py` dependency for distributed calculations:
+
+```bash
+python -m pip install -e ".[mpi]"
 ```

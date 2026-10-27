@@ -32,3 +32,6 @@ def test_package_exports_spherical_two_radial_namespace():
     assert two_radial.TwoRadialDistributedHamiltonian.__module__ == (
         "grid_tdse.spherical.two_radial.distributed_hamiltonian"
     )
+    assert two_radial.TwoRadialDistributedGroundStateSolver.__module__ == (
+        "grid_tdse.spherical.two_radial.distributed_ground_state"
+    )
