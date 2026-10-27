@@ -458,7 +458,7 @@ python -m pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4,<5"
 Verify the linked library:
 
 ```bash
-python -c 'import mpi4py; from mpi4py import MPI; print("mpi4py:", mpi4py.__version__); print(MPI.Get_library_version())'
+python -c 'import mpi4py; from mpi4py import MPI; print("mpi4py:", mpi4py.__version__); print(MPI.Get_library_version().rstrip("\x00"))'
 python -m pip check
 ```
 
@@ -557,6 +557,150 @@ benchmarks to disable that optional component and avoid the warnings.
 Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, 4-, and
 8-rank submission helper, are provided in
 [`examples/Saga`](../examples/Saga/README.md).
+
+### Update an MPI-enabled installation
+
+Load the same Open MPI module used to build `mpi4py` before updating or
+validating the MPI-enabled environment:
+
+```bash
+module --quiet reset
+module load StdEnv
+module load Miniconda3/25.7.0-2
+source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
+source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
+module load "${GRID_TDSE_MPI_MODULE}"
+
+conda activate base
+conda activate "${ENV_PREFIX}"
+hash -r
+```
+
+Update `integrator-lib` before its `grid-tdse` consumer:
+
+```bash
+cd "${SRC_ROOT}/integrator-lib"
+git status --short --branch
+git switch main
+git pull --ff-only origin main
+
+cd "${SRC_ROOT}/grid-tdse"
+git status --short --branch
+git switch main
+git pull --ff-only origin main
+```
+
+Refresh their editable-install metadata without asking pip to replace the
+cluster MPI setup:
+
+```bash
+python -m pip install --no-deps --no-build-isolation \
+    --editable "${SRC_ROOT}/integrator-lib"
+
+python -m pip install --no-deps --no-build-isolation \
+    --editable "${SRC_ROOT}/grid-tdse[dev]"
+```
+
+Then verify the package locations, dependencies, and MPI linkage:
+
+```bash
+python -m pip check
+python -c 'import grid_tdse, integrator_lib; print(grid_tdse.__file__); print(integrator_lib.__file__)'
+python -c 'import mpi4py; from mpi4py import MPI; print("mpi4py:", mpi4py.__version__); print(MPI.Get_library_version().rstrip("\x00"))'
+```
+
+A pure-Python source update does not require rebuilding `mpi4py`. Rebuild it
+with the selected `mpicc` wrapper if the Python version, Open MPI module, or
+`mpi4py` installation changes.
+
+### Copy the Saga job scripts to the jobs directory
+
+Keep project-specific edits outside the Git checkout. Copy the MPI job script
+and rank-series helper into the persistent jobs directory:
+
+```bash
+mkdir -p "${PROJECT_ROOT}/jobs/grid-tdse"
+
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_mpi.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+
+cd "${PROJECT_ROOT}/jobs/grid-tdse"
+chmod +x job_mpi.sh submit_mpi_ground_state_rank_series.sh
+```
+
+Edit the copied `job_mpi.sh` and replace `<project-id>` and `<username>` in:
+
+```bash
+#SBATCH --account=<project-id>
+project_root="/cluster/projects/<project-id>/<username>"
+```
+
+Do not edit the tracked template in `${SRC_ROOT}/grid-tdse`. When the template
+changes upstream, copy it again and reapply the two project-specific values.
+Jobs already submitted to Slurm retain the script content that existed at
+submission time. The MPI template creates a separate job-local Numba cache for
+each rank so concurrent JIT initialization does not write to one cache entry.
+
+### Validate the distributed H2+ ground state
+
+From `${PROJECT_ROOT}/jobs/grid-tdse`, submit correctness calculations with
+one, two, four, and eight ranks:
+
+```bash
+for ranks in 1 2 4 8; do
+    sbatch \
+        --job-name="correct_h2p_${ranks}r" \
+        --ntasks="${ranks}" \
+        job_mpi.sh \
+        examples/mpi_non_bo_diatomic_ground_state.py \
+        --system H2+
+done
+```
+
+The serial comparison is enabled by default. After the jobs finish, extract
+the principal correctness and timing results with:
+
+```bash
+grep --text -H -E \
+    'MPI ranks|Converged|Iterations|Energy:|State change|Eigenstate residual|Norm:|Distributed solve time|Serial energy difference|Serial state difference' \
+    correct_h2p_*.out
+```
+
+All rank counts must converge to the same energy and iteration count, retain
+unit norm, satisfy the requested state and residual tolerances, and agree with
+the phase-aligned serial state. The current internuclear grid contains eight
+FEM-DVR elements, so eight ranks is its decomposition limit.
+
+### Run an HD+ sanity check
+
+HD+ exercises the nonidentical-particle path, for which pair-exchange symmetry
+adaptation is not used. Validate both one and multiple ranks:
+
+```bash
+for ranks in 1 4; do
+    sbatch \
+        --job-name="correct_hdp_${ranks}r" \
+        --ntasks="${ranks}" \
+        job_mpi.sh \
+        examples/mpi_non_bo_diatomic_ground_state.py \
+        --system HD+
+done
+```
+
+Inspect the corresponding files with:
+
+```bash
+grep --text -H -E \
+    'MPI ranks|System:|Converged|Iterations|Energy:|Eigenstate residual|Norm:|Serial energy difference|Serial state difference' \
+    correct_hdp_*.out
+```
+
+Only after these correctness checks pass should
+`submit_mpi_ground_state_rank_series.sh` be used for timing runs without the
+serial comparison.
 
 ## 9. Run the test suite through Slurm
 
