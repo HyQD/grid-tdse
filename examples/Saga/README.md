@@ -57,7 +57,7 @@ python -m pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4,<5"
 Confirm the linked MPI library:
 
 ```bash
-python -c 'from mpi4py import MPI; print(MPI.Get_library_version())'
+python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
 python -m pip check
 ```
 
@@ -89,12 +89,34 @@ python -m pip install --no-deps --no-build-isolation \
 
 Then repeat the MPI library and dependency checks above.
 
+## Copy the templates to the jobs directory
+
+Copy the scripts before inserting project-specific values so the Git checkout
+remains clean:
+
+```bash
+mkdir -p "${PROJECT_ROOT}/jobs/grid-tdse"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_mpi.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_serial.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+
+cd "${PROJECT_ROOT}/jobs/grid-tdse"
+chmod +x job_mpi.sh job_serial.sh submit_mpi_ground_state_rank_series.sh
+```
+
+Replace `<project-id>` and `<username>` in the copied job scripts. Jobs
+already submitted to Slurm retain the script content present at submission
+time, so resubmit a job after copying an updated template.
+
 ## Submit a non-MPI job
 
 The serial prototype accepts a Python script followed by its arguments:
 
 ```bash
-sbatch examples/Saga/job_serial.sh examples/non_bo_diatomic_ground_state.py
+sbatch job_serial.sh examples/non_bo_diatomic_ground_state.py
 ```
 
 It requests one task and one CPU and launches the program with `srun` on a
@@ -102,31 +124,45 @@ compute node.
 
 ## Submit an MPI correctness run
 
-The MPI prototype defaults to the distributed non-BO ground-state example.
-Override its task count at submission time:
+Submit H2+ with one, two, four, and eight ranks while retaining the default
+serial-reference comparison:
 
 ```bash
-sbatch --ntasks=4 examples/Saga/job_mpi.sh
+for ranks in 1 2 4 8; do
+    sbatch \
+        --job-name="correct_h2p_${ranks}r" \
+        --ntasks="${ranks}" \
+        job_mpi.sh \
+        examples/mpi_non_bo_diatomic_ground_state.py \
+        --system H2+
+done
 ```
 
-Pass `--system D2+` after the job-script name to validate a second
-homonuclear system:
+HD+ provides a complementary sanity check of the nonidentical-particle path:
 
 ```bash
-sbatch --ntasks=4 examples/Saga/job_mpi.sh \
-    examples/mpi_non_bo_diatomic_ground_state.py --system D2+
+for ranks in 1 4; do
+    sbatch \
+        --job-name="correct_hdp_${ranks}r" \
+        --ntasks="${ranks}" \
+        job_mpi.sh \
+        examples/mpi_non_bo_diatomic_ground_state.py \
+        --system HD+
+done
 ```
 
 The default calculation also runs the matching serial reference on rank zero.
 Its output reports the distributed solve time separately, so gathering and the
-serial reference are excluded from that measurement.
+serial reference are excluded from that measurement. Confirm convergence,
+unit norm, matching energies and iteration counts, and agreement with the
+phase-aligned serial state before running timing-only jobs.
 
 ## Submit the initial rank series
 
 Submit separate one-node jobs with 1, 2, 4, and 8 ranks:
 
 ```bash
-bash examples/Saga/submit_mpi_ground_state_rank_series.sh H2+
+bash submit_mpi_ground_state_rank_series.sh H2+
 ```
 
 These timing jobs pass `--no-serial-comparison`, because repeating the serial
@@ -137,7 +173,8 @@ enabled before interpreting the timing series.
 Every rank is assigned one CPU core, and NumPy, BLAS, OpenMP, and Numba thread
 counts are fixed to one to avoid nested-thread oversubscription. All four jobs
 are restricted to one node so this first series measures only the current
-shared-node MPI decomposition.
+shared-node MPI decomposition. Each rank receives its own job-local Numba
+cache directory to avoid concurrent writes during JIT compilation.
 
 After completion, inspect resource usage with the job IDs printed by `sbatch`:
 
