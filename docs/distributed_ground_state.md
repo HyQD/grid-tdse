@@ -46,11 +46,95 @@ The `mpi4py` installation must be compatible with the MPI implementation used
 to launch the program. On a cluster, load the intended compiler and MPI
 modules before installing `mpi4py` in the environment.
 
-Run the example with, for example:
+### Local Conda MPI installation
+
+Use one MPI implementation consistently. The following procedure installs
+Open MPI and its matching compiler inside an existing Conda environment. It
+avoids accidentally compiling `mpi4py` with a system MPI implementation and
+then launching it with a different `mpiexec`.
+
+Activate the intended environment and install Open MPI and the Conda C
+compiler from the same channel:
 
 ```bash
-mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py
+conda activate <environment-name>
+conda install -c conda-forge openmpi c-compiler
+hash -r
 ```
+
+Both MPI commands must now come from the active environment:
+
+```bash
+command -v mpicc
+command -v mpiexec
+```
+
+Their paths should begin with `${CONDA_PREFIX}/bin/`. If `mpi4py` was
+previously installed against another MPI implementation, remove it before
+rebuilding:
+
+```bash
+python -m pip uninstall -y mpi4py
+```
+
+Build `mpi4py` against the Open MPI wrapper from the active environment:
+
+```bash
+MPICC="${CONDA_PREFIX}/bin/mpicc" \
+python -m pip install --no-cache-dir --no-binary=mpi4py "mpi4py>=4,<5"
+```
+
+The `c-compiler` package is required because Conda's Open MPI wrapper calls a
+Conda compiler such as `x86_64-conda-linux-gnu-cc`. An error saying that the
+wrapper cannot find this compiler indicates that `c-compiler` is missing.
+
+Confirm which MPI library `mpi4py` loaded:
+
+```bash
+python -c 'from mpi4py import MPI; print(MPI.Get_library_version())'
+```
+
+Then verify both process startup and collective communication on two local
+ranks:
+
+```bash
+mpiexec --mca btl self,sm -n 2 python -c \
+'from mpi4py import MPI; c=MPI.COMM_WORLD; print(c.rank, c.allreduce(c.rank + 1))'
+```
+
+Both ranks should print the reduced value `3`. The Open MPI option
+`--mca btl self,sm` deliberately restricts this local, single-node check to
+self and shared-memory transports. Do not use that restriction for a
+multi-node calculation or a Saga job.
+
+Finally, check the Python environment independently of MPI execution:
+
+```bash
+python -m pip check
+```
+
+Do not mix a Conda `mpicc` with `/usr/bin/mpiexec`, or a system `mpicc` with a
+Conda `mpiexec`. Successful import of `mpi4py` alone is insufficient: the
+two-rank collective test must also succeed.
+
+### Run the distributed ground-state example
+
+From the `grid-tdse` repository root, run the H2+ example locally with two MPI
+ranks and one numerical-library thread per rank:
+
+```bash
+OMP_NUM_THREADS=1 \
+OPENBLAS_NUM_THREADS=1 \
+MKL_NUM_THREADS=1 \
+mpiexec --mca btl self,sm -n 2 \
+python examples/mpi_non_bo_diatomic_ground_state.py
+```
+
+The same local validation can be repeated with `-n 1` and `-n 4`. The example
+prints the distributed energy, norm, state change, and eigenstate residual. On
+rank zero it also performs a serial calculation and reports the energy and
+phase-aligned state differences. The distributed calculation has been
+validated locally with one, two, and four MPI ranks.
 
 All ranks must call `solve` collectively and in the same control flow. The
 current `R` decomposition requires at least one FEM-DVR element per rank.
@@ -114,8 +198,8 @@ Lanczos imaginary-time propagation. The checks cover:
 - convergence from a represented eigenstate.
 
 Actual MPI deployment and correctness validation on Saga are a separate next
-step. Performance conclusions must not be drawn from the thread-based local
-tests.
+step. Performance conclusions must not be drawn from the thread-based tests or
+the small local MPI validation.
 
 ## Current scope
 
