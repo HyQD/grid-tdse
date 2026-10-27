@@ -42,12 +42,27 @@ parser.add_argument(
     default=4_000,
     help="maximum number of imaginary-time steps (default: 4000)",
 )
+parser.add_argument(
+    "--l-max",
+    type=int,
+    default=2,
+    help=(
+        "one-coordinate angular cutoff; m_max=l_max and "
+        "lambda_max=mu_max=2*l_max (default: 2)"
+    ),
+)
 arguments = parser.parse_args()
+
+if arguments.l_max < 0:
+    parser.error("--l-max must be nonnegative")
 
 SYSTEM = arguments.system
 CODATA_SET = "2022"
 M_tot = 0
-l_max = 2
+l_max = arguments.l_max
+m_max = l_max
+lambda_max = 2 * l_max
+mu_max = lambda_max
 COMPARE_WITH_SERIAL = arguments.compare_with_serial
 
 IDENTICAL_PAIR = SYSTEM != "HD+"
@@ -76,6 +91,8 @@ internuclear_grid = FEMDVRGridSpec(
 
 # This high-level object prepares the physical representation and deterministic
 # product state. Its serial solver is not used for the distributed calculation.
+communicator = MPI.COMM_WORLD
+setup_start = MPI.Wtime()
 calculation = NonBornOppenheimerDiatomicIonGroundState(
     SYSTEM,
     electronic_grid=electronic_grid,
@@ -84,9 +101,9 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     pair_exchange_parity=PAIR_EXCHANGE_PARITY,
     symmetry_adapted_basis=SYMMETRY_ADAPTED_BASIS,
     l_max=l_max,
-    m_max=l_max,
-    lambda_max=2 * l_max,
-    mu_max=2 * l_max,
+    m_max=m_max,
+    lambda_max=lambda_max,
+    mu_max=mu_max,
     M_tot=M_tot,
     radial_coulomb_method="poisson",
     radial_operator_mode="element-local",
@@ -106,8 +123,9 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     krylov_reorthogonalize=True,
     progress_interval=PROGRESS_INTERVAL,
 )
+local_setup_time = MPI.Wtime() - setup_start
+setup_time = communicator.allreduce(local_setup_time, op=MPI.MAX)
 
-communicator = MPI.COMM_WORLD
 layout = TwoRadialDistributedLayout(
     calculation.representation,
     communicator.size,
@@ -135,7 +153,11 @@ solver = TwoRadialDistributedGroundStateSolver(
 
 # Warm the rank-local and communication paths before timing so first-call
 # compilation and setup do not contaminate the solve measurement.
+communicator.Barrier()
+warmup_start = MPI.Wtime()
 solver.hamiltonian(local_initial_state)
+local_warmup_time = MPI.Wtime() - warmup_start
+warmup_time = communicator.allreduce(local_warmup_time, op=MPI.MAX)
 
 # Synchronize before timing so the reported value is the slowest rank's solve
 # time rather than rank zero's local time. Warmup, state gathering, and the
@@ -152,8 +174,39 @@ state = gather_two_radial_state(result.state, communicator)
 
 if communicator.rank == 0:
     last = result.history[-1]
+    solve_time_per_iteration = (
+        distributed_time / result.iterations
+        if result.iterations > 0
+        else float("nan")
+    )
+    local_sizes = np.asarray(
+        [np.prod(layout.owned_shape(rank)) for rank in range(layout.n_ranks)],
+        dtype=np.int64,
+    )
+    coefficient_bytes = calculation.initial_state.dtype.itemsize
     print(f"MPI ranks:                {communicator.size}")
     print(f"System:                   {SYSTEM}")
+    print(f"l_max:                    {l_max}")
+    print(f"m_max:                    {m_max}")
+    print(f"lambda_max:               {lambda_max}")
+    print(f"mu_max:                   {mu_max}")
+    print(
+        "Angular pairs:            "
+        f"{calculation.representation.angular_pairs.n_pairs}"
+    )
+    print(
+        "Coulomb couplings:        "
+        f"{calculation.representation.couplings.n_pairs}"
+    )
+    print(f"Global coefficients:      {np.prod(layout.global_shape)}")
+    print(
+        "Local coefficients:       "
+        f"{local_sizes.min()}--{local_sizes.max()}"
+    )
+    print(
+        "Maximum local state:      "
+        f"{local_sizes.max() * coefficient_bytes / 1024**2:.3f} MiB"
+    )
     print(f"Converged:                {result.converged}")
     print(f"Iterations:               {result.iterations}")
     print(f"Energy:                   {result.energy:.12f} Eh")
@@ -161,7 +214,13 @@ if communicator.rank == 0:
     print(f"State change:             {result.state_change:.3e}")
     print(f"Eigenstate residual:      {result.residual_norm:.3e}")
     print(f"Norm:                     {result.norm:.12f}")
+    print(f"Representation setup:     {setup_time:.6f} s")
+    print(f"Hamiltonian warmup:       {warmup_time:.6f} s")
     print(f"Distributed solve time:   {distributed_time:.6f} s")
+    print(
+        "Solve time per iteration: "
+        f"{solve_time_per_iteration:.6f} s"
+    )
 
     if COMPARE_WITH_SERIAL:
         serial_solver = ImaginaryTimeGroundStateSolver(
