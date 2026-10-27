@@ -627,8 +627,13 @@ cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_mpi.sh" \
 cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_angular_scaling.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+
 cd "${PROJECT_ROOT}/jobs/grid-tdse"
-chmod +x job_mpi.sh submit_mpi_ground_state_rank_series.sh
+chmod +x job_mpi.sh \
+    submit_mpi_ground_state_rank_series.sh \
+    submit_mpi_angular_scaling.sh
 ```
 
 Edit the copied `job_mpi.sh` and replace `<project-id>` and `<username>` in:
@@ -701,6 +706,60 @@ grep --text -H -E \
 Only after these correctness checks pass should
 `submit_mpi_ground_state_rank_series.sh` be used for timing runs without the
 serial comparison.
+
+### Scale the angular cutoff
+
+The MPI example accepts `--l-max`. For the angular-scaling study it sets
+`m_max=l_max`, `lambda_max=2*l_max`, and `mu_max=lambda_max`, while keeping the
+two radial grids and all convergence settings fixed.
+
+First run one correctness calculation for each new angular cutoff with the
+serial comparison enabled. For example:
+
+```bash
+sbatch \
+    --job-name=correct_h2p_l4_1r \
+    --ntasks=1 \
+    job_mpi.sh \
+    examples/mpi_non_bo_diatomic_ground_state.py \
+    --system H2+ \
+    --l-max 4
+```
+
+After correctness has been established, submit timing-only calculations on
+one, two, four, and eight ranks. With no cutoff arguments, the helper submits
+`l_max=2` and `4`:
+
+```bash
+bash submit_mpi_angular_scaling.sh H2+
+```
+
+Inspect those jobs before extending the study to the larger cutoffs:
+
+```bash
+bash submit_mpi_angular_scaling.sh H2+ 6 8
+```
+
+If the smaller cases indicate that a larger cutoff can exceed the template's
+30-minute `devel` limit, remove the `devel` quality-of-service directive from
+the copied `job_mpi.sh` and request a suitable wall time before submitting the
+larger series.
+
+Extract the problem-size and timing fields with:
+
+```bash
+grep --text -H -E \
+    'MPI ranks|l_max:|Angular pairs|Coulomb couplings|Global coefficients|Local coefficients|Maximum local state|Iterations|Representation setup|Hamiltonian warmup|Distributed solve time|Solve time per iteration' \
+    ang_H2p_l*.out
+```
+
+Repeat each timing series at least three times and use the median. For each
+fixed cutoff, calculate speedup as `T(1)/T(p)` and efficiency as
+`T(1)/(p*T(p))`, using the one-rank MPI solve as the baseline. Since the number
+of imaginary-time iterations may vary with the cutoff, compare both total
+solve time and the reported solve time per iteration. Representation setup,
+Hamiltonian warmup, state gathering, and the optional serial comparison are
+reported separately from the distributed solve time.
 
 ## 9. Run the test suite through Slurm
 
