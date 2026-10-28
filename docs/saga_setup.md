@@ -60,6 +60,7 @@ export PROJECT_ROOT="/cluster/projects/<project-id>/<username>"
 export ENV_ROOT="${PROJECT_ROOT}/.conda-envs"
 export ENV_PREFIX="${ENV_ROOT}/grid_tdse"
 export SRC_ROOT="${PROJECT_ROOT}/src/HyQD"
+export GRID_TDSE_MPI_MODULE="OpenMPI/5.0.10-GCC-15.2.0"
 ```
 
 Load it with:
@@ -77,7 +78,9 @@ The variables mean:
 - `PROJECT_ROOT`: the user's persistent directory inside the Sigma2 project;
 - `ENV_ROOT`: the directory holding project-local Conda environments;
 - `ENV_PREFIX`: the complete path of the `grid_tdse` Conda environment;
-- `SRC_ROOT`: the directory holding the five HyQD source checkouts.
+- `SRC_ROOT`: the directory holding the five HyQD source checkouts;
+- `GRID_TDSE_MPI_MODULE`: the exact Saga Open MPI module against which
+  `mpi4py` is built and which every MPI job must load.
 
 There is no need to define a separate `user` shell variable. Replace
 `<username>` in the paths file with the actual Saga username once.
@@ -399,8 +402,8 @@ StdEnv
 OpenMPI/5.0.10-GCC-15.2.0
 ```
 
-`Zen2Env` is not needed for the normal Saga CPU nodes used here. Record the
-chosen Open MPI module in `grid_tdse_paths.sh` by adding:
+`Zen2Env` is not needed for the normal Saga CPU nodes used here. Ensure that
+the reusable `grid_tdse_paths.sh` file records the selected module:
 
 ```bash
 export GRID_TDSE_MPI_MODULE="OpenMPI/5.0.10-GCC-15.2.0"
@@ -419,6 +422,7 @@ module load StdEnv
 module load Miniconda3/25.7.0-2
 source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
 source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
+: "${GRID_TDSE_MPI_MODULE:?Define GRID_TDSE_MPI_MODULE in grid_tdse_paths.sh}"
 module load "${GRID_TDSE_MPI_MODULE}"
 
 conda activate base
@@ -494,6 +498,7 @@ module load StdEnv
 module load Miniconda3/25.7.0-2
 source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
 source "${project_root}/grid_tdse_paths.sh"
+: "${GRID_TDSE_MPI_MODULE:?Define GRID_TDSE_MPI_MODULE in grid_tdse_paths.sh}"
 module load "${GRID_TDSE_MPI_MODULE}"
 
 conda activate base
@@ -569,6 +574,7 @@ module load StdEnv
 module load Miniconda3/25.7.0-2
 source /cluster/software/Miniconda3/25.7.0-2/etc/profile.d/conda.sh
 source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
+: "${GRID_TDSE_MPI_MODULE:?Define GRID_TDSE_MPI_MODULE in grid_tdse_paths.sh}"
 module load "${GRID_TDSE_MPI_MODULE}"
 
 conda activate base
@@ -1007,6 +1013,29 @@ Use the project path, not a home-directory path:
 ```bash
 source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
 ```
+
+#### Lmod reports an unknown empty module
+
+An error referring to `module load ""` means that
+`GRID_TDSE_MPI_MODULE` is empty or undefined. Add the exact module used to
+build `mpi4py` to `grid_tdse_paths.sh`:
+
+```bash
+export GRID_TDSE_MPI_MODULE="OpenMPI/5.0.10-GCC-15.2.0"
+```
+
+Source the file again, check the value, and only then load the module:
+
+```bash
+source /cluster/projects/<project-id>/<username>/grid_tdse_paths.sh
+: "${GRID_TDSE_MPI_MODULE:?Define GRID_TDSE_MPI_MODULE in grid_tdse_paths.sh}"
+echo "${GRID_TDSE_MPI_MODULE}"
+module load "${GRID_TDSE_MPI_MODULE}"
+```
+
+Do not rebuild `mpi4py` merely because the shell variable was missing. A
+rebuild is needed only if the Python environment, selected Open MPI module, or
+existing `mpi4py` linkage changes.
 
 #### `LOCALSCRATCH` is unset
 
