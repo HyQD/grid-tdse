@@ -1,5 +1,5 @@
 """TDSE representations using spherical coordinates."""
 
-from . import two_radial
+from . import one_radial, two_radial
 
-__all__ = ["two_radial"]
+__all__ = ["one_radial", "two_radial"]
