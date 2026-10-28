@@ -10,6 +10,7 @@ foundation:
 
 - [Runtime dependencies](runtime_dependencies.md)
 - [Installation](installation.md)
+- [One-electron diatomic ground-state validation](one_electron_diatomic_validation.md)
 - [Saga environment setup and updates](saga_setup.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](ground_state_iteration.md)

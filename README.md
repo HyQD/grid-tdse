@@ -23,6 +23,7 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Documentation overview](docs/index.md)
 - [Runtime dependencies](docs/runtime_dependencies.md)
 - [Installation](docs/installation.md)
+- [One-electron diatomic ground-state validation](docs/one_electron_diatomic_validation.md)
 - [Two-radial spherical foundation](docs/two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](docs/ground_state_iteration.md)
 - [Non-Born--Oppenheimer diatomic-ion ground states](docs/non_bo_diatomic_ground_state.md)
