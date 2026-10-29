@@ -1,6 +1,6 @@
 """Ground-state iteration by normalized imaginary-time propagation."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -230,6 +230,8 @@ class ImaginaryTimeGroundStateSolver:
         hamiltonian: Callable[[np.ndarray], np.ndarray],
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
+        inner_products: Callable[[Sequence[np.ndarray], np.ndarray], np.ndarray]
+        | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -245,6 +247,10 @@ class ImaginaryTimeGroundStateSolver:
             shape.
         inner_product
             Physical inner product for the representation.
+        inner_products
+            Optional batched physical inner product. It receives a sequence
+            of left states and one right state and is forwarded to SIL or SIA
+            to reduce orthogonalization synchronization.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
             :class:`integrator_lib.CrankNicolson`. It is rejected for SIL and
@@ -255,6 +261,8 @@ class ImaginaryTimeGroundStateSolver:
             raise TypeError("hamiltonian must be callable")
         if not callable(inner_product):
             raise TypeError("inner_product must be callable")
+        if inner_products is not None and not callable(inner_products):
+            raise TypeError("inner_products must be callable or None")
 
         state = _state_array(initial_state)
         shape = state.shape
@@ -262,7 +270,11 @@ class ImaginaryTimeGroundStateSolver:
         initial_action = _hamiltonian_action(hamiltonian, state, shape)
         previous_energy = self._energy(state, initial_action, inner_product)
 
-        integrator = self._build_integrator(inner_product, preconditioner)
+        integrator = self._build_integrator(
+            inner_product,
+            inner_products,
+            preconditioner,
+        )
 
         def imaginary_time_rhs(values, time):
             del time
@@ -330,7 +342,7 @@ class ImaginaryTimeGroundStateSolver:
 
     __call__ = solve
 
-    def _build_integrator(self, inner_product, preconditioner):
+    def _build_integrator(self, inner_product, inner_products, preconditioner):
         if self.integrator == "crank-nicolson":
             return CrankNicolson(
                 solver=self.linear_solver,
@@ -352,6 +364,7 @@ class ImaginaryTimeGroundStateSolver:
             "max_refinements": self.max_krylov_refinements,
             "reorthogonalize": self.krylov_reorthogonalize,
             "inner_product": inner_product,
+            "inner_products": inner_products,
             "breakdown_tolerance": self.krylov_breakdown_tolerance,
         }
         if self.integrator == "sil":
