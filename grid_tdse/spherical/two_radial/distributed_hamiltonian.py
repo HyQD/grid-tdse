@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Protocol, Sequence
 
 import numpy as np
@@ -52,6 +53,38 @@ class DistributedHamiltonianComponents:
         )
 
 
+@dataclass(frozen=True)
+class DistributedHamiltonianProfile:
+    """Accumulated rank-local timings for distributed Hamiltonian actions.
+
+    Communication timings include buffer preparation and request completion.
+    ``coordinate2_local_seconds`` contains only the remaining local work, so
+    it can be compared independently with the two bridge-exchange phases.
+    """
+
+    hamiltonian_calls: int = 0
+    coordinate1_calls: int = 0
+    coordinate1_seconds: float = 0.0
+    coordinate2_calls: int = 0
+    coordinate2_local_seconds: float = 0.0
+    coulomb_calls: int = 0
+    coulomb_seconds: float = 0.0
+    halo_exchange_calls: int = 0
+    halo_exchange_seconds: float = 0.0
+    weak_exchange_calls: int = 0
+    weak_exchange_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
+class DistributedReductionProfile:
+    """Accumulated rank-local timings for physical inner products."""
+
+    local_inner_product_calls: int = 0
+    local_inner_product_seconds: float = 0.0
+    collective_calls: int = 0
+    collective_seconds: float = 0.0
+
+
 class TwoRadialDistributedHamiltonian:
     """Field-free two-radial Hamiltonian distributed over coordinate 2.
 
@@ -67,12 +100,17 @@ class TwoRadialDistributedHamiltonian:
         communicator: DistributedOperatorCommunicator | None = None,
         *,
         tile_size: int = 2048,
+        profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributedLayout):
             raise TypeError("layout must be a TwoRadialDistributedLayout")
         self.layout = layout
         self.representation = layout.representation
         self.communicator = communicator
+        if not isinstance(profile, (bool, np.bool_)):
+            raise TypeError("profile must be boolean")
+        self.profile_enabled = bool(profile)
+        self.reset_profile()
         self.serial_hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode="element-local",
@@ -113,6 +151,8 @@ class TwoRadialDistributedHamiltonian:
     ) -> DistributedTwoRadialState:
         """Apply the complete field-free Hamiltonian on one rank."""
 
+        if self.profile_enabled:
+            self._profile_counts["hamiltonian_calls"] += 1
         coordinate1 = self.apply_one_body_coordinate1(state)
         coordinate2 = self.apply_one_body_coordinate2(state)
         coulomb = self.apply_coulomb(state)
@@ -136,6 +176,7 @@ class TwoRadialDistributedHamiltonian:
     ) -> DistributedTwoRadialState:
         """Apply the rank-local electronic-coordinate one-body term."""
 
+        started = self._profile_start()
         self._validate_local_state(state)
         values = state.coefficients
         result = (
@@ -149,6 +190,7 @@ class TwoRadialDistributedHamiltonian:
             result += self._h1_diagonal[:, :, None] * values
         else:
             result += self._h1_diagonal[:, None, :, None] * values
+        self._profile_finish("coordinate1", started)
         return DistributedTwoRadialState(self.layout, state.rank, result)
 
     def apply_one_body_coordinate2(
@@ -156,16 +198,29 @@ class TwoRadialDistributedHamiltonian:
     ) -> DistributedTwoRadialState:
         """Apply the distributed internuclear-coordinate one-body term."""
 
+        if self.profile_enabled:
+            self._profile_counts["coordinate2_calls"] += 1
+        started = self._profile_start()
         self._validate_local_state(state)
+        self._profile_finish("coordinate2_local", started, count=False)
+
         halo_values = self._exchange_state_halo(state)
+        started = self._profile_start()
         working = self._working_values(state, halo_values)
+        self._profile_finish("coordinate2_local", started, count=False)
+
+        started = self._profile_start()
         weak_owned, outgoing = self._local_coordinate2_weak(state.rank, working)
+        self._profile_finish("coordinate2_local", started, count=False)
         incoming = self._exchange_weak_contributions(
             state.rank,
             outgoing,
             state.coefficients.dtype,
         )
+
+        started = self._profile_start()
         result = self._finish_coordinate2(state, weak_owned, incoming)
+        self._profile_finish("coordinate2_local", started, count=False)
         return DistributedTwoRadialState(self.layout, state.rank, result)
 
     def apply_coulomb(
@@ -173,12 +228,53 @@ class TwoRadialDistributedHamiltonian:
     ) -> DistributedTwoRadialState:
         """Apply point-local radial multipoles and angular couplings."""
 
+        started = self._profile_start()
         self._validate_local_state(state)
         values = self.serial_hamiltonian.apply_coulomb_R_slice(
             state.coefficients,
             state.partition.owned_indices,
         )
+        self._profile_finish("coulomb", started)
         return DistributedTwoRadialState(self.layout, state.rank, values)
+
+    @property
+    def profile(self) -> DistributedHamiltonianProfile:
+        """Return an immutable snapshot of the rank-local profile."""
+
+        return DistributedHamiltonianProfile(
+            hamiltonian_calls=self._profile_counts["hamiltonian_calls"],
+            coordinate1_calls=self._profile_counts["coordinate1_calls"],
+            coordinate1_seconds=self._profile_seconds["coordinate1"],
+            coordinate2_calls=self._profile_counts["coordinate2_calls"],
+            coordinate2_local_seconds=self._profile_seconds[
+                "coordinate2_local"
+            ],
+            coulomb_calls=self._profile_counts["coulomb_calls"],
+            coulomb_seconds=self._profile_seconds["coulomb"],
+            halo_exchange_calls=self._profile_counts["halo_exchange_calls"],
+            halo_exchange_seconds=self._profile_seconds["halo_exchange"],
+            weak_exchange_calls=self._profile_counts["weak_exchange_calls"],
+            weak_exchange_seconds=self._profile_seconds["weak_exchange"],
+        )
+
+    def reset_profile(self) -> None:
+        """Clear all accumulated rank-local profiling counters and timings."""
+
+        self._profile_counts = {
+            "hamiltonian_calls": 0,
+            "coordinate1_calls": 0,
+            "coordinate2_calls": 0,
+            "coulomb_calls": 0,
+            "halo_exchange_calls": 0,
+            "weak_exchange_calls": 0,
+        }
+        self._profile_seconds = {
+            "coordinate1": 0.0,
+            "coordinate2_local": 0.0,
+            "coulomb": 0.0,
+            "halo_exchange": 0.0,
+            "weak_exchange": 0.0,
+        }
 
     def apply_all(
         self,
@@ -321,6 +417,7 @@ class TwoRadialDistributedHamiltonian:
         partition = state.partition
         if self.layout.n_ranks == 1:
             return None
+        started = self._profile_start()
         communicator = self._required_communicator(state.rank)
         requests = []
         buffers = []
@@ -349,6 +446,7 @@ class TwoRadialDistributedHamiltonian:
                 )
             )
         _wait_all(requests)
+        self._profile_finish("halo_exchange", started)
         return received
 
     def _exchange_weak_contributions(
@@ -359,6 +457,7 @@ class TwoRadialDistributedHamiltonian:
     ) -> tuple[np.ndarray, np.ndarray] | None:
         if self.layout.n_ranks == 1:
             return None
+        started = self._profile_start()
         communicator = self._required_communicator(rank)
         requests = []
         buffers = []
@@ -392,9 +491,28 @@ class TwoRadialDistributedHamiltonian:
                 ),
             )
         _wait_all(requests)
+        self._profile_finish("weak_exchange", started)
         if received is None:
             return None
         return received_indices, received
+
+    def _profile_start(self) -> float | None:
+        if not self.profile_enabled:
+            return None
+        return perf_counter()
+
+    def _profile_finish(
+        self,
+        name: str,
+        started: float | None,
+        *,
+        count: bool = True,
+    ) -> None:
+        if started is None:
+            return
+        self._profile_seconds[name] += perf_counter() - started
+        if count:
+            self._profile_counts[f"{name}_calls"] += 1
 
     def _required_communicator(self, rank: int):
         if self.communicator is None:
@@ -449,11 +567,17 @@ class TwoRadialDistributedReductions:
         self,
         layout: TwoRadialDistributedLayout,
         communicator: DistributedOperatorCommunicator | None = None,
+        *,
+        profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributedLayout):
             raise TypeError("layout must be a TwoRadialDistributedLayout")
         self.layout = layout
         self.communicator = communicator
+        if not isinstance(profile, (bool, np.bool_)):
+            raise TypeError("profile must be boolean")
+        self.profile_enabled = bool(profile)
+        self.reset_profile()
         if communicator is not None:
             rank, size = _communicator_rank_size(communicator)
             if size != layout.n_ranks:
@@ -474,13 +598,14 @@ class TwoRadialDistributedReductions:
     ) -> complex:
         """Return one rank's nonoverlapping physical-inner-product term."""
 
+        started = perf_counter() if self.profile_enabled else None
         self._validate_pair(left, right)
         subscripts = (
             "pab,pab,a,b->"
             if self.layout.representation.uses_compact_angular_storage
             else "ijab,ijab,a,b->"
         )
-        return np.einsum(
+        value = np.einsum(
             subscripts,
             left.coefficients.conj(),
             right.coefficients,
@@ -488,6 +613,29 @@ class TwoRadialDistributedReductions:
             left.owned_R_weights,
             optimize=True,
         )
+        if started is not None:
+            self._local_inner_product_calls += 1
+            self._local_inner_product_seconds += perf_counter() - started
+        return value
+
+    @property
+    def profile(self) -> DistributedReductionProfile:
+        """Return an immutable snapshot of the rank-local profile."""
+
+        return DistributedReductionProfile(
+            local_inner_product_calls=self._local_inner_product_calls,
+            local_inner_product_seconds=self._local_inner_product_seconds,
+            collective_calls=self._collective_calls,
+            collective_seconds=self._collective_seconds,
+        )
+
+    def reset_profile(self) -> None:
+        """Clear all accumulated rank-local reduction timings."""
+
+        self._local_inner_product_calls = 0
+        self._local_inner_product_seconds = 0.0
+        self._collective_calls = 0
+        self._collective_seconds = 0.0
 
     def inner_product(
         self,
@@ -568,7 +716,12 @@ class TwoRadialDistributedReductions:
         communicator_rank, size = _communicator_rank_size(self.communicator)
         if communicator_rank != rank or size != self.layout.n_ranks:
             raise ValueError("communicator and local distributed state do not match")
-        return self.communicator.allreduce(value)
+        started = perf_counter() if self.profile_enabled else None
+        result = self.communicator.allreduce(value)
+        if started is not None:
+            self._collective_calls += 1
+            self._collective_seconds += perf_counter() - started
+        return result
 
     def _validate_pair(
         self,

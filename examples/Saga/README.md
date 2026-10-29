@@ -246,7 +246,7 @@ Extract the size and timing diagnostics with:
 
 ```bash
 grep --text -H -E \
-    'MPI ranks|l_max:|Angular pairs|Coulomb couplings|Global coefficients|Local coefficients|Maximum local state|Iterations|Representation setup|Hamiltonian warmup|Distributed solve time|Solve time per iteration' \
+    'MPI ranks|l_max:|Angular pairs|Coulomb couplings|Global coefficients|Local coefficients|Maximum local state|Iterations|Representation setup|Hamiltonian warmup|Distributed solve time|Solve time per iteration|Hamiltonian calls|Krylov|Electronic work|Internuclear work|Coulomb work|Halo exchange|Weak exchange|Local reductions|Collective reductions' \
     ang_H2p_l*.out
 ```
 
@@ -256,6 +256,24 @@ coefficient counts, approximate maximum local state size, setup and warmup
 times, total distributed solve time, and solve time per iteration. Setup,
 warmup, state gathering, and the optional serial reference are excluded from
 `Distributed solve time`.
+
+The component times are accumulated independently on every rank and reduced
+with `MPI.MAX` after the solve. They therefore report the slowest rank for each
+phase rather than rank zero's local time. Electronic, local internuclear, and
+Coulomb timings measure computation. Halo exchange, returned weak-form bridge
+exchange, and collective-reduction timings include the time spent waiting for
+other ranks. Local physical-inner-product work is reported separately from its
+collective reduction.
+
+The phase maxima are not generally additive: the slowest electronic rank need
+not be the slowest communication rank. Use them to locate imbalance and wait
+time, while continuing to use `Distributed solve time` for speedup and
+efficiency. The warm-up Hamiltonian action is reset out of all component
+counters.
+
+Archive summarized results using the schema and conventions in
+[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
+Raw Slurm output should remain outside the repository.
 
 For every fixed `l_max`, calculate strong-scaling speedup and efficiency from
 the one-rank MPI result:

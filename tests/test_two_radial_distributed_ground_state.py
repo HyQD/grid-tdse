@@ -196,6 +196,24 @@ def test_distributed_lanczos_itp_matches_serial_iterations(n_ranks):
             result.krylov_dimensions,
             serial.krylov_dimensions,
         )
+        np.testing.assert_array_equal(
+            result.krylov_accepted_substeps,
+            serial.krylov_accepted_substeps,
+        )
+        np.testing.assert_array_equal(
+            result.krylov_rejected_substeps,
+            serial.krylov_rejected_substeps,
+        )
+        np.testing.assert_array_equal(
+            result.krylov_refinement_depths,
+            serial.krylov_refinement_depths,
+        )
+        np.testing.assert_allclose(
+            result.krylov_error_estimates,
+            serial.krylov_error_estimates,
+            atol=1.0e-24,
+            rtol=2.0e-14,
+        )
 
 
 def test_one_rank_distributed_solver_converges_from_an_eigenstate():
@@ -256,6 +274,25 @@ def test_distributed_solver_validates_local_state_rank():
 
     with pytest.raises(ValueError, match="belongs to rank 1"):
         solver.solve(rank_one_state)
+
+
+def test_distributed_solver_returns_rank_local_profiles():
+    calculation = _calculation()
+    layout = TwoRadialDistributedLayout(calculation.representation, 1)
+    solver = TwoRadialDistributedGroundStateSolver(
+        layout,
+        profile=True,
+        **_solver_options(max_iterations=1),
+    )
+
+    result = solver.solve(layout.distribute(calculation.initial_state)[0])
+
+    assert result.hamiltonian_profile.hamiltonian_calls > 0
+    assert result.hamiltonian_profile.coordinate1_calls > 0
+    assert result.hamiltonian_profile.coordinate2_calls > 0
+    assert result.hamiltonian_profile.coulomb_calls > 0
+    assert result.reduction_profile.local_inner_product_calls > 0
+    assert result.reduction_profile.collective_calls == 0
 
 
 def test_only_root_enables_progress_output():

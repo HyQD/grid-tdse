@@ -269,6 +269,13 @@ The non-BO path must be completed before atomic parallel development begins.
 
 ### Phase 1: archive and instrument the current implementation
 
+**Status:** implementation complete; instrumented Saga rerun pending. The
+historical Saga report and CSV are archived, and the existing one-dimensional
+H2+/HD+ correctness validation is complete. Component, communication,
+collective, and Krylov diagnostics are implemented. Repeated one-, two-, and
+four-rank Saga measurements with the new diagnostics remain necessary to close
+the completion gate.
+
 1. Add the Saga benchmark report and CSV described above.
 2. Mark the existing one-dimensional Saga correctness validation complete.
 3. Record separate times for electronic-coordinate work, internuclear-coordinate
