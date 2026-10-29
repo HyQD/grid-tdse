@@ -65,5 +65,5 @@ time srun \
         rank_cache="${NUMBA_CACHE_ROOT}/rank-${SLURM_PROCID}"
         mkdir -p "${rank_cache}"
         export NUMBA_CACHE_DIR="${rank_cache}"
-        exec python "$@"
+        exec python -u "$@"
     ' bash "${script}" "$@"

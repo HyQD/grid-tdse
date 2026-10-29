@@ -54,4 +54,4 @@ time srun \
     --ntasks=1 \
     --cpus-per-task=1 \
     --cpu-bind=cores \
-    python "${script}" "$@"
+    bash -c 'exec python -u "$@"' bash "${script}" "$@"
