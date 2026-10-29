@@ -13,7 +13,9 @@ from grid_tdse.ground_state import (
 )
 
 from .distributed_hamiltonian import (
+    DistributedHamiltonianProfile,
     DistributedOperatorCommunicator,
+    DistributedReductionProfile,
     TwoRadialDistributedHamiltonian,
     TwoRadialDistributedReductions,
 )
@@ -37,6 +39,8 @@ class DistributedGroundStateResult:
     integrator: Literal["sil"]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
+    hamiltonian_profile: DistributedHamiltonianProfile = DistributedHamiltonianProfile()
+    reduction_profile: DistributedReductionProfile = DistributedReductionProfile()
 
     @property
     def energy_history(self) -> np.ndarray:
@@ -80,6 +84,42 @@ class DistributedGroundStateResult:
             dtype=int,
         )
 
+    @property
+    def krylov_accepted_substeps(self) -> np.ndarray:
+        """Accepted exponential substeps during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_accepted_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_rejected_substeps(self) -> np.ndarray:
+        """Rejected exponential substeps during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_rejected_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_refinement_depths(self) -> np.ndarray:
+        """Maximum adaptive refinement depth during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_refinement_depth for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_error_estimates(self) -> np.ndarray:
+        """Accumulated accepted-substep error estimate for every ITP step."""
+
+        return np.asarray(
+            [record.krylov_error_estimate for record in self.history],
+            dtype=float,
+        )
+
 
 class TwoRadialDistributedGroundStateSolver:
     """Find a two-radial ground state with distributed Lanczos ITP.
@@ -115,6 +155,7 @@ class TwoRadialDistributedGroundStateSolver:
         reality_tolerance: float = 1.0e-10,
         progress_interval: int | None = 10,
         tile_size: int = 2048,
+        profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributedLayout):
             raise TypeError("layout must be a TwoRadialDistributedLayout")
@@ -129,8 +170,13 @@ class TwoRadialDistributedGroundStateSolver:
             layout,
             communicator,
             tile_size=tile_size,
+            profile=profile,
         )
-        self.reductions = TwoRadialDistributedReductions(layout, communicator)
+        self.reductions = TwoRadialDistributedReductions(
+            layout,
+            communicator,
+            profile=profile,
+        )
         self.solver = ImaginaryTimeGroundStateSolver(
             time_step=time_step,
             max_iterations=max_iterations,
@@ -157,6 +203,8 @@ class TwoRadialDistributedGroundStateSolver:
         """Run collective normalized Lanczos imaginary-time propagation."""
 
         self._validate_state(initial_state)
+        self.hamiltonian.reset_profile()
+        self.reductions.reset_profile()
 
         def hamiltonian_action(coefficients):
             local_state = DistributedTwoRadialState(
@@ -200,6 +248,8 @@ class TwoRadialDistributedGroundStateSolver:
             integrator="sil",
             termination_reason=result.termination_reason,
             history=result.history,
+            hamiltonian_profile=self.hamiltonian.profile,
+            reduction_profile=self.reductions.profile,
         )
 
     __call__ = solve

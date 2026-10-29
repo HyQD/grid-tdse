@@ -36,6 +36,8 @@ from .distributed_state import (
 )
 from .distributed_hamiltonian import (
     DistributedHamiltonianComponents,
+    DistributedHamiltonianProfile,
+    DistributedReductionProfile,
     TwoRadialDistributedHamiltonian,
     TwoRadialDistributedReductions,
 )
@@ -92,6 +94,8 @@ __all__ = [
     "DipoleGauge",
     "DistributedGroundStateResult",
     "DistributedHamiltonianComponents",
+    "DistributedHamiltonianProfile",
+    "DistributedReductionProfile",
     "DistributedTwoRadialState",
     "FEMDVRGridSpec",
     "NonBornOppenheimerDiatomicIonGroundState",
