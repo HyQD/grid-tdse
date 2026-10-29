@@ -269,12 +269,13 @@ The non-BO path must be completed before atomic parallel development begins.
 
 ### Phase 1: archive and instrument the current implementation
 
-**Status:** implementation complete; instrumented Saga rerun pending. The
-historical Saga report and CSV are archived, and the existing one-dimensional
-H2+/HD+ correctness validation is complete. Component, communication,
-collective, and Krylov diagnostics are implemented. Repeated one-, two-, and
-four-rank Saga measurements with the new diagnostics remain necessary to close
-the completion gate.
+**Status:** complete. The historical Saga report and CSV are archived, the
+existing one-dimensional H2+/HD+ correctness validation is complete, and the
+component, communication, collective, and Krylov diagnostics are implemented.
+Three repeated one-, two-, and four-rank Saga measurements distinguish useful
+Hamiltonian work, neighbor exchange, local reductions, and collective latency.
+They identify the approximately 405000 scalar reductions per solve as the
+dominant scaling limit for the representative `l_max=2` calculation.
 
 1. Add the Saga benchmark report and CSV described above.
 2. Mark the existing one-dimensional Saga correctness validation complete.
