@@ -3,8 +3,9 @@
 ## Scope
 
 This report archives the one-dimensional, internuclear-coordinate MPI results
-obtained before the two-dimensional radial decomposition is introduced. It is
-the Phase 1 reference for the non-Born--Oppenheimer parallelization path in
+obtained before the two-dimensional radial decomposition is introduced. It
+contains the Phase 1 reference and the Phase 2 optimized-path validation for
+the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
 
 The current layout retains every angular channel and the complete electronic
@@ -145,11 +146,11 @@ reductions per Hamiltonian application. Useful Hamiltonian work decreased with
 rank, and halo plus weak-form exchange remained small, while collective time
 increased from one to two ranks and did not improve at four ranks.
 
-The current scalar reduction uses the Python-object
+The Phase 1 scalar reduction used the Python-object
 `communicator.allreduce(value)` interface, including for a one-rank MPI
-communicator. The Phase 2 priorities are therefore to bypass the one-rank
-collective, use buffer-based collectives, and batch Krylov inner products into
-fewer global reductions.
+communicator. These measurements motivated the Phase 2 work to bypass the
+one-rank collective, use buffer-based collectives, and batch Krylov inner
+products into fewer global reductions.
 
 The one-rank repetitions all ran on `c5-60`, and the two-rank repetitions all
 ran on `c1-30`. The four-rank repetitions ran on `c1-30`, `c1-36`, and `c1-29`.
@@ -159,8 +160,81 @@ identical, so the spread is retained as node-to-node variability rather than
 discarded. These repeated measurements satisfy the Phase 1 instrumentation
 completion gate.
 
+## Phase 2 optimized one-dimensional path
+
+Phase 2 retained rank-local Coulomb slices, reused the principal Hamiltonian
+and communication buffers, overlapped bridge communication with independent
+work, bypassed one-rank MPI reductions, and batched Krylov projections into
+buffer-based collectives. The optimized implementation was measured with the
+same `l_max=2` H2+ problem and three repetitions at each rank count.
+
+The Phase 2 series was prepared at `2026-10-29T21:02:37+01:00` with:
+
+- grid-tdse commit `dc2c9871c537765b964494d81297ef1988046a07`;
+- integrator-lib commit `04a161fbaa42955c68e374b391bcd76d77aa8edc`;
+- integrator-lib version `0.3.0`;
+- `OpenMPI/5.0.10-GCC-15.2.0`; and
+- Open MPI 5.0.10 revision `v5.0.10`, built on 2026-02-23.
+
+All nine repeated calculations converged in 2938 iterations to
+`-0.577283887513` Eh with residuals at or below `9.953e-09`. The separate
+two-rank correctness job `20723663` retained unit norm and agreed with the
+serial calculation to `1.110e-16` Eh in energy and `6.321e-12` in the
+phase-aligned state.
+
+The Phase 2 median solve times and strong-scaling metrics were:
+
+| ranks | median solve time | median time/iteration | speedup | efficiency |
+|---:|---:|---:|---:|---:|
+| 1 | 208.698799 s | 0.071034 s | 1.000 | 100% |
+| 2 | 131.408640 s | 0.044727 s | 1.588 | 79% |
+| 4 | 114.735577 s | 0.039052 s | 1.819 | 45% |
+
+Relative to the Phase 1 medians, the complete distributed solve improved by:
+
+| ranks | Phase 1 | Phase 2 | improvement | wall-time reduction |
+|---:|---:|---:|---:|---:|
+| 1 | 373.335462 s | 208.698799 s | 1.79x | 44% |
+| 2 | 290.130479 s | 131.408640 s | 2.21x | 55% |
+| 4 | 253.186881 s | 114.735577 s | 2.21x | 55% |
+
+The Phase 2 median maximum-rank component times were:
+
+| component | 1 rank | 2 ranks | 4 ranks |
+|:---|---:|---:|---:|
+| electronic work | 56.054248 s | 37.649037 s | 35.890121 s |
+| internuclear work | 45.582452 s | 21.956427 s | 17.540019 s |
+| Coulomb work | 19.135526 s | 11.573115 s | 7.204206 s |
+| halo exchange | 0.000000 s | 3.001203 s | 4.595528 s |
+| weak exchange | 0.000000 s | 2.633486 s | 3.737757 s |
+| local reductions | 17.290535 s | 10.020739 s | 7.090590 s |
+| collective reductions | 0.000000 s | 9.496208 s | 7.843090 s |
+
+One-rank execution now bypasses MPI collectives entirely. At two ranks,
+`405971` scalar values were reduced with `171465` collective calls; at four
+ranks, `405438` values were reduced with `171157` calls. The amount of physical
+projection work therefore remained comparable to Phase 1 while the collective
+count fell by approximately 58%.
+
+Median collective time decreased from `69.443636` to `9.496208` seconds at two
+ranks and from `74.409232` to `7.843090` seconds at four ranks. Median local
+reduction time improved by factors of approximately 7.8, 10.1, and 12.2 at
+one, two, and four ranks. Precomputed local Coulomb slices reduced median
+Coulomb time by approximately 18%--24%.
+
+The phase maxima remain non-additive, and node-to-node variation is visible in
+the repeated two- and four-rank measurements. Medians are consequently used
+for all comparisons. For this small workload, two ranks provide the better
+allocation-cost compromise: four ranks reduce median wall time by another 13%
+but use substantially more total core time.
+
+These correctness and repeated performance measurements satisfy the Phase 2
+completion gate.
+
 ## Data
 
-The machine-readable records are in
+The Phase 1 machine-readable records are in
 [`data/saga_non_bo_diatomic_mpi_scaling.csv`](data/saga_non_bo_diatomic_mpi_scaling.csv).
+The Phase 2 records are in
+[`data/saga_non_bo_diatomic_mpi_phase2.csv`](data/saga_non_bo_diatomic_mpi_phase2.csv).
 Raw Slurm output is intentionally not tracked.

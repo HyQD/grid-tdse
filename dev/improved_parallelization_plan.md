@@ -295,14 +295,16 @@ distinguish computational work, neighbor communication, and collective latency.
 
 ### Phase 2: optimize the existing one-dimensional path
 
-**Status:** implemented locally; representative Saga validation remains. The
-one-dimensional Hamiltonian now retains rank-local Coulomb slices, reuses its
-communication and operator work arrays, separates interior and boundary `R`
-elements, and overlaps nonblocking bridge communication with independent
-work. Distributed SIL/SIA orthogonalization uses batched inner products and
-buffer-based collectives. Thread-communicator equivalence tests and an actual
-two-rank MPI smoke test pass. The completion gate still requires repeated
-instrumented Saga measurements on representative workloads.
+**Status:** complete. The one-dimensional Hamiltonian retains rank-local
+Coulomb slices, reuses its communication and operator work arrays, separates
+interior and boundary `R` elements, and overlaps nonblocking bridge
+communication with independent work. Distributed SIL/SIA orthogonalization
+uses batched inner products and buffer-based collectives. Thread-communicator
+equivalence tests, actual MPI correctness checks, and repeated one-, two-, and
+four-rank Saga measurements pass. For the representative `l_max=2` workload,
+the two- and four-rank median solve times improved by approximately 2.21x over
+Phase 1, and collective time decreased by factors of approximately 7.3 and
+9.5, respectively.
 
 1. Precompute and retain rank-local radial multipole slices.
 2. Reuse halo, weak-action, Hamiltonian-output, and Krylov work buffers.
