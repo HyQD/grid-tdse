@@ -126,6 +126,9 @@ class _ThreadCommunicator:
                 )
             return self.group.reduction_results[reduction_round]
 
+    def Allreduce(self, send_buffer, receive_buffer):
+        np.copyto(receive_buffer, self.allreduce(np.asarray(send_buffer).copy()))
+
 
 def _serial_result(calculation, options):
     solver = ImaginaryTimeGroundStateSolver(
@@ -293,6 +296,35 @@ def test_distributed_solver_returns_rank_local_profiles():
     assert result.hamiltonian_profile.coulomb_calls > 0
     assert result.reduction_profile.local_inner_product_calls > 0
     assert result.reduction_profile.collective_calls == 0
+
+
+def test_distributed_solver_batches_krylov_collectives():
+    calculation = _calculation()
+    layout = TwoRadialDistributedLayout(calculation.representation, 2)
+    local_initial = layout.distribute(calculation.initial_state)
+    group = _ThreadCommunicatorGroup(2)
+    solvers = [
+        TwoRadialDistributedGroundStateSolver(
+            layout,
+            group.communicator(rank),
+            profile=True,
+            **_solver_options(max_iterations=1),
+        )
+        for rank in range(2)
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(
+            executor.map(
+                lambda pair: pair[0].solve(pair[1]),
+                zip(solvers, local_initial, strict=True),
+            )
+        )
+
+    for result in results:
+        profile = result.reduction_profile
+        assert profile.collective_values == profile.local_inner_product_calls
+        assert profile.collective_calls < profile.collective_values
 
 
 def test_only_root_enables_progress_output():

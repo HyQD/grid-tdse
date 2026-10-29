@@ -34,11 +34,29 @@ assembly used by `grid-lib`:
 Only neighboring ranks exchange data. Permanent state storage continues to
 contain every bridge exactly once.
 
+The optimized one-dimensional action starts the bridge-state receive before
+applying the electronic-coordinate and Coulomb terms. It then evaluates the
+interior `R` elements while the receive is in flight and waits only before the
+boundary element needs the halo. The returned weak bridge contribution is
+also transferred nonblockingly while the owned contribution and diagonal
+terms are finalized. Communication timings therefore measure request setup
+and the non-overlapped wait, rather than all computation performed while a
+request is active.
+
+Rank-local Coulomb multipole slices and the Hamiltonian's halo, weak-action,
+and exchange work arrays are allocated once and reused. The complete action is
+accumulated directly into the electronic-coordinate output instead of
+allocating another total-output array. The public result remains an
+independent distributed state; the persistent arrays are an internal
+implementation detail.
+
 ## MPI interface
 
 The distributed Hamiltonian accepts a communicator that supplies `rank`,
-`size`, `Irecv`, and `Isend`. An `mpi4py.MPI.Comm` provides this interface.
-Communication uses NumPy buffers and nonblocking point-to-point operations.
+`size`, `Irecv`, and `Isend`. The reduction helper additionally uses
+buffer-based `Allreduce` when it is available. An `mpi4py.MPI.Comm` provides
+this interface. Communication uses NumPy buffers and nonblocking
+point-to-point operations.
 
 ```python
 from mpi4py import MPI
@@ -86,7 +104,9 @@ contributions with `allreduce`. Bridge points therefore occur exactly once.
 The available operations include:
 
 - `local_inner_product(left, right)` for one rank's contribution;
+- `local_inner_products(left_states, right)` for several local contributions;
 - `inner_product(left, right)` for the collective physical inner product;
+- `inner_products(left_states, right)` for one batched collective reduction;
 - `norm_squared(state)` and `norm(state)`;
 - `expectation(state, operator_state)`;
 - `rayleigh_quotient(state, operator_state)`;
@@ -101,12 +121,20 @@ post-processing.
 `inner_product_all` supplies the corresponding local multi-rank validation
 path without a communicator.
 
+The batched operation is used by distributed SIL and SIA orthogonalization.
+It reduces several scalar values with one collective, which lowers latency
+without changing the physical inner product. Profiling reports both the
+number of collectives and the number of scalar values reduced. A one-rank
+layout bypasses MPI reduction calls entirely.
+
 ## Coulomb slices
 
 `TwoRadialHamiltonian.apply_coulomb_R_slice` exposes the optimized Coulomb
-kernel on selected coordinate-2 points. It keeps the complete angular and
-coordinate-1 axes but never constructs a full coordinate-2 state or output
-array. The existing full-state Coulomb path is unchanged.
+kernel on selected coordinate-2 points. The distributed Hamiltonian extracts
+and retains the corresponding contiguous rank-local multipole slice during
+setup, so repeated actions do not rebuild it. The slice keeps the complete
+angular and coordinate-1 axes but never constructs a full coordinate-2 state
+or output array. The existing serial full-state Coulomb path is unchanged.
 
 ## Current scope
 

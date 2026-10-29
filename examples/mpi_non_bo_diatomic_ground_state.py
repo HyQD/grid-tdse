@@ -189,6 +189,7 @@ profile_names = (
     "local_inner_product_calls",
     "local_inner_product_seconds",
     "collective_calls",
+    "collective_values",
     "collective_seconds",
 )
 hamiltonian_profile = result.hamiltonian_profile
@@ -209,6 +210,7 @@ local_profile = np.asarray(
         reduction_profile.local_inner_product_calls,
         reduction_profile.local_inner_product_seconds,
         reduction_profile.collective_calls,
+        reduction_profile.collective_values,
         reduction_profile.collective_seconds,
     ],
     dtype=float,
@@ -328,7 +330,8 @@ if communicator.rank == 0:
     print(
         "Collective reductions (max): "
         f"{maximum_profile['collective_seconds']:.6f} s "
-        f"({int(maximum_profile['collective_calls'])} calls)"
+        f"({int(maximum_profile['collective_calls'])} calls, "
+        f"{int(maximum_profile['collective_values'])} values)"
     )
 
     if COMPARE_WITH_SERIAL:
