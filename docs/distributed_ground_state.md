@@ -20,8 +20,10 @@ internuclear radial points. During each Lanczos imaginary-time step:
 2. Hamiltonian calls are forwarded to `TwoRadialDistributedHamiltonian`.
 3. Neighboring ranks exchange the FEM-DVR bridge data needed by the
    internuclear kinetic-energy action.
-4. Every Lanczos inner product uses `TwoRadialDistributedReductions` and a
-   collective sum.
+4. Krylov orthogonalization batches all projections against the current basis
+   into one collective sum per orthogonalization pass. Scalar reductions are
+   retained for norms, energies, convergence tests, and other individual
+   quantities.
 5. The state is normalized with the global physical norm.
 6. Energy change, phase-invariant state change, and eigenstate residual are
    evaluated collectively.
@@ -29,6 +31,12 @@ internuclear radial points. During each Lanczos imaginary-time step:
 All ranks receive the same reduced scalars and therefore make the same
 Lanczos-dimension, refinement, and convergence decisions. The root rank alone
 prints iteration progress.
+
+The Hamiltonian overlaps bridge communication with electronic, Coulomb, and
+interior-`R` work and reuses persistent rank-local work buffers. The Krylov
+integrator similarly reuses its linear-combination work array during each
+subspace construction. These changes affect allocation and synchronization,
+not the represented state or convergence criteria.
 
 The implementation reuses `ImaginaryTimeGroundStateSolver` and
 `integrator-lib`; it does not contain a separate MPI implementation of the
@@ -195,6 +203,7 @@ Lanczos imaginary-time propagation. The checks cover:
 - phase-invariant state changes;
 - eigenstate residuals;
 - Krylov dimensions;
+- batched Krylov reduction counts and reduced-value counts;
 - convergence from a represented eigenstate.
 
 Actual MPI deployment and correctness validation on Saga are a separate next

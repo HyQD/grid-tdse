@@ -227,10 +227,27 @@ class TwoRadialDistributedGroundStateSolver:
             )
             return self.reductions.inner_product(left_state, right_state)
 
+        def inner_products(left, right):
+            left_states = tuple(
+                DistributedTwoRadialState(
+                    self.layout,
+                    self.rank,
+                    values,
+                )
+                for values in left
+            )
+            right_state = DistributedTwoRadialState(
+                self.layout,
+                self.rank,
+                right,
+            )
+            return self.reductions.inner_products(left_states, right_state)
+
         result = self.solver.solve(
             initial_state.coefficients,
             hamiltonian_action,
             inner_product,
+            inner_products=inner_products,
         )
         state = DistributedTwoRadialState(
             self.layout,
