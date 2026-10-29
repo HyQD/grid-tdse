@@ -563,6 +563,93 @@ Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, and 4-rank
 submission helper, are provided in
 [`examples/Saga`](../examples/Saga/README.md).
 
+### Choose MPI ranks, CPUs, and nodes
+
+Slurm distinguishes an MPI task from the CPU cores assigned to that task:
+
+- `--ntasks` is the number of MPI ranks;
+- `--cpus-per-task` is the number of CPU cores available to each rank;
+- `--nodes` is the number of compute nodes over which those ranks may be
+  placed.
+
+The current distributed two-radial implementation is a pure-MPI calculation.
+Each rank performs serial local work, and the supplied MPI job script fixes
+the Numba, OpenMP, OpenBLAS, and MKL thread counts to one. Use one CPU per MPI
+rank:
+
+```bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=1
+
+export NUMBA_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+srun --mpi=pmix \
+    --ntasks="${SLURM_NTASKS}" \
+    --cpus-per-task=1 \
+    --cpu-bind=cores \
+    python calculation.py
+```
+
+Increasing `--cpus-per-task` does not create additional MPI ranks. With the
+current kernels it reserves cores that the rank does not use, potentially
+increasing queue time and allocation cost without reducing runtime. More than
+one CPU per task becomes appropriate only after a local threaded execution
+path has been implemented and its thread counts are configured and benchmarked
+explicitly. Do not enable several independent numerical thread pools at the
+same time.
+
+The present decomposition distributes only the internuclear coordinate `R`.
+Every rank retains all angular channels and the complete electronic coordinate
+`r`, while owning an element-aligned interval of `R`. Consequently:
+
+- the number of MPI ranks cannot exceed the number of FEM-DVR elements in
+  `R`;
+- increasing the angular cutoffs or enlarging the `r` grid increases the work
+  and memory on every rank, but does not permit more ranks;
+- adding points inside the existing `R` elements increases the work per rank,
+  but does not increase the rank limit;
+- adding `R` elements increases the available MPI parallelism and is the path
+  toward larger rank counts.
+
+For example, the current MPI ground-state example has four `R` elements and
+therefore supports at most four ranks. Keep such a calculation on one node:
+
+```bash
+sbatch \
+    --nodes=1 \
+    --ntasks=4 \
+    --cpus-per-task=1 \
+    job_mpi.sh \
+    examples/mpi_non_bo_diatomic_ground_state.py \
+    --system H2+
+```
+
+Spreading a small rank count across multiple nodes exposes the same amount of
+parallel work while replacing some shared-memory communication with network
+communication. It is therefore unlikely to improve performance. First
+establish scaling within one node. Request multiple nodes only when the `R`
+grid contains enough elements to use more ranks than fit usefully on one node
+and the local Hamiltonian work is large enough to amortize halo exchanges and
+collective reductions.
+
+Shared nodes can exhibit timing variation when other jobs compete for memory
+bandwidth, cache, or the node power budget. For performance measurements,
+record the node name, repeat each configuration, and report a median. Inspect
+placement and resource use with:
+
+```bash
+sacct -j <job-id> \
+    --format=JobID,JobName%32,State,Elapsed,TotalCPU,AllocCPUS,MaxRSS,NodeList
+```
+
+Use `--exclusive` only when a controlled whole-node benchmark warrants its
+larger allocation cost. Do not routinely request an entire node for a small
+one-, two-, or four-rank calculation.
+
 ### Update an MPI-enabled installation
 
 Load the same Open MPI module used to build `mpi4py` before updating or
@@ -1075,7 +1162,9 @@ should only be enabled after all compiled dependencies have been validated.
 
 Multiple numerical thread pools are probably oversubscribing the allocation.
 Choose one parallel layer, make the other libraries single-threaded, and bind
-the Slurm step. For the Numba-parallel Coulomb kernel:
+the Slurm step. The following configuration applies to a serial or deliberately
+threaded local calculation, not to the current pure-MPI job template. For the
+Numba-parallel Coulomb kernel:
 
 ```bash
 export NUMBA_NUM_THREADS="${SLURM_CPUS_PER_TASK}"
@@ -1091,7 +1180,9 @@ srun --ntasks=1 \
 
 Small symmetry-reduced calculations may still use only one or two cores
 effectively. Benchmark `--cpus-per-task=1`, `2`, `4`, and `8` rather than
-assuming that more CPUs reduce wall time.
+assuming that more CPUs reduce wall time. For the distributed two-radial MPI
+path, retain one CPU per task and increase `--ntasks` instead, subject to the
+number of `R` elements.
 
 #### Memory usage is much lower than the request
 
