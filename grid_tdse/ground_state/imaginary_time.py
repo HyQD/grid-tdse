@@ -98,6 +98,42 @@ class GroundStateResult:
             [record.krylov_dimension for record in self.history], dtype=int
         )
 
+    @property
+    def krylov_accepted_substeps(self) -> np.ndarray:
+        """Accepted exponential substeps during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_accepted_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_rejected_substeps(self) -> np.ndarray:
+        """Rejected exponential substeps during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_rejected_substeps for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_refinement_depths(self) -> np.ndarray:
+        """Maximum adaptive refinement depth during every ITP step."""
+
+        return np.asarray(
+            [record.krylov_refinement_depth for record in self.history],
+            dtype=int,
+        )
+
+    @property
+    def krylov_error_estimates(self) -> np.ndarray:
+        """Accumulated accepted-substep error estimate for every ITP step."""
+
+        return np.asarray(
+            [record.krylov_error_estimate for record in self.history],
+            dtype=float,
+        )
+
 
 class ImaginaryTimeGroundStateSolver:
     """Find the lowest state represented in an initial wavefunction.

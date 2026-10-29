@@ -285,6 +285,92 @@ def test_single_rank_energy_and_residual_reductions():
     )
 
 
+def test_single_rank_profiling_records_local_component_work():
+    system = _system()
+    layout = TwoRadialDistributedLayout(system, 1)
+    hamiltonian = TwoRadialDistributedHamiltonian(layout, profile=True)
+    reductions = TwoRadialDistributedReductions(layout, profile=True)
+    state = layout.distribute(_complex_state(system))[0]
+
+    action = hamiltonian(state)
+    reductions.inner_product(state, action)
+
+    hamiltonian_profile = hamiltonian.profile
+    assert hamiltonian_profile.hamiltonian_calls == 1
+    assert hamiltonian_profile.coordinate1_calls == 1
+    assert hamiltonian_profile.coordinate2_calls == 1
+    assert hamiltonian_profile.coulomb_calls == 1
+    assert hamiltonian_profile.halo_exchange_calls == 0
+    assert hamiltonian_profile.weak_exchange_calls == 0
+    assert hamiltonian_profile.coordinate1_seconds >= 0.0
+    assert hamiltonian_profile.coordinate2_local_seconds >= 0.0
+    assert hamiltonian_profile.coulomb_seconds >= 0.0
+
+    reduction_profile = reductions.profile
+    assert reduction_profile.local_inner_product_calls == 1
+    assert reduction_profile.collective_calls == 0
+    assert reduction_profile.local_inner_product_seconds >= 0.0
+
+    hamiltonian.reset_profile()
+    reductions.reset_profile()
+    assert hamiltonian.profile.hamiltonian_calls == 0
+    assert reductions.profile.local_inner_product_calls == 0
+
+
+def test_multi_rank_profiling_records_bridge_exchanges_and_collectives():
+    system = _system()
+    layout = TwoRadialDistributedLayout(system, 2)
+    local_states = layout.distribute(_complex_state(system))
+    group = _ThreadCommunicatorGroup(2)
+    hamiltonians = [
+        TwoRadialDistributedHamiltonian(
+            layout,
+            group.communicator(rank),
+            profile=True,
+        )
+        for rank in range(2)
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        tuple(
+            executor.map(
+                lambda pair: pair[0](pair[1]),
+                zip(hamiltonians, local_states),
+            )
+        )
+
+    for hamiltonian in hamiltonians:
+        profile = hamiltonian.profile
+        assert profile.hamiltonian_calls == 1
+        assert profile.halo_exchange_calls == 1
+        assert profile.weak_exchange_calls == 1
+        assert profile.halo_exchange_seconds >= 0.0
+        assert profile.weak_exchange_seconds >= 0.0
+
+    reduction_group = _ThreadCommunicatorGroup(2)
+    reductions = [
+        TwoRadialDistributedReductions(
+            layout,
+            reduction_group.communicator(rank),
+            profile=True,
+        )
+        for rank in range(2)
+    ]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        tuple(
+            executor.map(
+                lambda values: values[0].inner_product(values[1], values[1]),
+                zip(reductions, local_states),
+            )
+        )
+
+    for reduction in reductions:
+        profile = reduction.profile
+        assert profile.local_inner_product_calls == 1
+        assert profile.collective_calls == 1
+        assert profile.collective_seconds >= 0.0
+
+
 def test_archived_state_uses_same_distributed_hamiltonian_path(tmp_path):
     system = _system()
     state = _complex_state(system)
@@ -319,6 +405,18 @@ def test_multi_rank_direct_action_requires_communicator():
 
     with pytest.raises(RuntimeError, match="communicator is required"):
         distributed.apply_one_body_coordinate2(state)
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    [TwoRadialDistributedHamiltonian, TwoRadialDistributedReductions],
+)
+def test_distributed_profiling_flag_must_be_boolean(constructor):
+    system = _system()
+    layout = TwoRadialDistributedLayout(system, 1)
+
+    with pytest.raises(TypeError, match="profile must be boolean"):
+        constructor(layout, profile="yes")
 
 
 def test_reductions_do_not_normalize_expectations_implicitly():
