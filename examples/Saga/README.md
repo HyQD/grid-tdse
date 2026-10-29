@@ -175,10 +175,16 @@ distort the total job time. Run the correctness jobs with the comparison
 enabled before interpreting the timing series.
 
 Every rank is assigned one CPU core, and NumPy, BLAS, OpenMP, and Numba thread
-counts are fixed to one to avoid nested-thread oversubscription. All four jobs
-are restricted to one node so this first series measures only the current
+counts are fixed to one to avoid nested-thread oversubscription. All jobs are
+restricted to one node so this first series measures only the current
 shared-node MPI decomposition. Each rank receives its own job-local Numba
 cache directory to avoid concurrent writes during JIT compilation.
+
+Do not increase `--cpus-per-task` for these MPI calculations: the current
+distributed kernels use one serial CPU core per rank, so extra CPUs would be
+reserved but unused. The distinction between ranks, CPUs per task, `R`-element
+ownership, and multi-node jobs is explained in
+[`docs/saga_setup.md`](../../docs/saga_setup.md#choose-mpi-ranks-cpus-and-nodes).
 
 After completion, inspect resource usage with the job IDs printed by `sbatch`:
 
