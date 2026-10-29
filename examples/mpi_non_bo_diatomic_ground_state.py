@@ -149,6 +149,7 @@ solver = TwoRadialDistributedGroundStateSolver(
     max_krylov_refinements=MAX_KRYLOV_REFINEMENTS,
     krylov_reorthogonalize=True,
     progress_interval=PROGRESS_INTERVAL,
+    profile=True,
 )
 
 # Warm the rank-local and communication paths before timing so first-call
@@ -158,6 +159,8 @@ warmup_start = MPI.Wtime()
 solver.hamiltonian(local_initial_state)
 local_warmup_time = MPI.Wtime() - warmup_start
 warmup_time = communicator.allreduce(local_warmup_time, op=MPI.MAX)
+solver.hamiltonian.reset_profile()
+solver.reductions.reset_profile()
 
 # Synchronize before timing so the reported value is the slowest rank's solve
 # time rather than rank zero's local time. Warmup, state gathering, and the
@@ -170,6 +173,49 @@ distributed_time = communicator.allreduce(
     local_distributed_time,
     op=MPI.MAX,
 )
+
+profile_names = (
+    "hamiltonian_calls",
+    "coordinate1_calls",
+    "coordinate1_seconds",
+    "coordinate2_calls",
+    "coordinate2_local_seconds",
+    "coulomb_calls",
+    "coulomb_seconds",
+    "halo_exchange_calls",
+    "halo_exchange_seconds",
+    "weak_exchange_calls",
+    "weak_exchange_seconds",
+    "local_inner_product_calls",
+    "local_inner_product_seconds",
+    "collective_calls",
+    "collective_seconds",
+)
+hamiltonian_profile = result.hamiltonian_profile
+reduction_profile = result.reduction_profile
+local_profile = np.asarray(
+    [
+        hamiltonian_profile.hamiltonian_calls,
+        hamiltonian_profile.coordinate1_calls,
+        hamiltonian_profile.coordinate1_seconds,
+        hamiltonian_profile.coordinate2_calls,
+        hamiltonian_profile.coordinate2_local_seconds,
+        hamiltonian_profile.coulomb_calls,
+        hamiltonian_profile.coulomb_seconds,
+        hamiltonian_profile.halo_exchange_calls,
+        hamiltonian_profile.halo_exchange_seconds,
+        hamiltonian_profile.weak_exchange_calls,
+        hamiltonian_profile.weak_exchange_seconds,
+        reduction_profile.local_inner_product_calls,
+        reduction_profile.local_inner_product_seconds,
+        reduction_profile.collective_calls,
+        reduction_profile.collective_seconds,
+    ],
+    dtype=float,
+)
+maximum_profile_values = np.empty_like(local_profile)
+communicator.Allreduce(local_profile, maximum_profile_values, op=MPI.MAX)
+maximum_profile = dict(zip(profile_names, maximum_profile_values, strict=True))
 state = gather_two_radial_state(result.state, communicator)
 
 if communicator.rank == 0:
@@ -220,6 +266,69 @@ if communicator.rank == 0:
     print(
         "Solve time per iteration: "
         f"{solve_time_per_iteration:.6f} s"
+    )
+    print(
+        "Hamiltonian calls:        "
+        f"{int(maximum_profile['hamiltonian_calls'])}"
+    )
+    print(
+        "Krylov operator calls:    "
+        f"{int(np.sum(result.krylov_operator_calls))}"
+    )
+    print(
+        "Krylov accepted substeps: "
+        f"{int(np.sum(result.krylov_accepted_substeps))}"
+    )
+    print(
+        "Krylov rejected substeps: "
+        f"{int(np.sum(result.krylov_rejected_substeps))}"
+    )
+    print(
+        "Krylov max refinement:    "
+        f"{int(np.max(result.krylov_refinement_depths))}"
+    )
+    print(
+        "Krylov max dimension:     "
+        f"{int(np.max(result.krylov_dimensions))}"
+    )
+    print(
+        "Krylov max error estimate:"
+        f" {np.max(result.krylov_error_estimates):.6e}"
+    )
+    print(
+        "Electronic work (max):    "
+        f"{maximum_profile['coordinate1_seconds']:.6f} s "
+        f"({int(maximum_profile['coordinate1_calls'])} calls)"
+    )
+    print(
+        "Internuclear work (max):  "
+        f"{maximum_profile['coordinate2_local_seconds']:.6f} s "
+        f"({int(maximum_profile['coordinate2_calls'])} calls)"
+    )
+    print(
+        "Coulomb work (max):       "
+        f"{maximum_profile['coulomb_seconds']:.6f} s "
+        f"({int(maximum_profile['coulomb_calls'])} calls)"
+    )
+    print(
+        "Halo exchange (max):      "
+        f"{maximum_profile['halo_exchange_seconds']:.6f} s "
+        f"({int(maximum_profile['halo_exchange_calls'])} calls)"
+    )
+    print(
+        "Weak exchange (max):      "
+        f"{maximum_profile['weak_exchange_seconds']:.6f} s "
+        f"({int(maximum_profile['weak_exchange_calls'])} calls)"
+    )
+    print(
+        "Local reductions (max):   "
+        f"{maximum_profile['local_inner_product_seconds']:.6f} s "
+        f"({int(maximum_profile['local_inner_product_calls'])} calls)"
+    )
+    print(
+        "Collective reductions (max): "
+        f"{maximum_profile['collective_seconds']:.6f} s "
+        f"({int(maximum_profile['collective_calls'])} calls)"
     )
 
     if COMPARE_WITH_SERIAL:

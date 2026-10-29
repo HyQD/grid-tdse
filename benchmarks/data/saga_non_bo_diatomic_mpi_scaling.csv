@@ -1,0 +1,10 @@
+date,commit,job_id,system,l_max,r_grid,R_grid,ranks,node,iterations,solve_time,time_per_iteration,energy,residual,norm,status,notes,hamiltonian_calls,krylov_operator_calls,krylov_accepted_substeps,krylov_rejected_substeps,krylov_max_refinement,krylov_max_dimension,krylov_max_error_estimate,electronic_time,internuclear_time,coulomb_time,halo_exchange_time,weak_exchange_time,local_reduction_time,collective_reduction_time
+,,20663385,H2+,2,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",1,,2938,358.473675,0.122013,-0.577283887513,9.952e-09,1.0,converged,,,,,,,,,,,,,,,
+,,20663386,H2+,2,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",2,,2938,299.924362,0.102085,-0.577283887513,9.953e-09,1.0,converged,,,,,,,,,,,,,,,
+,,20663387,H2+,2,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",4,,2938,246.257659,0.083818,-0.577283887513,9.953e-09,1.0,converged,,,,,,,,,,,,,,,
+,,20667830,H2+,4,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",1,,3137,2983.104617,0.950942,-0.588621945461,9.967e-09,1.0,converged,,,,,,,,,,,,,,,
+,,20667698,H2+,4,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",2,,3137,1735.326343,0.553180,-0.588621945461,9.966e-09,1.0,converged,,,,,,,,,,,,,,,
+,,20666765,H2+,4,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",4,,3137,1055.088946,0.336337,-0.588621945461,9.966e-09,1.0,converged,,,,,,,,,,,,,,,
+2026-10-29,,20676189,H2+,6,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",1,c5-60,100,1581.544478,15.815445,-0.453875801410,6.458e-03,1.0,pilot,fixed-iteration performance pilot,,,,,,,,,,,,,,
+2026-10-29,,20676204,H2+,6,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",2,c1-8,100,822.404733,8.224047,-0.453875801410,6.458e-03,1.0,pilot,representative median two-rank result,,,,,,,,,,,,,,
+2026-10-29,,20676191,H2+,6,"bounds=0|4|8|12|16;points=11","bounds=0|2|4|6|8;points=21",4,c1-8,100,444.476202,4.444762,-0.453875801410,6.458e-03,1.0,pilot,fixed-iteration performance pilot,,,,,,,,,,,,,,
