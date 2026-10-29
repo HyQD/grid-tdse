@@ -114,6 +114,9 @@ class _ThreadCommunicator:
                 )
             return self.group.reduction_result
 
+    def Allreduce(self, send_buffer, receive_buffer):
+        np.copyto(receive_buffer, self.allreduce(np.asarray(send_buffer).copy()))
+
 
 @pytest.mark.parametrize("M_tot", [None, 0])
 @pytest.mark.parametrize("n_ranks", [1, 2, 3, 4])
@@ -258,6 +261,64 @@ def test_collective_inner_product_matches_serial_result():
         assert result == pytest.approx(expected, rel=2.0e-13, abs=2.0e-12)
 
 
+def test_collective_inner_products_batch_one_reduction():
+    system = _system()
+    layout = TwoRadialDistributedLayout(system, 3)
+    states = [_complex_state(system, seed=seed) for seed in (811, 812, 813)]
+    right = _complex_state(system, seed=814)
+    local_left = [layout.distribute(state) for state in states]
+    local_right = layout.distribute(right)
+    group = _ThreadCommunicatorGroup(3)
+    reductions = [
+        TwoRadialDistributedReductions(
+            layout,
+            group.communicator(rank),
+            profile=True,
+        )
+        for rank in range(3)
+    ]
+
+    def apply(rank):
+        return reductions[rank].inner_products(
+            [parts[rank] for parts in local_left],
+            local_right[rank],
+        )
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        results = tuple(executor.map(apply, range(3)))
+
+    expected = np.asarray(
+        [system.inner_product(state, right) for state in states]
+    )
+    for result, reduction in zip(results, reductions, strict=True):
+        np.testing.assert_allclose(result, expected, atol=2.0e-12, rtol=2.0e-13)
+        assert reduction.profile.local_inner_product_calls == 3
+        assert reduction.profile.collective_calls == 1
+        assert reduction.profile.collective_values == 3
+
+
+def test_one_rank_communicator_bypasses_collective():
+    system = _system()
+    layout = TwoRadialDistributedLayout(system, 1)
+    state = layout.distribute(_complex_state(system))[0]
+    group = _ThreadCommunicatorGroup(1)
+    communicator = group.communicator(0)
+    reductions = TwoRadialDistributedReductions(
+        layout,
+        communicator,
+        profile=True,
+    )
+
+    result = reductions.inner_product(state, state)
+
+    assert result == pytest.approx(system.inner_product(
+        state.coefficients,
+        state.coefficients,
+    ))
+    assert group.reduction_values == {}
+    assert reductions.profile.collective_calls == 0
+
+
 def test_single_rank_energy_and_residual_reductions():
     system = _system()
     layout = TwoRadialDistributedLayout(system, 1)
@@ -368,6 +429,7 @@ def test_multi_rank_profiling_records_bridge_exchanges_and_collectives():
         profile = reduction.profile
         assert profile.local_inner_product_calls == 1
         assert profile.collective_calls == 1
+        assert profile.collective_values == 1
         assert profile.collective_seconds >= 0.0
 
 

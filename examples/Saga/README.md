@@ -263,7 +263,9 @@ phase rather than rank zero's local time. Electronic, local internuclear, and
 Coulomb timings measure computation. Halo exchange, returned weak-form bridge
 exchange, and collective-reduction timings include the time spent waiting for
 other ranks. Local physical-inner-product work is reported separately from its
-collective reduction.
+collective reduction. The collective line reports both MPI call count and the
+number of scalar values reduced; batched Krylov projections lower the former
+without hiding the latter.
 
 The phase maxima are not generally additive: the slowest electronic rank need
 not be the slowest communication rank. Use them to locate imbalance and wait

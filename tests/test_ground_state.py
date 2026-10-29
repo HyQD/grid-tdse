@@ -115,6 +115,50 @@ def test_one_iteration_matches_normalized_imaginary_time_exponential(integrator)
 
 
 @pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_itp_forwards_batched_inner_products(integrator):
+    hamiltonian = np.array([[0.8, 0.2], [0.2, 1.4]])
+    batches = []
+
+    def inner_products(left, right):
+        batches.append(len(left))
+        return np.asarray([np.vdot(vector, right) for vector in left])
+
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator=integrator,
+        time_step=0.2,
+        max_iterations=1,
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+    )
+
+    solver.solve(
+        np.array([1.0, -0.3]),
+        lambda state: hamiltonian @ state,
+        np.vdot,
+        inner_products=inner_products,
+    )
+
+    assert batches
+    assert max(batches) == 2
+
+
+def test_itp_rejects_noncallable_batched_inner_products():
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator="sil",
+        max_iterations=1,
+    )
+
+    with pytest.raises(TypeError, match="inner_products must be callable"):
+        solver.solve(
+            np.ones(2),
+            lambda state: state,
+            np.vdot,
+            inner_products=1,
+        )
+
+
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
 def test_krylov_itp_converges_to_lowest_represented_eigenstate(integrator):
     eigenvalues = np.array([0.5, 1.5, 3.0])
     solver = ImaginaryTimeGroundStateSolver(

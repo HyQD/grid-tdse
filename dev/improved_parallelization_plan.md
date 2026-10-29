@@ -108,9 +108,13 @@ The following limitations remain:
 
 - the rank count cannot exceed the number of `R` elements;
 - every rank retains the complete `r` coordinate;
-- communication is not yet overlapped with independent Hamiltonian work;
-- rank-local Coulomb data and work arrays can be reused more aggressively;
-- Krylov orthogonalization performs latency-sensitive global reductions;
+- the optimized one-dimensional path overlaps neighboring communication but
+  the future two-dimensional path must do so independently in both radial
+  directions;
+- rank-local Coulomb data and the principal one-dimensional work arrays are
+  reused, while further kernel-level allocation profiling remains useful;
+- Krylov orthogonalization batches basis projections, but norms and iteration
+  diagnostics still require latency-sensitive scalar reductions;
 - distributed real-time field interactions and absorbers are not complete;
 - distributed checkpoint output gathers the complete state to rank zero;
 - distributed CN lacks an MPI-aware linear solver;
@@ -290,6 +294,15 @@ dominant scaling limit for the representative `l_max=2` calculation.
 distinguish computational work, neighbor communication, and collective latency.
 
 ### Phase 2: optimize the existing one-dimensional path
+
+**Status:** implemented locally; representative Saga validation remains. The
+one-dimensional Hamiltonian now retains rank-local Coulomb slices, reuses its
+communication and operator work arrays, separates interior and boundary `R`
+elements, and overlaps nonblocking bridge communication with independent
+work. Distributed SIL/SIA orthogonalization uses batched inner products and
+buffer-based collectives. Thread-communicator equivalence tests and an actual
+two-rank MPI smoke test pass. The completion gate still requires repeated
+instrumented Saga measurements on representative workloads.
 
 1. Precompute and retain rank-local radial multipole slices.
 2. Reuse halo, weak-action, Hamiltonian-output, and Krylov work buffers.

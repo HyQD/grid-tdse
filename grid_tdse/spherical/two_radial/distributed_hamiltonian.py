@@ -30,6 +30,8 @@ class DistributedOperatorCommunicator(Protocol):
 
     def allreduce(self, value): ...
 
+    def Allreduce(self, send_buffer, receive_buffer): ...
+
 
 @dataclass(frozen=True)
 class DistributedHamiltonianComponents:
@@ -82,7 +84,16 @@ class DistributedReductionProfile:
     local_inner_product_calls: int = 0
     local_inner_product_seconds: float = 0.0
     collective_calls: int = 0
+    collective_values: int = 0
     collective_seconds: float = 0.0
+
+
+@dataclass
+class _PendingExchange:
+    received: np.ndarray | None
+    received_indices: np.ndarray | None
+    requests: list
+    setup_seconds: float | None
 
 
 class TwoRadialDistributedHamiltonian:
@@ -128,6 +139,26 @@ class TwoRadialDistributedHamiltonian:
         else:
             self.rank = None
 
+        self._working_buffers = {}
+        self._weak_buffers = {}
+        self._owned_weak_buffers = {}
+        self._halo_receive_buffers = {}
+        self._halo_send_buffers = {}
+        self._weak_receive_buffers = {}
+        self._weak_send_buffers = {}
+
+        ranks = range(layout.n_ranks) if self.rank is None else (self.rank,)
+        radial_values = self.serial_hamiltonian.radial_multipoles.values
+        self._local_radial_coulomb = {
+            rank: np.ascontiguousarray(
+                radial_values[..., layout.partition(rank).owned_indices].reshape(
+                    radial_values.shape[0],
+                    -1,
+                )
+            )
+            for rank in ranks
+        }
+
         if self.representation.uses_compact_angular_storage:
             pairs = self.representation.angular_pairs.pairs
             channels1 = np.asarray([first for first, _ in pairs], dtype=int)
@@ -153,11 +184,55 @@ class TwoRadialDistributedHamiltonian:
 
         if self.profile_enabled:
             self._profile_counts["hamiltonian_calls"] += 1
+            self._profile_counts["coordinate2_calls"] += 1
+        self._validate_local_state(state)
+        pending_halo = self._start_state_halo_exchange(state)
+
         coordinate1 = self.apply_one_body_coordinate1(state)
-        coordinate2 = self.apply_one_body_coordinate2(state)
-        coulomb = self.apply_coulomb(state)
         values = coordinate1.coefficients
-        values = values + coordinate2.coefficients + coulomb.coefficients
+        self._apply_coulomb_values(state, out=values)
+
+        partition = state.partition
+        started = self._profile_start()
+        working = self._working_values(state, None, require_halo=False)
+        weak = self._zero_weak_buffer(state.rank, state.coefficients.dtype)
+        interior = range(1, len(partition.element_local_dof_maps))
+        if not partition.n_halo:
+            interior = range(len(partition.element_local_dof_maps))
+        self._accumulate_coordinate2_elements(
+            state.rank,
+            working,
+            weak,
+            interior,
+        )
+        self._profile_finish("coordinate2_local", started, count=False)
+
+        halo_values = self._finish_state_halo_exchange(pending_halo)
+        if partition.n_halo:
+            started = self._profile_start()
+            self._set_working_halo(state, working, halo_values)
+            self._accumulate_coordinate2_elements(
+                state.rank,
+                working,
+                weak,
+                (0,),
+            )
+            self._profile_finish("coordinate2_local", started, count=False)
+
+        weak_owned, outgoing = self._owned_weak_values(state.rank, weak)
+        pending_weak = self._start_weak_exchange(
+            state.rank,
+            outgoing,
+            state.coefficients.dtype,
+        )
+        started = self._profile_start()
+        self._finish_coordinate2(state, weak_owned, None, out=values)
+        self._profile_finish("coordinate2_local", started, count=False)
+        incoming = self._finish_weak_exchange(pending_weak)
+        if incoming is not None:
+            started = self._profile_start()
+            self._add_coordinate2_incoming(state, values, incoming)
+            self._profile_finish("coordinate2_local", started, count=False)
         return DistributedTwoRadialState(self.layout, state.rank, values)
 
     def components(
@@ -200,27 +275,49 @@ class TwoRadialDistributedHamiltonian:
 
         if self.profile_enabled:
             self._profile_counts["coordinate2_calls"] += 1
-        started = self._profile_start()
         self._validate_local_state(state)
+        pending_halo = self._start_state_halo_exchange(state)
+        started = self._profile_start()
+        partition = state.partition
+        working = self._working_values(state, None, require_halo=False)
+        weak = self._zero_weak_buffer(state.rank, state.coefficients.dtype)
+        interior = range(1, len(partition.element_local_dof_maps))
+        if not partition.n_halo:
+            interior = range(len(partition.element_local_dof_maps))
+        self._accumulate_coordinate2_elements(
+            state.rank,
+            working,
+            weak,
+            interior,
+        )
         self._profile_finish("coordinate2_local", started, count=False)
 
-        halo_values = self._exchange_state_halo(state)
-        started = self._profile_start()
-        working = self._working_values(state, halo_values)
-        self._profile_finish("coordinate2_local", started, count=False)
+        halo_values = self._finish_state_halo_exchange(pending_halo)
+        if partition.n_halo:
+            started = self._profile_start()
+            self._set_working_halo(state, working, halo_values)
+            self._accumulate_coordinate2_elements(
+                state.rank,
+                working,
+                weak,
+                (0,),
+            )
+            self._profile_finish("coordinate2_local", started, count=False)
 
-        started = self._profile_start()
-        weak_owned, outgoing = self._local_coordinate2_weak(state.rank, working)
-        self._profile_finish("coordinate2_local", started, count=False)
-        incoming = self._exchange_weak_contributions(
+        weak_owned, outgoing = self._owned_weak_values(state.rank, weak)
+        pending_weak = self._start_weak_exchange(
             state.rank,
             outgoing,
             state.coefficients.dtype,
         )
-
         started = self._profile_start()
-        result = self._finish_coordinate2(state, weak_owned, incoming)
+        result = self._finish_coordinate2(state, weak_owned, None)
         self._profile_finish("coordinate2_local", started, count=False)
+        incoming = self._finish_weak_exchange(pending_weak)
+        if incoming is not None:
+            started = self._profile_start()
+            self._add_coordinate2_incoming(state, result, incoming)
+            self._profile_finish("coordinate2_local", started, count=False)
         return DistributedTwoRadialState(self.layout, state.rank, result)
 
     def apply_coulomb(
@@ -230,12 +327,27 @@ class TwoRadialDistributedHamiltonian:
 
         started = self._profile_start()
         self._validate_local_state(state)
-        values = self.serial_hamiltonian.apply_coulomb_R_slice(
+        values = self._apply_coulomb_values(state, started=started)
+        return DistributedTwoRadialState(self.layout, state.rank, values)
+
+    def _apply_coulomb_values(
+        self,
+        state: DistributedTwoRadialState,
+        *,
+        out: np.ndarray | None = None,
+        started: float | None = None,
+    ) -> np.ndarray:
+        if started is None:
+            started = self._profile_start()
+            self._validate_local_state(state)
+        radial = self._local_radial_coulomb[state.rank]
+        values = self.serial_hamiltonian._apply_coulomb_values(
             state.coefficients,
-            state.partition.owned_indices,
+            radial,
+            out=out,
         )
         self._profile_finish("coulomb", started)
-        return DistributedTwoRadialState(self.layout, state.rank, values)
+        return values
 
     @property
     def profile(self) -> DistributedHamiltonianProfile:
@@ -330,25 +442,41 @@ class TwoRadialDistributedHamiltonian:
         self,
         state: DistributedTwoRadialState,
         halo_values: np.ndarray | None,
+        *,
+        require_halo: bool = True,
     ) -> np.ndarray:
         partition = state.partition
-        working = np.empty(
+        working = self._cached_buffer(
+            self._working_buffers,
+            (state.rank, state.coefficients.dtype.str),
             self.layout.local_shape(state.rank),
-            dtype=state.coefficients.dtype,
+            state.coefficients.dtype,
         )
         working[..., partition.owned_local_indices] = state.coefficients
-        if partition.n_halo:
-            if halo_values is None:
+        if partition.n_halo and (require_halo or halo_values is not None):
+            if halo_values is None and require_halo:
                 raise ValueError("halo values are required for this rank")
-            halo_values = np.asarray(halo_values)
-            expected = (*state.coefficients.shape[:-1], partition.n_halo)
-            if halo_values.shape != expected:
-                raise ValueError(
-                    f"halo values have shape {halo_values.shape}; expected "
-                    f"{expected}"
-                )
-            working[..., partition.halo_local_indices] = halo_values
+            self._set_working_halo(state, working, halo_values)
         return working
+
+    def _set_working_halo(
+        self,
+        state: DistributedTwoRadialState,
+        working: np.ndarray,
+        halo_values: np.ndarray | None,
+    ) -> None:
+        partition = state.partition
+        if not partition.n_halo:
+            return
+        if halo_values is None:
+            raise ValueError("halo values are required for this rank")
+        halo_values = np.asarray(halo_values)
+        expected = (*state.coefficients.shape[:-1], partition.n_halo)
+        if halo_values.shape != expected:
+            raise ValueError(
+                f"halo values have shape {halo_values.shape}; expected {expected}"
+            )
+        working[..., partition.halo_local_indices] = halo_values
 
     def _local_coordinate2_weak(
         self,
@@ -356,8 +484,36 @@ class TwoRadialDistributedHamiltonian:
         working: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray | None]:
         partition = self.layout.partition(rank)
-        weak = np.zeros_like(working)
-        for offset, element in enumerate(partition.element_indices):
+        weak = self._zero_weak_buffer(rank, working.dtype)
+        self._accumulate_coordinate2_elements(
+            rank,
+            working,
+            weak,
+            range(len(partition.element_local_dof_maps)),
+        )
+        return self._owned_weak_values(rank, weak)
+
+    def _zero_weak_buffer(self, rank: int, dtype: np.dtype) -> np.ndarray:
+        weak = self._cached_buffer(
+            self._weak_buffers,
+            (rank, np.dtype(dtype).str),
+            self.layout.local_shape(rank),
+            dtype,
+        )
+        weak.fill(0)
+        return weak
+
+    def _accumulate_coordinate2_elements(
+        self,
+        rank: int,
+        working: np.ndarray,
+        weak: np.ndarray,
+        offsets,
+    ) -> None:
+        partition = self.layout.partition(rank)
+        elements = tuple(partition.element_indices)
+        for offset in offsets:
+            element = elements[offset]
             local_map = partition.element_local_dof_maps[offset]
             matrix = self._coordinate2_element_matrices[element]
             local_values = working[..., local_map]
@@ -368,12 +524,30 @@ class TwoRadialDistributedHamiltonian:
                 optimize=True,
             )
             weak[..., local_map] += local_action
-        owned = np.ascontiguousarray(weak[..., partition.owned_local_indices])
+
+    def _owned_weak_values(
+        self,
+        rank: int,
+        weak: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        partition = self.layout.partition(rank)
+        owned = self._cached_buffer(
+            self._owned_weak_buffers,
+            (rank, weak.dtype.str),
+            self.layout.owned_shape(rank),
+            weak.dtype,
+        )
+        np.copyto(owned, weak[..., partition.owned_local_indices])
         outgoing = None
         if partition.n_halo:
-            outgoing = np.ascontiguousarray(
-                weak[..., partition.halo_local_indices]
+            shape = (*self.layout.owned_shape(rank)[:-1], partition.n_halo)
+            outgoing = self._cached_buffer(
+                self._weak_send_buffers,
+                (rank, weak.dtype.str),
+                shape,
+                weak.dtype,
             )
+            np.copyto(outgoing, weak[..., partition.halo_local_indices])
         return owned, outgoing
 
     def _finish_coordinate2(
@@ -381,25 +555,19 @@ class TwoRadialDistributedHamiltonian:
         state: DistributedTwoRadialState,
         weak_owned: np.ndarray,
         incoming: tuple[np.ndarray, np.ndarray] | None,
+        *,
+        out: np.ndarray | None = None,
     ) -> np.ndarray:
-        weak_owned = weak_owned.copy()
-        if incoming is not None:
-            indices, values = incoming
-            positions = np.searchsorted(state.partition.owned_indices, indices)
-            if np.any(positions >= state.partition.n_owned) or not np.array_equal(
-                state.partition.owned_indices[positions],
-                indices,
-            ):
-                raise ValueError("received weak contribution for an unowned index")
-            weak_owned[..., positions] += values
-
         scale = (
             self.representation.kinetic_prefactor2
             / state.owned_R_weights
         )
-        result = weak_owned * scale.reshape(
-            (1,) * (weak_owned.ndim - 1) + (scale.size,)
-        )
+        shaped_scale = scale.reshape((1,) * (weak_owned.ndim - 1) + (scale.size,))
+        if out is None:
+            result = weak_owned * shaped_scale
+        else:
+            result = out
+            result += weak_owned * shaped_scale
         indices = state.partition.owned_indices
         if self.representation.uses_compact_angular_storage:
             result += self._h2_diagonal[:, None, indices] * state.coefficients
@@ -408,24 +576,56 @@ class TwoRadialDistributedHamiltonian:
                 self._h2_diagonal[None, :, None, indices]
                 * state.coefficients
             )
+        if incoming is not None:
+            self._add_coordinate2_incoming(state, result, incoming)
         return result
+
+    def _add_coordinate2_incoming(
+        self,
+        state: DistributedTwoRadialState,
+        result: np.ndarray,
+        incoming: tuple[np.ndarray, np.ndarray],
+    ) -> None:
+        indices, values = incoming
+        positions = np.searchsorted(state.partition.owned_indices, indices)
+        if np.any(positions >= state.partition.n_owned) or not np.array_equal(
+            state.partition.owned_indices[positions],
+            indices,
+        ):
+            raise ValueError("received weak contribution for an unowned index")
+        scale = (
+            self.representation.kinetic_prefactor2
+            / state.owned_R_weights[positions]
+        )
+        shaped_scale = scale.reshape((1,) * (values.ndim - 1) + (scale.size,))
+        result[..., positions] += values * shaped_scale
 
     def _exchange_state_halo(
         self,
         state: DistributedTwoRadialState,
     ) -> np.ndarray | None:
-        partition = state.partition
+        return self._finish_state_halo_exchange(
+            self._start_state_halo_exchange(state)
+        )
+
+    def _start_state_halo_exchange(
+        self,
+        state: DistributedTwoRadialState,
+    ) -> _PendingExchange | None:
         if self.layout.n_ranks == 1:
             return None
-        started = self._profile_start()
+        partition = state.partition
+        profile_started = self._profile_start()
         communicator = self._required_communicator(state.rank)
         requests = []
-        buffers = []
         received = None
         if partition.n_halo:
-            received = np.empty(
-                (*state.coefficients.shape[:-1], partition.n_halo),
-                dtype=state.coefficients.dtype,
+            shape = (*state.coefficients.shape[:-1], partition.n_halo)
+            received = self._cached_buffer(
+                self._halo_receive_buffers,
+                (state.rank, state.coefficients.dtype.str),
+                shape,
+                state.coefficients.dtype,
             )
             requests.append(
                 communicator.Irecv(
@@ -436,8 +636,14 @@ class TwoRadialDistributedHamiltonian:
             )
         if state.rank + 1 < self.layout.n_ranks:
             requested = self.layout.partition(state.rank + 1).halo_indices
-            sent = np.ascontiguousarray(_owned_global_values(state, requested))
-            buffers.append(sent)
+            shape = (*state.coefficients.shape[:-1], requested.size)
+            sent = self._cached_buffer(
+                self._halo_send_buffers,
+                (state.rank, state.coefficients.dtype.str),
+                shape,
+                state.coefficients.dtype,
+            )
+            np.copyto(sent, _owned_global_values(state, requested))
             requests.append(
                 communicator.Isend(
                     sent,
@@ -445,9 +651,25 @@ class TwoRadialDistributedHamiltonian:
                     tag=_STATE_HALO_TAG,
                 )
             )
-        _wait_all(requests)
-        self._profile_finish("halo_exchange", started)
-        return received
+        setup_seconds = None
+        if profile_started is not None:
+            setup_seconds = perf_counter() - profile_started
+        return _PendingExchange(received, None, requests, setup_seconds)
+
+    def _finish_state_halo_exchange(
+        self,
+        pending: _PendingExchange | None,
+    ) -> np.ndarray | None:
+        if pending is None:
+            return None
+        wait_started = self._profile_start()
+        _wait_all(pending.requests)
+        self._finish_exchange_profile(
+            "halo_exchange",
+            pending.setup_seconds,
+            wait_started,
+        )
+        return pending.received
 
     def _exchange_weak_contributions(
         self,
@@ -455,28 +677,38 @@ class TwoRadialDistributedHamiltonian:
         outgoing: np.ndarray | None,
         dtype: np.dtype,
     ) -> tuple[np.ndarray, np.ndarray] | None:
+        return self._finish_weak_exchange(
+            self._start_weak_exchange(rank, outgoing, dtype)
+        )
+
+    def _start_weak_exchange(
+        self,
+        rank: int,
+        outgoing: np.ndarray | None,
+        dtype: np.dtype,
+    ) -> _PendingExchange | None:
         if self.layout.n_ranks == 1:
             return None
-        started = self._profile_start()
+        profile_started = self._profile_start()
         communicator = self._required_communicator(rank)
         requests = []
-        buffers = []
         received = None
         received_indices = None
         if rank + 1 < self.layout.n_ranks:
             received_indices = self.layout.partition(rank + 1).halo_indices
-            received = np.empty(
-                (*self.layout.owned_shape(rank)[:-1], received_indices.size),
-                dtype=dtype,
+            shape = (*self.layout.owned_shape(rank)[:-1], received_indices.size)
+            received = self._cached_buffer(
+                self._weak_receive_buffers,
+                (rank, np.dtype(dtype).str),
+                shape,
+                dtype,
             )
         if rank > 0:
             if outgoing is None:
                 raise ValueError("left-neighbor weak contribution is missing")
-            sent = np.ascontiguousarray(outgoing)
-            buffers.append(sent)
             requests.append(
                 communicator.Isend(
-                    sent,
+                    outgoing,
                     dest=rank - 1,
                     tag=_WEAK_ACTION_TAG,
                 )
@@ -490,11 +722,56 @@ class TwoRadialDistributedHamiltonian:
                     tag=_WEAK_ACTION_TAG,
                 ),
             )
-        _wait_all(requests)
-        self._profile_finish("weak_exchange", started)
-        if received is None:
+        setup_seconds = None
+        if profile_started is not None:
+            setup_seconds = perf_counter() - profile_started
+        return _PendingExchange(
+            received,
+            received_indices,
+            requests,
+            setup_seconds,
+        )
+
+    def _finish_weak_exchange(
+        self,
+        pending: _PendingExchange | None,
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        if pending is None:
             return None
-        return received_indices, received
+        wait_started = self._profile_start()
+        _wait_all(pending.requests)
+        self._finish_exchange_profile(
+            "weak_exchange",
+            pending.setup_seconds,
+            wait_started,
+        )
+        if pending.received is None:
+            return None
+        return pending.received_indices, pending.received
+
+    def _finish_exchange_profile(
+        self,
+        name: str,
+        setup_seconds: float | None,
+        wait_started: float | None,
+    ) -> None:
+        if wait_started is None:
+            return
+        self._profile_seconds[name] += (
+            (0.0 if setup_seconds is None else setup_seconds)
+            + perf_counter()
+            - wait_started
+        )
+        self._profile_counts[f"{name}_calls"] += 1
+
+    @staticmethod
+    def _cached_buffer(cache, key, shape, dtype) -> np.ndarray:
+        try:
+            return cache[key]
+        except KeyError:
+            buffer = np.empty(shape, dtype=dtype)
+            cache[key] = buffer
+            return buffer
 
     def _profile_start(self) -> float | None:
         if not self.profile_enabled:
@@ -578,6 +855,15 @@ class TwoRadialDistributedReductions:
             raise TypeError("profile must be boolean")
         self.profile_enabled = bool(profile)
         self.reset_profile()
+        self._quadrature_weights = tuple(
+            np.multiply.outer(
+                layout.representation.grid1.weights,
+                layout.representation.grid2.weights[partition.owned_indices],
+            )
+            for partition in layout.partitions
+        )
+        self._weighted_right_buffers = {}
+        self._collective_buffers = {}
         if communicator is not None:
             rank, size = _communicator_rank_size(communicator)
             if size != layout.n_ranks:
@@ -598,25 +884,32 @@ class TwoRadialDistributedReductions:
     ) -> complex:
         """Return one rank's nonoverlapping physical-inner-product term."""
 
+        return self.local_inner_products((left,), right)[0]
+
+    def local_inner_products(
+        self,
+        left: Sequence[DistributedTwoRadialState],
+        right: DistributedTwoRadialState,
+    ) -> np.ndarray:
+        """Return several rank-local inner products without a collective."""
+
+        left = tuple(left)
+        if not left:
+            raise ValueError("left must contain at least one distributed state")
         started = perf_counter() if self.profile_enabled else None
-        self._validate_pair(left, right)
-        subscripts = (
-            "pab,pab,a,b->"
-            if self.layout.representation.uses_compact_angular_storage
-            else "ijab,ijab,a,b->"
-        )
-        value = np.einsum(
-            subscripts,
-            left.coefficients.conj(),
-            right.coefficients,
-            self.layout.representation.grid1.weights,
-            left.owned_R_weights,
-            optimize=True,
+        for state in left:
+            self._validate_pair(state, right)
+        weighted_right = self._weighted_right(right)
+        values = np.asarray(
+            [
+                np.vdot(state.coefficients, weighted_right)
+                for state in left
+            ]
         )
         if started is not None:
-            self._local_inner_product_calls += 1
+            self._local_inner_product_calls += len(left)
             self._local_inner_product_seconds += perf_counter() - started
-        return value
+        return values
 
     @property
     def profile(self) -> DistributedReductionProfile:
@@ -626,6 +919,7 @@ class TwoRadialDistributedReductions:
             local_inner_product_calls=self._local_inner_product_calls,
             local_inner_product_seconds=self._local_inner_product_seconds,
             collective_calls=self._collective_calls,
+            collective_values=self._collective_values,
             collective_seconds=self._collective_seconds,
         )
 
@@ -635,6 +929,7 @@ class TwoRadialDistributedReductions:
         self._local_inner_product_calls = 0
         self._local_inner_product_seconds = 0.0
         self._collective_calls = 0
+        self._collective_values = 0
         self._collective_seconds = 0.0
 
     def inner_product(
@@ -646,6 +941,16 @@ class TwoRadialDistributedReductions:
 
         local = self.local_inner_product(left, right)
         return self._allreduce(local, left.rank)
+
+    def inner_products(
+        self,
+        left: Sequence[DistributedTwoRadialState],
+        right: DistributedTwoRadialState,
+    ) -> np.ndarray:
+        """Collectively return several inner products in one reduction."""
+
+        local = self.local_inner_products(left, right)
+        return self._allreduce(local, right.rank)
 
     def inner_product_all(
         self,
@@ -709,7 +1014,7 @@ class TwoRadialDistributedReductions:
         return self.norm(residual)
 
     def _allreduce(self, value, rank: int):
-        if self.layout.n_ranks == 1 and self.communicator is None:
+        if self.layout.n_ranks == 1:
             return value
         if self.communicator is None:
             raise RuntimeError("a communicator is required for a global reduction")
@@ -717,11 +1022,40 @@ class TwoRadialDistributedReductions:
         if communicator_rank != rank or size != self.layout.n_ranks:
             raise ValueError("communicator and local distributed state do not match")
         started = perf_counter() if self.profile_enabled else None
-        result = self.communicator.allreduce(value)
+        array = np.asarray(value)
+        allreduce = getattr(self.communicator, "Allreduce", None)
+        if callable(allreduce):
+            scalar = array.ndim == 0
+            shape = (1,) if scalar else array.shape
+            key = (array.dtype.str, shape)
+            try:
+                send, receive = self._collective_buffers[key]
+            except KeyError:
+                send = np.empty(shape, dtype=array.dtype)
+                receive = np.empty(shape, dtype=array.dtype)
+                self._collective_buffers[key] = send, receive
+            np.copyto(send, array.reshape(shape))
+            allreduce(send, receive)
+            result = receive[0].item() if scalar else receive.copy()
+        else:
+            result = self.communicator.allreduce(value)
         if started is not None:
             self._collective_calls += 1
+            self._collective_values += int(array.size)
             self._collective_seconds += perf_counter() - started
         return result
+
+    def _weighted_right(self, state: DistributedTwoRadialState) -> np.ndarray:
+        weights = self._quadrature_weights[state.rank]
+        dtype = np.result_type(state.coefficients.dtype, weights.dtype)
+        key = (state.rank, np.dtype(dtype).str)
+        try:
+            buffer = self._weighted_right_buffers[key]
+        except KeyError:
+            buffer = np.empty(state.coefficients.shape, dtype=dtype)
+            self._weighted_right_buffers[key] = buffer
+        np.multiply(state.coefficients, weights, out=buffer)
+        return buffer
 
     def _validate_pair(
         self,
