@@ -115,6 +115,22 @@ Replace `<project-id>` and `<username>` in the copied job scripts. Jobs
 already submitted to Slurm retain the script content present at submission
 time, so resubmit a job after copying an updated template.
 
+When `PROJECT_ID` is exported by `grid_tdse_paths.sh`, the MPI template can be
+configured from the jobs directory with:
+
+```bash
+sed -i \
+    -e "s|<project-id>|${PROJECT_ID}|g" \
+    -e "s|<username>|${USER}|g" \
+    job_mpi.sh
+
+grep -n -E 'account=|project_root=' job_mpi.sh
+bash -n job_mpi.sh
+```
+
+Apply these substitutions only to the copied job script, not to the template
+inside the Git checkout.
+
 ## Submit a non-MPI job
 
 The serial prototype accepts a Python script followed by its arguments:

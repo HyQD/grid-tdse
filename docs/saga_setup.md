@@ -741,6 +741,27 @@ Edit the copied `job_mpi.sh` and replace `<project-id>` and `<username>` in:
 project_root="/cluster/projects/<project-id>/<username>"
 ```
 
+If `grid_tdse_paths.sh` has already exported `PROJECT_ID`, substitute both
+placeholders in the copied script with:
+
+```bash
+sed -i \
+    -e "s|<project-id>|${PROJECT_ID}|g" \
+    -e "s|<username>|${USER}|g" \
+    job_mpi.sh
+```
+
+Verify the result before submission:
+
+```bash
+grep -n -E 'account=|project_root=' job_mpi.sh
+bash -n job_mpi.sh
+```
+
+Run this command from the jobs directory and only on the copied script. Do not
+apply project-specific substitutions to the tracked template under
+`${SRC_ROOT}/grid-tdse/examples/Saga`.
+
 Do not edit the tracked template in `${SRC_ROOT}/grid-tdse`. When the template
 changes upstream, copy it again and reapply the two project-specific values.
 Jobs already submitted to Slurm retain the script content that existed at
