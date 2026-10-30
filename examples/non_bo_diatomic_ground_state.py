@@ -54,6 +54,9 @@ GROUND_STATE_PATH = Path(__file__).resolve().parent / "ground_states" / (
     f"{initial_state_label}_{STATE_TOLERANCE:.0e}.npz"
 )
 GROUND_STATE_OVERWRITE = False
+SAMPLE_INTERVAL = 10
+LOG_PATH = GROUND_STATE_PATH.with_name(GROUND_STATE_PATH.stem + "__log.txt")
+LOG_OVERWRITE = False
 
 calculation = NonBornOppenheimerDiatomicIonGroundState(
     SYSTEM,
@@ -95,7 +98,10 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     max_krylov_refinements=8,
     krylov_reorthogonalize=True,
     krylov_breakdown_tolerance=1.0e-14,
-    progress_interval=10,
+    progress_interval=SAMPLE_INTERVAL,
+    sample_interval=SAMPLE_INTERVAL,
+    log_path=LOG_PATH,
+    log_overwrite=LOG_OVERWRITE,
     use_preconditioner=USE_PRECONDITIONER,
 )
 
