@@ -32,6 +32,8 @@ class DistributedOperatorCommunicator(Protocol):
 
     def Allreduce(self, send_buffer, receive_buffer): ...
 
+    def allgather(self, value): ...
+
 
 @dataclass(frozen=True)
 class DistributedHamiltonianComponents:
@@ -1121,6 +1123,19 @@ class TwoRadialDistributedReductions:
 
         local = self.local_inner_products(left, right)
         return self._allreduce(local, right.rank)
+
+    def global_sum(self, values, *, rank: int):
+        """Collectively sum a scalar or array of rank-local observables."""
+
+        rank = int(rank)
+        if not 0 <= rank < self.layout.n_ranks:
+            raise ValueError(f"rank must satisfy 0 <= rank < {self.layout.n_ranks}")
+        values = np.asarray(values)
+        if not np.issubdtype(values.dtype, np.number):
+            raise TypeError("values must be numeric")
+        if not np.isfinite(values).all():
+            raise ValueError("values must be finite")
+        return self._allreduce(values, rank)
 
     def inner_product_all(
         self,

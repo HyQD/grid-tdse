@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from os import PathLike
 from typing import Literal
 
 import numpy as np
@@ -23,6 +24,11 @@ from .distributed_state import (
     DistributedTwoRadialState,
     TwoRadialDistributedLayout,
 )
+from .ground_state_sampling import (
+    DiatomicIonGroundStateReporter,
+    DiatomicIonGroundStateSample,
+)
+from .observables import DiatomicIonObservableEvaluator
 
 
 @dataclass(frozen=True)
@@ -39,6 +45,7 @@ class DistributedGroundStateResult:
     integrator: Literal["sil"]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
+    samples: tuple[DiatomicIonGroundStateSample, ...] = ()
     hamiltonian_profile: DistributedHamiltonianProfile = DistributedHamiltonianProfile()
     reduction_profile: DistributedReductionProfile = DistributedReductionProfile()
 
@@ -154,6 +161,10 @@ class TwoRadialDistributedGroundStateSolver:
         krylov_breakdown_tolerance: float = 1.0e-14,
         reality_tolerance: float = 1.0e-10,
         progress_interval: int | None = 10,
+        observable_evaluator: DiatomicIonObservableEvaluator | None = None,
+        sample_interval: int | None = 10,
+        log_path: str | PathLike[str] | None = None,
+        log_overwrite: bool = False,
         tile_size: int = 2048,
         profile: bool = False,
     ) -> None:
@@ -166,6 +177,28 @@ class TwoRadialDistributedGroundStateSolver:
         self.communicator = communicator
         self.rank = rank
         self.root = root
+        if observable_evaluator is not None and not isinstance(
+            observable_evaluator, DiatomicIonObservableEvaluator
+        ):
+            raise TypeError(
+                "observable_evaluator must be a "
+                "DiatomicIonObservableEvaluator or None"
+            )
+        if (
+            observable_evaluator is not None
+            and observable_evaluator.system is not layout.representation
+        ):
+            raise ValueError("observable_evaluator uses a different representation")
+        if log_path is not None and observable_evaluator is None:
+            raise ValueError("log_path requires observable_evaluator")
+        if not isinstance(log_overwrite, (bool, np.bool_)):
+            raise TypeError("log_overwrite must be boolean")
+        self.observable_evaluator = observable_evaluator
+        self.sample_interval = _optional_positive_integer(
+            sample_interval, "sample_interval"
+        )
+        self.log_path = log_path
+        self.log_overwrite = bool(log_overwrite)
         self.hamiltonian = TwoRadialDistributedHamiltonian(
             layout,
             communicator,
@@ -243,12 +276,22 @@ class TwoRadialDistributedGroundStateSolver:
             )
             return self.reductions.inner_products(left_states, right_state)
 
-        result = self.solver.solve(
-            initial_state.coefficients,
-            hamiltonian_action,
-            inner_product,
-            inner_products=inner_products,
-        )
+        reporter = self._reporter()
+        try:
+            result = self.solver.solve(
+                initial_state.coefficients,
+                hamiltonian_action,
+                inner_product,
+                inner_products=inner_products,
+                iteration_observer=(
+                    reporter.observe if reporter is not None else None
+                ),
+                observer_interval=self.sample_interval,
+                print_progress=reporter is None and self.rank == self.root,
+            )
+        finally:
+            if reporter is not None:
+                reporter.close()
         state = DistributedTwoRadialState(
             self.layout,
             self.rank,
@@ -265,11 +308,44 @@ class TwoRadialDistributedGroundStateSolver:
             integrator="sil",
             termination_reason=result.termination_reason,
             history=result.history,
+            samples=() if reporter is None else tuple(reporter.samples),
             hamiltonian_profile=self.hamiltonian.profile,
             reduction_profile=self.reductions.profile,
         )
 
     __call__ = solve
+
+    def _reporter(self):
+        if self.observable_evaluator is None:
+            return None
+
+        def evaluate(coefficients):
+            state = DistributedTwoRadialState(
+                self.layout,
+                self.rank,
+                coefficients,
+            )
+            return self.observable_evaluator.distributed(state, self.reductions)
+
+        def reduce_max(value):
+            if self.layout.n_ranks == 1:
+                return float(value)
+            return max(float(item) for item in self.communicator.allgather(value))
+
+        def synchronize_error(error):
+            if self.layout.n_ranks == 1:
+                return error
+            errors = self.communicator.allgather(error)
+            return next((item for item in errors if item is not None), None)
+
+        return DiatomicIonGroundStateReporter(
+            evaluate,
+            log_path=self.log_path,
+            log_overwrite=self.log_overwrite,
+            is_root=self.rank == self.root,
+            reduce_max=reduce_max,
+            synchronize_error=synchronize_error,
+        )
 
     def _validate_state(self, state: DistributedTwoRadialState) -> None:
         if not isinstance(state, DistributedTwoRadialState):
@@ -321,3 +397,17 @@ def _validated_root(root, size: int) -> int:
     if not 0 <= root < size:
         raise ValueError(f"root must be between 0 and {size - 1}")
     return root
+
+
+def _optional_positive_integer(value, name: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value,
+        (int, np.integer),
+    ):
+        raise TypeError(f"{name} must be a positive integer or None")
+    value = int(value)
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value

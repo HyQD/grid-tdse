@@ -63,8 +63,16 @@ from .distributed_ground_state import (
     TwoRadialDistributedGroundStateSolver,
 )
 from .grids import FEMDVRGridSpec, RadialGrid, RadialSincDVRGridSpec
+from .ground_state_sampling import (
+    DiatomicIonGroundStateSample,
+    format_diatomic_ground_state_sample,
+)
 from .hamiltonian import TwoRadialHamiltonian
-from .observables import AngularMomentumExpectations
+from .observables import (
+    AngularMomentumExpectations,
+    DiatomicIonObservableEvaluator,
+    DiatomicIonObservables,
+)
 from .preconditioner import (
     RealTimePreconditionerName,
     TwoRadialAdditiveSchwarzRealTimePreconditioner,
@@ -107,7 +115,10 @@ __all__ = [
     "CoulombMultipoleSpec",
     "CoulombTerm",
     "DiatomicIonGroundStateResult",
+    "DiatomicIonGroundStateSample",
     "DiatomicIonParameters",
+    "DiatomicIonObservableEvaluator",
+    "DiatomicIonObservables",
     "DipoleGauge",
     "Distributed2DHamiltonianComponents",
     "Distributed2DHamiltonianProfile",
@@ -169,4 +180,5 @@ __all__ = [
     "scatter_two_radial_2d_state",
     "scatter_two_radial_state",
     "two_radial_compatibility_metadata",
+    "format_diatomic_ground_state_sample",
 ]
