@@ -37,6 +37,11 @@ from .distributed_2d_state import (
     save_distributed_two_radial_2d_state,
     scatter_two_radial_2d_state,
 )
+from .distributed_2d_hamiltonian import (
+    Distributed2DHamiltonianComponents,
+    Distributed2DHamiltonianProfile,
+    TwoRadialDistributed2DHamiltonian,
+)
 from .distributed_state import (
     DistributedTwoRadialState,
     TwoRadialDistributedLayout,
@@ -104,6 +109,8 @@ __all__ = [
     "DiatomicIonGroundStateResult",
     "DiatomicIonParameters",
     "DipoleGauge",
+    "Distributed2DHamiltonianComponents",
+    "Distributed2DHamiltonianProfile",
     "DistributedGroundStateResult",
     "DistributedHamiltonianComponents",
     "DistributedHamiltonianProfile",
@@ -128,6 +135,7 @@ __all__ = [
     "TwoRadialAbsorbingBoundaries",
     "TwoRadial2DRankLayout",
     "TwoRadialDistributed2DLayout",
+    "TwoRadialDistributed2DHamiltonian",
     "TwoRadialDistributedGroundStateSolver",
     "TwoRadialDistributedLayout",
     "TwoRadialDistributedHamiltonian",

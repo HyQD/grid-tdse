@@ -381,6 +381,20 @@ scatter/gather round trips.
 
 ### Phase 5: implement the two-dimensional Hamiltonian
 
+**Status:** complete locally; Saga deployment validation remains. The
+additive `TwoRadialDistributed2DHamiltonian` applies both element-local radial
+operators with independent edge-only halo and weak-form exchanges, while
+diagonal one-body terms and precomputed tile-local Coulomb multipoles remain
+communication-free. Persistent work and communication buffers are reused, and
+interior elements are evaluated while each halo exchange is in flight. Local
+mask and CAP actions use the same owned Cartesian tiles. Emulated process-grid
+tests cover full and fixed-`M_tot` angular storage and `(1,1)`, `(1,2)`,
+`(2,1)`, and `(2,2)` layouts. Random complex H2+, HD+, and D2+ actions agree
+with the serial element-local Hamiltonian. A real four-rank local MPI run on a
+`(2,2)` grid agreed with serial to `3.6e-15` in the complete action. The
+reusable `examples/mpi_two_radial_2d_hamiltonian.py` driver is ready for Saga
+deployment validation.
+
 1. Apply both radial derivatives from element-local tile data.
 2. Exchange left/right and up/down bridge data only for derivative terms.
 3. Use two-stage edge synchronization or a generalized unique-owner weak-form
