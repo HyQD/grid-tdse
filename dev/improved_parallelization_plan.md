@@ -322,6 +322,16 @@ on representative Saga workloads.
 
 ### Phase 3: make one-dimensional partitioning coordinate-selectable
 
+**Status:** complete locally. Ownership, state storage, Coulomb slices,
+physical reductions, element-local bridge exchange, and SIL imaginary-time
+propagation now support either radial coordinate. Coordinate 2 remains the
+default. Full and compact angular-storage tests agree with the serial
+Hamiltonian, both layouts agree with the same serial ground-state iterations,
+the coordinate-1 path passes a two-rank MPI smoke test, and gathered archives
+record the selected coordinate in distributed-layout metadata. The MPI
+example exposes `--partition-coordinate r|R` for the planned unequal-grid
+performance comparison on Saga.
+
 1. Generalize ownership metadata so either coordinate can be partitioned.
 2. Implement coordinate-1 bridge exchange using the same element-local rules.
 3. Retain coordinate-2 partitioning as the default for compatibility.

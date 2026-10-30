@@ -5,21 +5,22 @@ state, field-free Hamiltonian, and physical reductions to short-iterative
 Lanczos imaginary-time propagation.
 
 The implementation targets the first complete MPI calculation for
-non-Born--Oppenheimer diatomic ions. It supports FEM-DVR, the element-aligned
-distribution of the internuclear coordinate `R`, and both full and compact
-fixed-`M_tot` angular storage.
+non-Born--Oppenheimer diatomic ions. It supports FEM-DVR, element-aligned
+distribution of either `r` or `R`, and both full and compact fixed-`M_tot`
+angular storage. `R` remains the default distributed coordinate.
 
 ## Algorithm
 
 Every rank holds a `DistributedTwoRadialState` containing all angular
-channels, all electronic radial points, and only its permanently owned
-internuclear radial points. During each Lanczos imaginary-time step:
+channels, the complete unpartitioned radial coordinate, and only its
+permanently owned points along the selected radial coordinate. During each
+Lanczos imaginary-time step:
 
 1. The generic representation-independent ground-state solver advances each
    rank's local coefficient array.
 2. Hamiltonian calls are forwarded to `TwoRadialDistributedHamiltonian`.
 3. Neighboring ranks exchange the FEM-DVR bridge data needed by the
-   internuclear kinetic-energy action.
+   partitioned-coordinate kinetic-energy action.
 4. Krylov orthogonalization batches all projections against the current basis
    into one collective sum per orthogonalization pass. Scalar reductions are
    retained for norms, energies, convergence tests, and other individual
@@ -32,8 +33,9 @@ All ranks receive the same reduced scalars and therefore make the same
 Lanczos-dimension, refinement, and convergence decisions. The root rank alone
 prints iteration progress.
 
-The Hamiltonian overlaps bridge communication with electronic, Coulomb, and
-interior-`R` work and reuses persistent rank-local work buffers. The Krylov
+The Hamiltonian overlaps bridge communication with unpartitioned-coordinate,
+Coulomb, and interior distributed-coordinate work and reuses persistent
+rank-local work buffers. The Krylov
 integrator similarly reuses its linear-combination work array during each
 subspace construction. These changes affect allocation and synchronization,
 not the represented state or convergence criteria.
@@ -145,7 +147,16 @@ phase-aligned state differences. The distributed calculation has been
 validated locally with one, two, and four MPI ranks.
 
 All ranks must call `solve` collectively and in the same control flow. The
-current `R` decomposition requires at least one FEM-DVR element per rank.
+selected coordinate requires at least one FEM-DVR element per rank.
+
+The MPI example accepts `--partition-coordinate r` or
+`--partition-coordinate R`, so the two layouts can be compared without
+changing the represented system:
+
+```bash
+mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py \
+    --partition-coordinate r
+```
 
 The example:
 
@@ -169,7 +180,11 @@ from grid_tdse.spherical.two_radial import (
 )
 
 comm = MPI.COMM_WORLD
-layout = TwoRadialDistributedLayout(representation, comm.size)
+layout = TwoRadialDistributedLayout(
+    representation,
+    comm.size,
+    partitioned_coordinate=2,
+)
 local_state = scatter_two_radial_state(
     layout,
     comm,

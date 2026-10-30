@@ -8,17 +8,18 @@ reductions](distributed_two_radial_hamiltonian.md).
 
 ## Decomposition
 
-The last state axis is the second radial coordinate. For a non-BO diatomic
-calculation this is the internuclear coordinate `R`. Every rank retains:
+Either radial coordinate can be partitioned. For a non-BO diatomic
+calculation, coordinate 1 is the electronic coordinate `r` and coordinate 2
+is the internuclear coordinate `R`. Coordinate 2 remains the default for
+backward compatibility. Every rank retains all angular channels, the complete
+unpartitioned radial coordinate, and a contiguous element-aligned interval of
+the selected coordinate.
 
-- all angular channels;
-- the complete electronic coordinate `r`;
-- a contiguous, element-aligned interval of `R`.
-
-The number of ranks cannot exceed the number of `R` finite elements. Element
-ranges are kept contiguous and are balanced approximately by their numbers of
-owned interior degrees of freedom. Radial sinc-DVR grids are rejected because
-this first decomposition relies on FEM-DVR locality.
+The number of ranks cannot exceed the number of finite elements along the
+selected coordinate. Element ranges are kept contiguous and are balanced
+approximately by their numbers of owned interior degrees of freedom. The
+selected grid must be FEM-DVR because the decomposition relies on
+finite-element locality.
 
 At a bridge between two elements, the degree of freedom is permanently owned
 by the element on its left, following the ownership convention in `grid-lib`.
@@ -26,11 +27,11 @@ If the neighboring element belongs to another rank, that rank lists the bridge
 as a halo value. A `TwoRadialRankLayout` records:
 
 - the local element interval;
-- permanently owned global `R` indices;
+- permanently owned global indices along the selected coordinate;
 - owned-plus-halo indices;
 - halo indices and their owning ranks;
-- globally shared bridge indices and the owner rank of every `R` degree of
-  freedom;
+- globally shared bridge indices and the owner rank of every distributed
+  radial degree of freedom;
 - mappings from each local element into the owned-plus-halo work array;
 - neighboring ranks.
 
@@ -52,6 +53,20 @@ print(partition.element_start, partition.element_stop)
 print(partition.owned_indices)
 print(partition.halo_indices)
 ```
+
+Select coordinate 1 explicitly with:
+
+```python
+layout = TwoRadialDistributedLayout(
+    representation,
+    n_ranks=4,
+    partitioned_coordinate=1,
+)
+```
+
+`layout.partitioned_coordinate`, `layout.partitioned_axis`, and
+`layout.partitioned_grid` expose the selected layout. A value of `1` selects
+`r`; a value of `2` selects `R`.
 
 `layout.local_shape(rank)` gives the future operator-work shape including
 halos, whereas `layout.owned_shape(rank)` gives the permanent state shape.
@@ -101,7 +116,10 @@ Distributed states use the existing self-describing two-radial archive format;
 there is no second, incompatible file format. On load, the root validates the
 archive against the complete `TwoRadialSystem` and scatters the coefficients.
 On save, owned arrays are gathered to the root and passed to
-`save_two_radial_state`.
+`save_two_radial_state`. The archive's calculation metadata receives a
+`distributed_layout` entry containing the selected coordinate, rank count,
+and layout identifier. This metadata is informational: a gathered archive can
+later be redistributed over a different coordinate or rank count.
 
 ```python
 from grid_tdse.spherical.two_radial import (

@@ -150,6 +150,33 @@ def test_layout_assigns_element_aligned_owned_and_halo_ranges():
         layout.partition(0).owned_indices[0] = 9
 
 
+def test_layout_can_partition_coordinate1_without_changing_axis_order():
+    system = _system()
+    layout = TwoRadialDistributedLayout(
+        system,
+        2,
+        partitioned_coordinate=1,
+    )
+    state = _state(system)
+    distributed = layout.distribute(state)
+
+    assert layout.partitioned_coordinate == 1
+    assert layout.partitioned_axis == state.ndim - 2
+    assert layout.partitioned_grid is system.grid1
+    assert layout.archive_metadata["partitioned_coordinate"] == 1
+    assert layout.layout_id != TwoRadialDistributedLayout(system, 2).layout_id
+    for rank, local in enumerate(distributed):
+        indices = layout.partition(rank).owned_indices
+        assert local.coefficients.shape == layout.owned_shape(rank)
+        np.testing.assert_array_equal(
+            local.coefficients,
+            np.take(state, indices, axis=-2),
+        )
+        np.testing.assert_array_equal(local.owned_r, system.grid1.r[indices])
+        np.testing.assert_array_equal(local.owned_R, system.grid2.r)
+    np.testing.assert_array_equal(layout.assemble(distributed), state)
+
+
 @pytest.mark.parametrize("M_tot", [None, 0])
 def test_distribute_and_assemble_preserve_full_and_compact_states(M_tot):
     system = _system(M_tot=M_tot)
@@ -212,9 +239,17 @@ def test_archived_state_can_be_distributed_without_conversion(tmp_path):
     np.testing.assert_array_equal(layout.assemble(distributed), state)
 
 
-def test_serial_collectives_and_archive_round_trip(tmp_path):
+@pytest.mark.parametrize("partitioned_coordinate", [1, 2])
+def test_serial_collectives_and_archive_round_trip(
+    tmp_path,
+    partitioned_coordinate,
+):
     system = _system()
-    layout = TwoRadialDistributedLayout(system, 1)
+    layout = TwoRadialDistributedLayout(
+        system,
+        1,
+        partitioned_coordinate=partitioned_coordinate,
+    )
     communicator = _SerialCommunicator()
     state = _state(system)
 
@@ -222,7 +257,7 @@ def test_serial_collectives_and_archive_round_trip(tmp_path):
     gathered = gather_two_radial_state(local, communicator)
     np.testing.assert_array_equal(gathered, state)
 
-    archive_path = tmp_path / "distributed-state.npz"
+    archive_path = tmp_path / f"distributed-state-{partitioned_coordinate}.npz"
     returned = save_distributed_two_radial_state(
         archive_path,
         local,
@@ -238,7 +273,9 @@ def test_serial_collectives_and_archive_round_trip(tmp_path):
         communicator,
     )
     np.testing.assert_array_equal(loaded.coefficients, state)
-    assert load_two_radial_state(archive_path).calculation["time"] == 2.0
+    calculation = load_two_radial_state(archive_path).calculation
+    assert calculation["time"] == 2.0
+    assert calculation["distributed_layout"] == layout.archive_metadata
 
 
 def test_object_collectives_scatter_and_gather_multiple_ranks():
@@ -279,6 +316,17 @@ def test_layout_rejects_unsupported_or_invalid_decompositions():
 
     with pytest.raises(ValueError, match="requires FEM-DVR grid2"):
         TwoRadialDistributedLayout(_system(sinc=True), 1)
+
+    with pytest.raises(ValueError, match="requires FEM-DVR grid1"):
+        TwoRadialDistributedLayout(
+            _system(sinc=True),
+            1,
+            partitioned_coordinate=1,
+        )
+    with pytest.raises(TypeError, match="partitioned_coordinate"):
+        TwoRadialDistributedLayout(system, 1, partitioned_coordinate=True)
+    with pytest.raises(ValueError, match="partitioned_coordinate"):
+        TwoRadialDistributedLayout(system, 1, partitioned_coordinate=3)
     with pytest.raises(ValueError, match="must be positive"):
         TwoRadialDistributedLayout(system, 0)
     with pytest.raises(ValueError, match="exceeds the 4 FEM-DVR elements"):

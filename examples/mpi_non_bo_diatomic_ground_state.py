@@ -4,8 +4,9 @@ Install the optional MPI support and launch, for example, with::
 
     mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py
 
-The internuclear grid has four FEM-DVR elements and therefore supports at
-most four ranks with the current element-aligned decomposition.
+Both radial grids have four FEM-DVR elements and therefore support at most
+four ranks. Coordinate 2 (``R``) is partitioned by default; pass
+``--partition-coordinate r`` to compare coordinate-1 partitioning.
 """
 
 import argparse
@@ -51,6 +52,12 @@ parser.add_argument(
         "lambda_max=mu_max=2*l_max (default: 2)"
     ),
 )
+parser.add_argument(
+    "--partition-coordinate",
+    choices=("r", "R"),
+    default="R",
+    help="radial coordinate distributed over MPI ranks (default: R)",
+)
 arguments = parser.parse_args()
 
 if arguments.l_max < 0:
@@ -64,6 +71,7 @@ m_max = l_max
 lambda_max = 2 * l_max
 mu_max = lambda_max
 COMPARE_WITH_SERIAL = arguments.compare_with_serial
+PARTITIONED_COORDINATE = 1 if arguments.partition_coordinate == "r" else 2
 
 IDENTICAL_PAIR = SYSTEM != "HD+"
 PAIR_EXCHANGE_PARITY = +1 if IDENTICAL_PAIR else None
@@ -129,6 +137,7 @@ setup_time = communicator.allreduce(local_setup_time, op=MPI.MAX)
 layout = TwoRadialDistributedLayout(
     calculation.representation,
     communicator.size,
+    partitioned_coordinate=PARTITIONED_COORDINATE,
 )
 local_initial_state = scatter_two_radial_state(
     layout,
@@ -234,6 +243,7 @@ if communicator.rank == 0:
     coefficient_bytes = calculation.initial_state.dtype.itemsize
     print(f"MPI ranks:                {communicator.size}")
     print(f"System:                   {SYSTEM}")
+    print(f"Partitioned coordinate:  {arguments.partition_coordinate}")
     print(f"l_max:                    {l_max}")
     print(f"m_max:                    {m_max}")
     print(f"lambda_max:               {lambda_max}")
