@@ -322,15 +322,20 @@ on representative Saga workloads.
 
 ### Phase 3: make one-dimensional partitioning coordinate-selectable
 
-**Status:** complete locally. Ownership, state storage, Coulomb slices,
+**Status:** complete. Ownership, state storage, Coulomb slices,
 physical reductions, element-local bridge exchange, and SIL imaginary-time
 propagation now support either radial coordinate. Coordinate 2 remains the
 default. Full and compact angular-storage tests agree with the serial
 Hamiltonian, both layouts agree with the same serial ground-state iterations,
 the coordinate-1 path passes a two-rank MPI smoke test, and gathered archives
 record the selected coordinate in distributed-layout metadata. The MPI
-example exposes `--partition-coordinate r|R` for the planned unequal-grid
-performance comparison on Saga.
+example exposes `--partition-coordinate r|R`. On Saga, fixed-iteration H2+
+smoke runs for both `r` and `R` partitioning passed with one, two, and four MPI
+ranks. Energies, norms, residuals, and phase-aligned states agreed with the
+serial comparison. The initial two-rank `r` run encountered a transient missing
+file in the shared Python environment; its clean retry passed and is not
+treated as a solver failure. Unequal-grid performance comparison remains part
+of the later benchmark phases.
 
 1. Generalize ownership metadata so either coordinate can be partitioned.
 2. Implement coordinate-1 bridge exchange using the same element-local rules.
@@ -371,7 +376,54 @@ scatter/gather round trips.
 Hamiltonian actions agree with the serial implementation for H2+, HD+, and D2+
 on several process-grid shapes.
 
-### Phase 6: complete distributed SIL/SIA ground-state propagation
+### Phase 6: establish shared-memory and hybrid execution baselines
+
+Benchmark the operational two-dimensional Hamiltonian before committing the
+subsequent SIL/SIA solvers to one execution model. Compare configurations at a
+fixed total CPU-core count so that a threaded run is not mistaken for a free
+speedup over MPI.
+
+1. Record the NumPy/SciPy build configuration, BLAS implementation, thread-pool
+   state, CPU model, node placement, and binding for every run.
+2. Use representative unequal non-BO grids and angular cutoffs large enough to
+   amortize startup and communication overhead. Use fixed Hamiltonian-action or
+   fixed-iteration pilots; do not infer physical convergence from them.
+3. At each total core count `P`, compare:
+   - serial execution: one MPI rank with one thread;
+   - shared-memory execution: one MPI rank with `P` BLAS/OpenMP threads;
+   - pure MPI execution: `P` ranks with one thread per rank; and
+   - selected hybrid configurations with `q` ranks and `t` threads per rank,
+     where `q * t = P`.
+4. Match Slurm `--cpus-per-task` to the requested thread count, bind ranks and
+   threads to physical cores, and prevent oversubscription. Control at least
+   `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`, and
+   `NUMBA_NUM_THREADS`; record `OMP_PLACES` and `OMP_PROC_BIND` when OpenMP
+   threads are enabled.
+5. Treat BLAS threading and Numba parallelism as separate mechanisms. Do not
+   assume that increasing NumPy's thread count accelerates element-local Numba
+   kernels unless those kernels have independently been made parallel.
+6. Repeat each timing point at least three times on the same node type and, as
+   far as practical, comparable node placement. Report medians and retain
+   documented outliers.
+7. Report wall time, allocated core time, CPU utilization, memory, component
+   profiles, and numerical equivalence at identical physical inputs and
+   tolerances.
+8. Use the results to choose the default execution model and to decide whether
+   subsequent job templates should remain pure MPI or expose a documented
+   hybrid option.
+
+This phase establishes a Hamiltonian-level baseline. The comparison must be
+repeated for the complete ground-state and real-time propagation paths after
+those paths are operational, because Krylov reductions and time-dependent
+work can change the preferred rank/thread balance.
+
+**Completion gate:** representative Hamiltonian workloads identify the useful
+serial, threaded, pure-MPI, and hybrid configurations at fixed core counts;
+all configurations agree numerically; no configuration is oversubscribed; and
+the recommended execution and binding settings are documented for subsequent
+SIL/SIA development.
+
+### Phase 7: complete distributed SIL/SIA ground-state propagation
 
 1. Generalize distributed SIL imaginary-time propagation to the 2D layout.
 2. Use SIL as the production method for the Hermitian ground-state problem.
@@ -389,7 +441,7 @@ Ground-state calculations must not use a CAP.
 and states on multiple 2D process grids, including at least one multi-node
 correctness run after single-node scaling is established.
 
-### Phase 7: complete distributed SIL/SIA dynamics
+### Phase 8: complete distributed SIL/SIA dynamics
 
 1. Add the z-polarized length- and velocity-gauge field actions to the
    distributed Hamiltonian.
@@ -429,7 +481,7 @@ Validation should include:
 archived ground state, propagated and checkpointed with SIL or SIA, restarted,
 and reproduced by the serial implementation within specified tolerances.
 
-### Phase 8: implement scalable distributed state I/O
+### Phase 9: implement scalable distributed state I/O
 
 1. Remove the requirement to gather production-scale states to rank zero.
 2. Evaluate MPI-enabled HDF5 hyperslab storage against rank-local shards with a
@@ -442,7 +494,7 @@ and reproduced by the serial implementation within specified tolerances.
 without constructing the full state on one rank, including redistribution to a
 different rank count.
 
-### Phase 9: benchmark the complete SIL/SIA path on Saga
+### Phase 10: benchmark the complete SIL/SIA path on Saga
 
 Perform controlled studies in this order:
 
@@ -452,10 +504,12 @@ Perform controlled studies in this order:
 4. fixed `r` grid with increasing numbers of `R` elements;
 5. fixed physical problem with increasing 2D rank count for strong scaling;
 6. proportional grid and rank growth for weak scaling;
-7. one-node scaling before multi-node scaling;
-8. ground-state iteration and accepted real-time-step costs;
-9. SIL and SIA comparison without a CAP, followed by SIA with a CAP;
-10. checkpoint bandwidth and restart cost.
+7. repeat the fixed-core serial, threaded, pure-MPI, and hybrid comparison from
+   Phase 6 using the complete ground-state and real-time propagation paths;
+8. one-node scaling before multi-node scaling;
+9. ground-state iteration and accepted real-time-step costs;
+10. SIL and SIA comparison without a CAP, followed by SIA with a CAP;
+11. checkpoint bandwidth and restart cost.
 
 Report wall time, core time, speedup, efficiency, peak memory per rank,
 Hamiltonian calls, collective count, communicated bytes, Krylov dimensions,
@@ -466,7 +520,7 @@ convergence from a fixed-iteration performance pilot.
 problem size, the onset of communication saturation, and a recommended Saga
 job configuration for production non-BO dynamics.
 
-### Phase 10: deploy and benchmark the SIL/SIA path on Olivia and Betzy
+### Phase 11: deploy and benchmark the SIL/SIA path on Olivia and Betzy
 
 Treat cluster deployment as a separate portability phase. The Python solver,
 distributed layouts, Hamiltonian, and integrators must remain shared; only the
@@ -533,7 +587,7 @@ ranges and recommended production configurations on all three clusters. Any
 machine that is no longer generally available should retain a documented
 validation record without blocking subsequent development.
 
-### Phase 11: add distributed Crank--Nicolson
+### Phase 12: add distributed Crank--Nicolson
 
 Distributed CN follows, rather than blocks, the production SIL/SIA path.
 
