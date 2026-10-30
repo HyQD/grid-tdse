@@ -222,16 +222,17 @@ discretization and Hamiltonian action.
 
 ## Distributed state foundation
 
-`TwoRadialDistributedLayout` partitions the second FEM-DVR coordinate into
+`TwoRadialDistributedLayout` partitions either FEM-DVR coordinate into
 contiguous element ranges while retaining every angular channel and the full
-first radial coordinate on each rank. It records permanent ownership, bridge
-halos, neighboring ranks, and element-local maps. Pure and communicator-based
-scatter/gather operations support full and compact fixed-`M_tot` states.
+unpartitioned radial coordinate on each rank. Coordinate 2 remains the
+default. The layout records permanent ownership, bridge halos, neighboring
+ranks, and element-local maps. Pure and communicator-based scatter/gather
+operations support full and compact fixed-`M_tot` states.
 
 The layout is documented in [Distributed two-radial state
 layout](distributed_two_radial_state.md). The [distributed Hamiltonian and
 reductions](distributed_two_radial_hamiltonian.md) use neighboring bridge
-exchange for coordinate 2 while keeping coordinate 1, angular couplings, and
-Coulomb actions local. The [distributed ground-state
+exchange for the selected coordinate while keeping the other coordinate,
+angular couplings, and Coulomb actions local. The [distributed ground-state
 solver](distributed_ground_state.md) connects those operations to SIL
 imaginary-time propagation.

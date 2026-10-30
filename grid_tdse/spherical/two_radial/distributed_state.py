@@ -1,8 +1,8 @@
 """Distributed radial-state layout for two-radial FEM-DVR calculations.
 
-The initial decomposition retains all angular channels and the complete first
-radial coordinate on every rank.  The last array axis, corresponding to the
-second radial coordinate, is divided into contiguous element-aligned blocks.
+The decomposition retains all angular channels and one complete radial
+coordinate on every rank.  Either radial coordinate can be divided into
+contiguous element-aligned blocks; coordinate 2 remains the default.
 No MPI package is imported here: collective helpers accept any communicator
 with the standard ``rank``, ``size``, ``scatter``, ``gather``, and ``bcast``
 interface provided by :mod:`mpi4py`.
@@ -110,26 +110,40 @@ class TwoRadialRankLayout:
 
 @dataclass(frozen=True, eq=False)
 class TwoRadialDistributedLayout:
-    """Permanent ``R`` decomposition of a two-radial FEM-DVR representation.
+    """Permanent one-coordinate decomposition of a two-radial representation.
 
-    The state axis corresponding to ``grid2`` must be the final array axis.
-    Every rank stores all preceding axes and only its owned ``R`` indices.
+    ``partitioned_coordinate`` selects coordinate 1 or 2.  Every rank stores
+    all angular axes, the complete unpartitioned radial coordinate, and only
+    its owned indices along the selected coordinate.
     Halo indices describe additional input values needed by the elements local
     to that rank; halos are not part of the permanent state storage.
     """
 
     representation: TwoRadialSystem
     n_ranks: int
+    partitioned_coordinate: int = 2
     partitions: tuple[TwoRadialRankLayout, ...] = field(init=False, repr=False)
     bridge_indices: np.ndarray = field(init=False, repr=False)
-    R_owner_ranks: np.ndarray = field(init=False, repr=False)
+    owner_ranks: np.ndarray = field(init=False, repr=False)
     layout_id: str = field(init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.representation, TwoRadialSystem):
             raise TypeError("representation must be a TwoRadialSystem")
-        if self.representation.grid2.family != "femdvr":
-            raise ValueError("distributed radial storage requires FEM-DVR grid2")
+        coordinate = self.partitioned_coordinate
+        if isinstance(coordinate, (bool, np.bool_)) or not isinstance(
+            coordinate, (int, np.integer)
+        ):
+            raise TypeError("partitioned_coordinate must be the integer 1 or 2")
+        coordinate = int(coordinate)
+        if coordinate not in (1, 2):
+            raise ValueError("partitioned_coordinate must be 1 or 2")
+        object.__setattr__(self, "partitioned_coordinate", coordinate)
+        if self.partitioned_grid.family != "femdvr":
+            raise ValueError(
+                "distributed radial storage requires FEM-DVR "
+                f"grid{coordinate}"
+            )
         if isinstance(self.n_ranks, (bool, np.bool_)) or not isinstance(
             self.n_ranks, (int, np.integer)
         ):
@@ -138,7 +152,7 @@ class TwoRadialDistributedLayout:
         if n_ranks < 1:
             raise ValueError("n_ranks must be positive")
 
-        dvr = self.representation.grid2.dvr
+        dvr = self.partitioned_grid.dvr
         n_elements = int(dvr.n_intervals)
         if n_ranks > n_elements:
             raise ValueError(
@@ -155,7 +169,7 @@ class TwoRadialDistributedLayout:
         for rank, (start, stop) in enumerate(element_ranges):
             element_owner[start:stop] = rank
         bridge_indices = np.asarray(dvr.bridge_indices, dtype=int) - 1
-        R_owner_ranks = element_owner[np.asarray(dvr.dof_owner[1:-1], dtype=int)]
+        owner_ranks = element_owner[np.asarray(dvr.dof_owner[1:-1], dtype=int)]
 
         partitions = tuple(
             _rank_layout(
@@ -184,8 +198,8 @@ class TwoRadialDistributedLayout:
         )
         object.__setattr__(
             self,
-            "R_owner_ranks",
-            _readonly_int_array(R_owner_ranks),
+            "owner_ranks",
+            _readonly_int_array(owner_ranks),
         )
         object.__setattr__(self, "layout_id", _layout_id(self, element_ranges))
 
@@ -197,6 +211,36 @@ class TwoRadialDistributedLayout:
     def n_R(self) -> int:
         return self.representation.grid2.n_points
 
+    @property
+    def partitioned_axis(self) -> int:
+        """Positive array axis corresponding to the partitioned coordinate."""
+
+        return len(self.global_shape) - (3 - self.partitioned_coordinate)
+
+    @property
+    def partitioned_grid(self):
+        """Prepared radial grid selected for distribution."""
+
+        if self.partitioned_coordinate == 1:
+            return self.representation.grid1
+        return self.representation.grid2
+
+    @property
+    def R_owner_ranks(self) -> np.ndarray:
+        """Backward-compatible owner array for the default coordinate-2 layout."""
+
+        return self.owner_ranks
+
+    @property
+    def archive_metadata(self) -> dict[str, Any]:
+        """JSON-compatible description stored with distributed archives."""
+
+        return {
+            "partitioned_coordinate": self.partitioned_coordinate,
+            "n_ranks": self.n_ranks,
+            "layout_id": self.layout_id,
+        }
+
     def partition(self, rank: int) -> TwoRadialRankLayout:
         """Return validated ownership metadata for ``rank``."""
 
@@ -206,19 +250,29 @@ class TwoRadialDistributedLayout:
     def owned_shape(self, rank: int) -> tuple[int, ...]:
         """Permanent local state shape for ``rank``."""
 
-        return (*self.global_shape[:-1], self.partition(rank).n_owned)
+        return _shape_with_axis(
+            self.global_shape,
+            self.partitioned_axis,
+            self.partition(rank).n_owned,
+        )
 
     def local_shape(self, rank: int) -> tuple[int, ...]:
         """Working shape including the halo values for ``rank``."""
 
-        return (*self.global_shape[:-1], self.partition(rank).n_local)
+        return _shape_with_axis(
+            self.global_shape,
+            self.partitioned_axis,
+            self.partition(rank).n_local,
+        )
 
     def extract_owned(self, state: np.ndarray, rank: int) -> np.ndarray:
         """Copy one rank's permanently owned values from a global state."""
 
         values = self._global_coefficients(state)
         indices = self.partition(rank).owned_indices
-        return np.ascontiguousarray(values[..., indices])
+        return np.ascontiguousarray(
+            np.take(values, indices, axis=self.partitioned_axis)
+        )
 
     def distribute(
         self, state: np.ndarray | TwoRadialState
@@ -227,7 +281,11 @@ class TwoRadialDistributedLayout:
 
         values = self._global_coefficients(state)
         return tuple(
-            DistributedTwoRadialState(self, rank, values[..., part.owned_indices])
+            DistributedTwoRadialState(
+                self,
+                rank,
+                np.take(values, part.owned_indices, axis=self.partitioned_axis),
+            )
             for rank, part in enumerate(self.partitions)
         )
 
@@ -275,7 +333,12 @@ class TwoRadialDistributedLayout:
                 raise ValueError(
                     f"rank {rank} state has shape {value.shape}; expected {expected}"
                 )
-            result[..., partition.owned_indices] = value
+            _assign_axis(
+                result,
+                self.partitioned_axis,
+                partition.owned_indices,
+                value,
+            )
         return result
 
     def _global_coefficients(
@@ -334,11 +397,39 @@ class DistributedTwoRadialState:
     def owned_R(self) -> np.ndarray:
         """Global ``R`` coordinates owned by this rank."""
 
+        if self.layout.partitioned_coordinate == 1:
+            return self.layout.representation.grid2.r
         return self.layout.representation.grid2.r[self.partition.owned_indices]
 
     @property
     def owned_R_weights(self) -> np.ndarray:
+        if self.layout.partitioned_coordinate == 1:
+            return self.layout.representation.grid2.weights
         return self.layout.representation.grid2.weights[self.partition.owned_indices]
+
+    @property
+    def owned_r(self) -> np.ndarray:
+        """Global coordinate-1 points locally owned by this rank."""
+
+        if self.layout.partitioned_coordinate == 2:
+            return self.layout.representation.grid1.r
+        return self.layout.representation.grid1.r[self.partition.owned_indices]
+
+    @property
+    def owned_r_weights(self) -> np.ndarray:
+        if self.layout.partitioned_coordinate == 2:
+            return self.layout.representation.grid1.weights
+        return self.layout.representation.grid1.weights[self.partition.owned_indices]
+
+    @property
+    def owned_partitioned_coordinates(self) -> np.ndarray:
+        """Points owned along the selected distributed coordinate."""
+
+        return self.layout.partitioned_grid.r[self.partition.owned_indices]
+
+    @property
+    def owned_partitioned_weights(self) -> np.ndarray:
+        return self.layout.partitioned_grid.weights[self.partition.owned_indices]
 
     def copy(self) -> "DistributedTwoRadialState":
         return DistributedTwoRadialState(
@@ -459,7 +550,7 @@ def save_distributed_two_radial_state(
                 coefficients,
                 state.layout.representation,
                 physical_state=physical_state,
-                calculation=calculation,
+                calculation=_archive_calculation(state.layout, calculation),
                 overwrite=overwrite,
             )
         except Exception as exc:
@@ -575,6 +666,7 @@ def _layout_id(
     digest = hashlib.sha256()
     digest.update(repr(layout.global_shape).encode())
     digest.update(repr(layout.representation.M_tot).encode())
+    digest.update(repr(layout.partitioned_coordinate).encode())
     digest.update(repr(element_ranges).encode())
     for values in (
         layout.representation.grid1.r,
@@ -630,4 +722,32 @@ def _validated_rank(value: int, size: int, *, name: str = "rank") -> int:
 def _readonly_int_array(values) -> np.ndarray:
     result = np.ascontiguousarray(values, dtype=int)
     result.setflags(write=False)
+    return result
+
+
+def _shape_with_axis(
+    shape: tuple[int, ...], axis: int, size: int
+) -> tuple[int, ...]:
+    result = list(shape)
+    result[axis] = int(size)
+    return tuple(result)
+
+
+def _assign_axis(
+    destination: np.ndarray,
+    axis: int,
+    indices: np.ndarray,
+    values: np.ndarray,
+) -> None:
+    selection = [slice(None)] * destination.ndim
+    selection[axis] = indices
+    destination[tuple(selection)] = values
+
+
+def _archive_calculation(
+    layout: TwoRadialDistributedLayout,
+    calculation: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    result = {} if calculation is None else dict(calculation)
+    result["distributed_layout"] = layout.archive_metadata
     return result

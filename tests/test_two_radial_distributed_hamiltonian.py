@@ -135,6 +135,24 @@ def test_emulated_distributed_hamiltonian_matches_serial(M_tot, n_ranks):
 
 
 @pytest.mark.parametrize("M_tot", [None, 0])
+@pytest.mark.parametrize("n_ranks", [1, 2, 3])
+def test_coordinate1_distributed_hamiltonian_matches_serial(M_tot, n_ranks):
+    system = _system(M_tot=M_tot)
+    layout = TwoRadialDistributedLayout(
+        system,
+        n_ranks,
+        partitioned_coordinate=1,
+    )
+    distributed = TwoRadialDistributedHamiltonian(layout)
+    state = _complex_state(system)
+
+    actual = layout.assemble(distributed.apply_all(layout.distribute(state)))
+    expected = system.hamiltonian(radial_operator_mode="element-local")(state)
+
+    np.testing.assert_allclose(actual, expected, atol=1.0e-11, rtol=1.0e-12)
+
+
+@pytest.mark.parametrize("M_tot", [None, 0])
 def test_single_rank_components_match_serial_components(M_tot):
     system = _system(M_tot=M_tot)
     layout = TwoRadialDistributedLayout(system, 1)
@@ -233,6 +251,59 @@ def test_nonblocking_bridge_exchange_matches_serial_coordinate2_action():
         radial_operator_mode="element-local"
     ).apply_one_body_coordinate2(state)
     np.testing.assert_allclose(actual, expected, atol=5.0e-12, rtol=5.0e-13)
+
+
+def test_nonblocking_bridge_exchange_matches_serial_coordinate1_action():
+    system = _system()
+    layout = TwoRadialDistributedLayout(
+        system,
+        3,
+        partitioned_coordinate=1,
+    )
+    state = _complex_state(system)
+    local_states = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(3)
+    hamiltonians = [
+        TwoRadialDistributedHamiltonian(layout, group.communicator(rank))
+        for rank in range(3)
+    ]
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        local_actions = tuple(
+            executor.map(
+                lambda pair: pair[0].apply_one_body_coordinate1(pair[1]),
+                zip(hamiltonians, local_states),
+            )
+        )
+
+    actual = layout.assemble(local_actions)
+    expected = system.hamiltonian(
+        radial_operator_mode="element-local"
+    ).apply_one_body_coordinate1(state)
+    np.testing.assert_allclose(actual, expected, atol=5.0e-12, rtol=5.0e-13)
+
+
+def test_coordinate1_distributed_reductions_match_serial():
+    system = _system()
+    layout = TwoRadialDistributedLayout(
+        system,
+        3,
+        partitioned_coordinate=1,
+    )
+    reductions = TwoRadialDistributedReductions(layout)
+    state = _complex_state(system)
+    other = _complex_state(system, seed=812)
+
+    actual = reductions.inner_product_all(
+        layout.distribute(state),
+        layout.distribute(other),
+    )
+
+    assert actual == pytest.approx(
+        system.inner_product(state, other),
+        rel=2.0e-13,
+        abs=2.0e-12,
+    )
 
 
 def test_collective_inner_product_matches_serial_result():
