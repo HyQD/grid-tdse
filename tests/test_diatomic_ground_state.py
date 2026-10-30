@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from grid_tdse.spherical.two_radial import (
+    AxialCoordinateDipole,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialAdditiveSchwarzRealTimePreconditioner,
@@ -10,6 +11,7 @@ from grid_tdse.spherical.two_radial import (
     TwoRadialOneBodyPreconditioner,
     TwoRadialRealTimePreconditioner,
     build_two_radial_real_time_preconditioner,
+    format_diatomic_ground_state_sample,
     load_two_radial_state,
 )
 
@@ -33,6 +35,9 @@ def _calculation(
     radial_operator_mode="global",
     integrator="crank-nicolson",
     use_preconditioner=False,
+    sample_interval=10,
+    log_path=None,
+    log_overwrite=False,
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -63,6 +68,9 @@ def _calculation(
         max_krylov_dimension=12,
         krylov_rtol=1.0e-10,
         krylov_atol=1.0e-12,
+        sample_interval=sample_interval,
+        log_path=log_path,
+        log_overwrite=log_overwrite,
         use_preconditioner=use_preconditioner,
     )
 
@@ -597,6 +605,168 @@ def test_high_level_solve_returns_physical_metadata_and_preserves_symmetry():
     assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1e-10)
 
 
+def test_diatomic_observable_evaluator_samples_requested_quantities():
+    calculation = _calculation(M_tot=0)
+    state = calculation.initial_state
+    values = calculation.observable_evaluator(state)
+    weights = np.multiply.outer(
+        calculation.representation.grid1.weights,
+        calculation.representation.grid2.weights,
+    )
+    population = np.sum(np.abs(state) ** 2, axis=0)
+    norm = np.sum(population * weights)
+    expected_r = np.sum(
+        population
+        * calculation.representation.grid1.r[:, None]
+        * weights
+    ) / norm
+    expected_R = np.sum(
+        population
+        * calculation.representation.grid2.r[None, :]
+        * weights
+    ) / norm
+    angular = calculation.angular_momentum_expectations(state)
+
+    assert values.r == pytest.approx(expected_r)
+    assert values.R == pytest.approx(expected_R)
+    assert values.total_l_squared == pytest.approx(angular.total_l_squared)
+    assert values.total_l_z == pytest.approx(angular.total_l_z)
+    assert values.l_r_squared == pytest.approx(0.0, abs=1.0e-14)
+    assert values.l_R_squared == pytest.approx(0.0, abs=1.0e-14)
+    assert values.l_r_z == pytest.approx(0.0, abs=1.0e-14)
+    assert values.l_R_z == pytest.approx(0.0, abs=1.0e-14)
+    assert values.cos_theta_R == pytest.approx(0.0, abs=1.0e-14)
+    assert values.cos2_theta_R == pytest.approx(1.0 / 3.0)
+    np.testing.assert_allclose(values.dipole_r, 0.0, atol=1.0e-14)
+    np.testing.assert_allclose(values.dipole_R, 0.0, atol=1.0e-14)
+    np.testing.assert_allclose(values.dipole_total, 0.0, atol=1.0e-14)
+    assert values.inversion == pytest.approx(1.0)
+    assert values.pair_exchange == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("M_tot", [None, 0])
+def test_diatomic_observables_match_existing_angular_and_axial_dipole_actions(
+    M_tot,
+):
+    calculation = _calculation(
+        symmetry_adapted_basis=False,
+        M_tot=M_tot,
+    )
+    rng = np.random.default_rng(194)
+    state = rng.normal(size=calculation.representation.psi_shape) + 1j * rng.normal(
+        size=calculation.representation.psi_shape
+    )
+    norm = np.sqrt(
+        calculation.representation.inner_product(state, state).real
+    )
+    state /= norm
+
+    values = calculation.observable_evaluator(state)
+    angular = calculation.angular_momentum_expectations(state)
+    electronic_dipole = AxialCoordinateDipole(
+        calculation.representation,
+        1,
+        gauge="length",
+        coupling=calculation.parameters.electronic_reduced_charge,
+    )
+    internuclear_dipole = AxialCoordinateDipole(
+        calculation.representation,
+        2,
+        gauge="length",
+        coupling=calculation.parameters.internuclear_reduced_charge,
+    )
+    inner_product = calculation.representation.inner_product
+
+    assert values.total_l_squared == pytest.approx(
+        angular.total_l_squared,
+        abs=2.0e-12,
+    )
+    assert values.total_l_z == pytest.approx(angular.total_l_z, abs=2.0e-12)
+    assert values.inversion == pytest.approx(
+        calculation.inversion_expectation(state),
+        abs=2.0e-12,
+    )
+    assert values.pair_exchange == pytest.approx(
+        calculation.pair_exchange_expectation(state),
+        abs=2.0e-12,
+    )
+    assert values.dipole_r[2] == pytest.approx(
+        -inner_product(state, electronic_dipole(state)).real,
+        abs=2.0e-12,
+    )
+    assert values.dipole_R[2] == pytest.approx(
+        -inner_product(state, internuclear_dipole(state)).real,
+        abs=2.0e-12,
+    )
+    np.testing.assert_allclose(
+        values.dipole_total,
+        np.asarray(values.dipole_r) + np.asarray(values.dipole_R),
+        atol=2.0e-12,
+    )
+
+
+def test_ground_state_sampling_records_initial_interval_and_final_states(
+    tmp_path,
+    capsys,
+):
+    log_path = tmp_path / "user-selected.log"
+    calculation = _calculation(
+        M_tot=0,
+        integrator="sil",
+        max_iterations=3,
+        sample_interval=2,
+        log_path=log_path,
+    )
+
+    result = calculation.solve()
+
+    assert [sample.iteration for sample in result.samples] == [0, 2, 3]
+    assert result.initial_observables == result.samples[0].observables
+    assert result.observables == result.samples[-1].observables
+    assert result.sample_interval == 2
+    assert all(sample.diagnostics.step_wall_time >= 0.0 for sample in result.samples)
+    assert all(sample.observable_wall_time >= 0.0 for sample in result.samples)
+    assert all(sample.logging_wall_time >= 0.0 for sample in result.samples)
+    terminal = capsys.readouterr().out
+    logfile = log_path.read_text(encoding="utf-8")
+    for iteration in (0, 2, 3):
+        marker = f"ITP sample {iteration} "
+        assert marker in terminal
+        assert marker in logfile
+    assert "<cos^2(theta_R)>" in terminal
+    assert "d_total =" in terminal
+    assert "Sampling timing:" in logfile
+
+
+def test_ground_state_logfile_refuses_overwrite_unless_requested(tmp_path):
+    log_path = tmp_path / "existing.log"
+    log_path.write_text("keep me", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        _calculation(log_path=log_path).solve()
+    assert log_path.read_text(encoding="utf-8") == "keep me"
+
+    _calculation(log_path=log_path, log_overwrite=True).solve()
+    assert "ITP sample 0 " in log_path.read_text(encoding="utf-8")
+
+
+def test_heteronuclear_sampling_formats_pair_exchange_as_not_applicable():
+    calculation = _calculation(
+        "HD+",
+        pair_exchange_parity=None,
+        symmetry_adapted_basis=False,
+        M_tot=0,
+        integrator="sil",
+    )
+
+    result = calculation.solve()
+
+    assert result.observables.pair_exchange is None
+    assert "<P> = N/A" in format_diatomic_ground_state_sample(
+        result.samples[-1]
+    )
+
+
 def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     result = _calculation().solve()
     path = tmp_path / "user-selected-diatomic-state"
@@ -619,6 +789,11 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.calculation["residual_norm"] == pytest.approx(
         result.residual_norm
     )
+    assert stored.calculation["sample_interval"] == 10
+    assert stored.calculation["observables"]["r"] == pytest.approx(
+        result.observables.r
+    )
+    assert stored.calculation["samples"]["columns"]["iteration"] == [0, 1]
 
 
 def test_compact_M_tot_diatomic_so_sector_matches_full_representation():

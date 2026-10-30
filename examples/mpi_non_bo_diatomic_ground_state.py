@@ -58,10 +58,22 @@ parser.add_argument(
     default="R",
     help="radial coordinate distributed over MPI ranks (default: R)",
 )
+parser.add_argument(
+    "--sample-interval",
+    type=int,
+    default=10,
+    help="observable and terminal sampling interval (default: 10)",
+)
+parser.add_argument(
+    "--log-file",
+    help="optional root-rank ground-state logfile; must not already exist",
+)
 arguments = parser.parse_args()
 
 if arguments.l_max < 0:
     parser.error("--l-max must be nonnegative")
+if arguments.sample_interval <= 0:
+    parser.error("--sample-interval must be positive")
 
 SYSTEM = arguments.system
 CODATA_SET = "2022"
@@ -158,6 +170,9 @@ solver = TwoRadialDistributedGroundStateSolver(
     max_krylov_refinements=MAX_KRYLOV_REFINEMENTS,
     krylov_reorthogonalize=True,
     progress_interval=PROGRESS_INTERVAL,
+    observable_evaluator=calculation.observable_evaluator,
+    sample_interval=arguments.sample_interval,
+    log_path=arguments.log_file,
     profile=True,
 )
 
