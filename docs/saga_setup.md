@@ -203,6 +203,11 @@ conda activate "${ENV_PREFIX}"
 hash -r
 ```
 
+`hash -r` clears Bash's cache of executable locations. After module loading or
+Conda activation changes `PATH`, this forces commands such as `python` and
+`pip` to be resolved again from the active environment instead of a previously
+cached location. It does not modify or reinstall the environment.
+
 Verify the complete interpreter path, not only `CONDA_PREFIX`:
 
 ```bash
