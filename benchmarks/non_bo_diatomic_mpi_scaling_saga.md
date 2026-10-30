@@ -2,16 +2,18 @@
 
 ## Scope
 
-This report archives the one-dimensional, internuclear-coordinate MPI results
-obtained before the two-dimensional radial decomposition is introduced. It
-contains the Phase 1 reference and the Phase 2 optimized-path validation for
+This report archives Saga validation and scaling results for Phases 1--4 of
 the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
+Phases 1--3 cover the one-dimensional decomposition and its coordinate
+selection. Phase 4 validates two-dimensional process-grid topology and state
+collectives before the distributed two-dimensional Hamiltonian is introduced.
 
-The current layout retains every angular channel and the complete electronic
-coordinate `r` on each rank. Contiguous FEM-DVR elements of the internuclear
-coordinate `R` are distributed, so the maximum useful rank count equals the
-number of `R` elements.
+The Phase 1 and Phase 2 layout retains every angular channel and the complete
+electronic coordinate `r` on each rank. Contiguous FEM-DVR elements of the
+internuclear coordinate `R` are distributed, so the maximum useful rank count
+equals the number of `R` elements. Phase 3 permits either radial coordinate to
+be distributed, and Phase 4 partitions both over a Cartesian process grid.
 
 ## Runtime configuration
 
@@ -287,6 +289,47 @@ serial equivalence for both ownership directions. Phase 3's correctness gate
 is therefore complete; repeated unequal-grid performance comparisons remain
 part of the later benchmark phases.
 
+## Phase 4 Cartesian two-coordinate layout
+
+Phase 4 introduced `TwoRadialDistributed2DLayout`, which partitions both
+radial coordinates over a rectangular `P_r x P_R` process grid. These Saga
+jobs validate topology selection and state collectives only; they do not apply
+the Hamiltonian and are not performance benchmarks.
+
+The validation was prepared at `2026-10-30T12:49:54+01:00` with:
+
+- grid-tdse commit `e8f78946d4ede751a6d6a5141c92603c42994fe7`;
+- grid-lib commit `8950c3ae01425488a6d78ba054a3b394dd851727`;
+- integrator-lib commit `04a161fbaa42955c68e374b391bcd76d77aa8edc`;
+- `OpenMPI/5.0.10-GCC-15.2.0`;
+- Open MPI 5.0.10 revision `v5.0.10`, built on 2026-02-23; and
+- the project-local `grid_tdse` Python environment.
+
+The jobs used the same radial grids listed above, H2+, `M_tot=0`, and
+`l_max=m_max=lambda_max=mu_max=0`. The resulting state contained 3081 complex
+coefficients. Three single-node jobs ran on Saga node `c1-19`:
+
+| job | ranks | initial process grid | final process grid | local coefficients | phase-aligned difference | exact match | elapsed |
+|---:|---:|:---:|:---:|---:|---:|:---:|---:|
+| 20729132 | 3 | automatic `(3, 1)` | `(3, 1)` | 790--1501 | 0.000e+00 | true | 31 s |
+| 20729144 | 4 | `(2, 2)` | `(1, 4)` | 741--780 | 0.000e+00 | true | 24 s |
+| 20729149 | 4 | `(2, 2)` | `(4, 1)` | 711--790 | 0.000e+00 | true | 24 s |
+
+All jobs completed normally. The automatic three-rank case selected `(3, 1)`.
+Its larger ownership range is expected when four indivisible FEM-DVR elements
+are assigned to three contiguous partitions: one rank must own two elements.
+Both four-rank jobs exactly recovered the original state after redistribution
+from the balanced `(2, 2)` layout to either one-dimensional extreme. This
+checks both radial ownership directions and the collective redistribution
+path on the cluster MPI stack.
+
+The reported elapsed times include environment and MPI startup. They must not
+be interpreted as layout scaling results because the example performs no
+repeated Hamiltonian work. The CSV records `MaxRSS` from each application step,
+because the top-level Slurm job rows did not report it. These results complete
+the Phase 4 Saga deployment gate and establish the state-layout baseline for
+the Phase 5 two-dimensional Hamiltonian.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -295,4 +338,6 @@ The Phase 2 records are in
 [`data/saga_non_bo_diatomic_mpi_phase2.csv`](data/saga_non_bo_diatomic_mpi_phase2.csv).
 The Phase 3 coordinate-partitioning records are in
 [`data/saga_non_bo_diatomic_mpi_phase3.csv`](data/saga_non_bo_diatomic_mpi_phase3.csv).
+The Phase 4 Cartesian-layout records are in
+[`data/saga_non_bo_diatomic_mpi_phase4.csv`](data/saga_non_bo_diatomic_mpi_phase4.csv).
 Raw Slurm output is intentionally not tracked.
