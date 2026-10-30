@@ -60,8 +60,9 @@ class DistributedHamiltonianProfile:
     """Accumulated rank-local timings for distributed Hamiltonian actions.
 
     Communication timings include buffer preparation and request completion.
-    ``coordinate2_local_seconds`` contains only the remaining local work, so
-    it can be compared independently with the two bridge-exchange phases.
+    The timing field for the partitioned coordinate contains only its local
+    work, so it can be compared independently with the two bridge-exchange
+    phases. The field names remain coordinate-specific for compatibility.
     """
 
     hamiltonian_calls: int = 0
@@ -97,10 +98,11 @@ class _PendingExchange:
 
 
 class TwoRadialDistributedHamiltonian:
-    """Field-free two-radial Hamiltonian distributed over coordinate 2.
+    """Field-free Hamiltonian distributed over either radial coordinate.
 
-    All angular channels and coordinate 1 remain local to every rank.  The
-    coordinate-2 FEM-DVR derivative exchanges bridge values with the left
+    All angular channels and the unpartitioned radial coordinate remain local
+    to every rank.  The selected FEM-DVR derivative exchanges bridge values
+    with the left
     neighbor and returns the neighboring weak-form bridge contribution to the
     bridge owner before applying the inverse assembled mass.
     """
@@ -117,6 +119,13 @@ class TwoRadialDistributedHamiltonian:
             raise TypeError("layout must be a TwoRadialDistributedLayout")
         self.layout = layout
         self.representation = layout.representation
+        self.partitioned_coordinate = layout.partitioned_coordinate
+        self._partitioned_axis = layout.partitioned_axis
+        self._partitioned_profile_name = (
+            "coordinate1"
+            if self.partitioned_coordinate == 1
+            else "coordinate2_local"
+        )
         self.communicator = communicator
         if not isinstance(profile, (bool, np.bool_)):
             raise TypeError("profile must be boolean")
@@ -151,7 +160,11 @@ class TwoRadialDistributedHamiltonian:
         radial_values = self.serial_hamiltonian.radial_multipoles.values
         self._local_radial_coulomb = {
             rank: np.ascontiguousarray(
-                radial_values[..., layout.partition(rank).owned_indices].reshape(
+                np.take(
+                    radial_values,
+                    layout.partition(rank).owned_indices,
+                    axis=self.partitioned_coordinate,
+                ).reshape(
                     radial_values.shape[0],
                     -1,
                 )
@@ -173,8 +186,8 @@ class TwoRadialDistributedHamiltonian:
             self._h1_diagonal = self.representation.h1_diagonal
             self._h2_diagonal = self.representation.h2_diagonal
 
-        self._coordinate2_element_matrices = _coordinate2_element_matrices(
-            self.representation.grid2
+        self._partitioned_element_matrices = _coordinate_element_matrices(
+            self.layout.partitioned_grid
         )
 
     def __call__(
@@ -184,12 +197,18 @@ class TwoRadialDistributedHamiltonian:
 
         if self.profile_enabled:
             self._profile_counts["hamiltonian_calls"] += 1
-            self._profile_counts["coordinate2_calls"] += 1
+            self._profile_counts[
+                f"coordinate{self.partitioned_coordinate}_calls"
+            ] += 1
         self._validate_local_state(state)
         pending_halo = self._start_state_halo_exchange(state)
 
-        coordinate1 = self.apply_one_body_coordinate1(state)
-        values = coordinate1.coefficients
+        local_coordinate = 3 - self.partitioned_coordinate
+        local_action = self._apply_unpartitioned_coordinate(
+            state,
+            local_coordinate,
+        )
+        values = local_action.coefficients
         self._apply_coulomb_values(state, out=values)
 
         partition = state.partition
@@ -199,25 +218,29 @@ class TwoRadialDistributedHamiltonian:
         interior = range(1, len(partition.element_local_dof_maps))
         if not partition.n_halo:
             interior = range(len(partition.element_local_dof_maps))
-        self._accumulate_coordinate2_elements(
+        self._accumulate_partitioned_elements(
             state.rank,
             working,
             weak,
             interior,
         )
-        self._profile_finish("coordinate2_local", started, count=False)
+        self._profile_finish(
+            self._partitioned_profile_name, started, count=False
+        )
 
         halo_values = self._finish_state_halo_exchange(pending_halo)
         if partition.n_halo:
             started = self._profile_start()
             self._set_working_halo(state, working, halo_values)
-            self._accumulate_coordinate2_elements(
+            self._accumulate_partitioned_elements(
                 state.rank,
                 working,
                 weak,
                 (0,),
             )
-            self._profile_finish("coordinate2_local", started, count=False)
+            self._profile_finish(
+                self._partitioned_profile_name, started, count=False
+            )
 
         weak_owned, outgoing = self._owned_weak_values(state.rank, weak)
         pending_weak = self._start_weak_exchange(
@@ -226,13 +249,17 @@ class TwoRadialDistributedHamiltonian:
             state.coefficients.dtype,
         )
         started = self._profile_start()
-        self._finish_coordinate2(state, weak_owned, None, out=values)
-        self._profile_finish("coordinate2_local", started, count=False)
+        self._finish_partitioned_coordinate(state, weak_owned, None, out=values)
+        self._profile_finish(
+            self._partitioned_profile_name, started, count=False
+        )
         incoming = self._finish_weak_exchange(pending_weak)
         if incoming is not None:
             started = self._profile_start()
-            self._add_coordinate2_incoming(state, values, incoming)
-            self._profile_finish("coordinate2_local", started, count=False)
+            self._add_partitioned_incoming(state, values, incoming)
+            self._profile_finish(
+                self._partitioned_profile_name, started, count=False
+            )
         return DistributedTwoRadialState(self.layout, state.rank, values)
 
     def components(
@@ -249,32 +276,68 @@ class TwoRadialDistributedHamiltonian:
     def apply_one_body_coordinate1(
         self, state: DistributedTwoRadialState
     ) -> DistributedTwoRadialState:
-        """Apply the rank-local electronic-coordinate one-body term."""
+        """Apply the coordinate-1 one-body term."""
 
-        started = self._profile_start()
-        self._validate_local_state(state)
-        values = state.coefficients
-        result = (
-            self.representation.kinetic_prefactor1
-            * self.representation.grid1.apply_local_second_derivative(
-                values,
-                axis=-2,
-            )
-        )
-        if self.representation.uses_compact_angular_storage:
-            result += self._h1_diagonal[:, :, None] * values
-        else:
-            result += self._h1_diagonal[:, None, :, None] * values
-        self._profile_finish("coordinate1", started)
-        return DistributedTwoRadialState(self.layout, state.rank, result)
+        if self.partitioned_coordinate == 1:
+            return self._apply_partitioned_coordinate(state)
+        return self._apply_unpartitioned_coordinate(state, 1)
 
     def apply_one_body_coordinate2(
         self, state: DistributedTwoRadialState
     ) -> DistributedTwoRadialState:
-        """Apply the distributed internuclear-coordinate one-body term."""
+        """Apply the coordinate-2 one-body term."""
 
+        if self.partitioned_coordinate == 2:
+            return self._apply_partitioned_coordinate(state)
+        return self._apply_unpartitioned_coordinate(state, 2)
+
+    def _apply_unpartitioned_coordinate(
+        self,
+        state: DistributedTwoRadialState,
+        coordinate: int,
+    ) -> DistributedTwoRadialState:
+        started = self._profile_start()
+        self._validate_local_state(state)
+        values = state.coefficients
+        if coordinate == 1:
+            result = (
+                self.representation.kinetic_prefactor1
+                * self.representation.grid1.apply_local_second_derivative(
+                    values,
+                    axis=-2,
+                )
+            )
+            if self.representation.uses_compact_angular_storage:
+                result += self._h1_diagonal[:, :, None] * values
+            else:
+                result += self._h1_diagonal[:, None, :, None] * values
+            profile_name = "coordinate1"
+        else:
+            result = (
+                self.representation.kinetic_prefactor2
+                * self.representation.grid2.apply_local_second_derivative(
+                    values,
+                    axis=-1,
+                )
+            )
+            if self.representation.uses_compact_angular_storage:
+                result += self._h2_diagonal[:, None, :] * values
+            else:
+                result += self._h2_diagonal[None, :, None, :] * values
+            profile_name = "coordinate2_local"
+        self._profile_finish(profile_name, started, count=False)
+        if started is not None:
+            self._profile_counts[f"coordinate{coordinate}_calls"] += 1
+        return DistributedTwoRadialState(self.layout, state.rank, result)
+
+    def _apply_partitioned_coordinate(
+        self,
+        state: DistributedTwoRadialState,
+    ) -> DistributedTwoRadialState:
         if self.profile_enabled:
-            self._profile_counts["coordinate2_calls"] += 1
+            self._profile_counts[
+                f"coordinate{self.partitioned_coordinate}_calls"
+            ] += 1
         self._validate_local_state(state)
         pending_halo = self._start_state_halo_exchange(state)
         started = self._profile_start()
@@ -284,25 +347,29 @@ class TwoRadialDistributedHamiltonian:
         interior = range(1, len(partition.element_local_dof_maps))
         if not partition.n_halo:
             interior = range(len(partition.element_local_dof_maps))
-        self._accumulate_coordinate2_elements(
+        self._accumulate_partitioned_elements(
             state.rank,
             working,
             weak,
             interior,
         )
-        self._profile_finish("coordinate2_local", started, count=False)
+        self._profile_finish(
+            self._partitioned_profile_name, started, count=False
+        )
 
         halo_values = self._finish_state_halo_exchange(pending_halo)
         if partition.n_halo:
             started = self._profile_start()
             self._set_working_halo(state, working, halo_values)
-            self._accumulate_coordinate2_elements(
+            self._accumulate_partitioned_elements(
                 state.rank,
                 working,
                 weak,
                 (0,),
             )
-            self._profile_finish("coordinate2_local", started, count=False)
+            self._profile_finish(
+                self._partitioned_profile_name, started, count=False
+            )
 
         weak_owned, outgoing = self._owned_weak_values(state.rank, weak)
         pending_weak = self._start_weak_exchange(
@@ -311,13 +378,17 @@ class TwoRadialDistributedHamiltonian:
             state.coefficients.dtype,
         )
         started = self._profile_start()
-        result = self._finish_coordinate2(state, weak_owned, None)
-        self._profile_finish("coordinate2_local", started, count=False)
+        result = self._finish_partitioned_coordinate(state, weak_owned, None)
+        self._profile_finish(
+            self._partitioned_profile_name, started, count=False
+        )
         incoming = self._finish_weak_exchange(pending_weak)
         if incoming is not None:
             started = self._profile_start()
-            self._add_coordinate2_incoming(state, result, incoming)
-            self._profile_finish("coordinate2_local", started, count=False)
+            self._add_partitioned_incoming(state, result, incoming)
+            self._profile_finish(
+                self._partitioned_profile_name, started, count=False
+            )
         return DistributedTwoRadialState(self.layout, state.rank, result)
 
     def apply_coulomb(
@@ -414,7 +485,7 @@ class TwoRadialDistributedHamiltonian:
         weak = []
         outgoing = []
         for rank, working in enumerate(workings):
-            owned, sent = self._local_coordinate2_weak(rank, working)
+            owned, sent = self._local_partitioned_weak(rank, working)
             weak.append(owned)
             outgoing.append(sent)
 
@@ -426,14 +497,18 @@ class TwoRadialDistributedHamiltonian:
                     self.layout.partition(rank + 1).halo_indices,
                     outgoing[rank + 1],
                 )
-            coordinate2 = self._finish_coordinate2(state, weak[rank], incoming)
-            coordinate1 = self.apply_one_body_coordinate1(state).coefficients
+            partitioned = self._finish_partitioned_coordinate(
+                state, weak[rank], incoming
+            )
+            local_coordinate = self._apply_unpartitioned_coordinate(
+                state, 3 - self.partitioned_coordinate
+            ).coefficients
             coulomb = self.apply_coulomb(state).coefficients
             results.append(
                 DistributedTwoRadialState(
                     self.layout,
                     rank,
-                    coordinate1 + coordinate2 + coulomb,
+                    local_coordinate + partitioned + coulomb,
                 )
             )
         return tuple(results)
@@ -452,7 +527,12 @@ class TwoRadialDistributedHamiltonian:
             self.layout.local_shape(state.rank),
             state.coefficients.dtype,
         )
-        working[..., partition.owned_local_indices] = state.coefficients
+        _assign_axis(
+            working,
+            self._partitioned_axis,
+            partition.owned_local_indices,
+            state.coefficients,
+        )
         if partition.n_halo and (require_halo or halo_values is not None):
             if halo_values is None and require_halo:
                 raise ValueError("halo values are required for this rank")
@@ -471,21 +551,30 @@ class TwoRadialDistributedHamiltonian:
         if halo_values is None:
             raise ValueError("halo values are required for this rank")
         halo_values = np.asarray(halo_values)
-        expected = (*state.coefficients.shape[:-1], partition.n_halo)
+        expected = _shape_with_axis(
+            state.coefficients.shape,
+            self._partitioned_axis,
+            partition.n_halo,
+        )
         if halo_values.shape != expected:
             raise ValueError(
                 f"halo values have shape {halo_values.shape}; expected {expected}"
             )
-        working[..., partition.halo_local_indices] = halo_values
+        _assign_axis(
+            working,
+            self._partitioned_axis,
+            partition.halo_local_indices,
+            halo_values,
+        )
 
-    def _local_coordinate2_weak(
+    def _local_partitioned_weak(
         self,
         rank: int,
         working: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray | None]:
         partition = self.layout.partition(rank)
         weak = self._zero_weak_buffer(rank, working.dtype)
-        self._accumulate_coordinate2_elements(
+        self._accumulate_partitioned_elements(
             rank,
             working,
             weak,
@@ -503,7 +592,7 @@ class TwoRadialDistributedHamiltonian:
         weak.fill(0)
         return weak
 
-    def _accumulate_coordinate2_elements(
+    def _accumulate_partitioned_elements(
         self,
         rank: int,
         working: np.ndarray,
@@ -515,15 +604,34 @@ class TwoRadialDistributedHamiltonian:
         for offset in offsets:
             element = elements[offset]
             local_map = partition.element_local_dof_maps[offset]
-            matrix = self._coordinate2_element_matrices[element]
-            local_values = working[..., local_map]
+            matrix = self._partitioned_element_matrices[element]
+            local_values = np.take(
+                working,
+                local_map,
+                axis=self._partitioned_axis,
+            )
+            local_values = np.moveaxis(
+                local_values,
+                self._partitioned_axis,
+                -1,
+            )
             local_action = np.einsum(
                 "ij,...j->...i",
                 matrix,
                 local_values,
                 optimize=True,
             )
-            weak[..., local_map] += local_action
+            local_action = np.moveaxis(
+                local_action,
+                -1,
+                self._partitioned_axis,
+            )
+            _add_axis(
+                weak,
+                self._partitioned_axis,
+                local_map,
+                local_action,
+            )
 
     def _owned_weak_values(
         self,
@@ -537,20 +645,38 @@ class TwoRadialDistributedHamiltonian:
             self.layout.owned_shape(rank),
             weak.dtype,
         )
-        np.copyto(owned, weak[..., partition.owned_local_indices])
+        np.copyto(
+            owned,
+            np.take(
+                weak,
+                partition.owned_local_indices,
+                axis=self._partitioned_axis,
+            ),
+        )
         outgoing = None
         if partition.n_halo:
-            shape = (*self.layout.owned_shape(rank)[:-1], partition.n_halo)
+            shape = _shape_with_axis(
+                self.layout.owned_shape(rank),
+                self._partitioned_axis,
+                partition.n_halo,
+            )
             outgoing = self._cached_buffer(
                 self._weak_send_buffers,
                 (rank, weak.dtype.str),
                 shape,
                 weak.dtype,
             )
-            np.copyto(outgoing, weak[..., partition.halo_local_indices])
+            np.copyto(
+                outgoing,
+                np.take(
+                    weak,
+                    partition.halo_local_indices,
+                    axis=self._partitioned_axis,
+                ),
+            )
         return owned, outgoing
 
-    def _finish_coordinate2(
+    def _finish_partitioned_coordinate(
         self,
         state: DistributedTwoRadialState,
         weak_owned: np.ndarray,
@@ -558,29 +684,39 @@ class TwoRadialDistributedHamiltonian:
         *,
         out: np.ndarray | None = None,
     ) -> np.ndarray:
-        scale = (
-            self.representation.kinetic_prefactor2
-            / state.owned_R_weights
+        kinetic_prefactor = (
+            self.representation.kinetic_prefactor1
+            if self.partitioned_coordinate == 1
+            else self.representation.kinetic_prefactor2
         )
-        shaped_scale = scale.reshape((1,) * (weak_owned.ndim - 1) + (scale.size,))
+        scale = kinetic_prefactor / state.owned_partitioned_weights
+        shaped_scale = _reshape_for_axis(
+            scale,
+            weak_owned.ndim,
+            self._partitioned_axis,
+        )
         if out is None:
             result = weak_owned * shaped_scale
         else:
             result = out
             result += weak_owned * shaped_scale
         indices = state.partition.owned_indices
-        if self.representation.uses_compact_angular_storage:
-            result += self._h2_diagonal[:, None, indices] * state.coefficients
+        if self.partitioned_coordinate == 1:
+            if self.representation.uses_compact_angular_storage:
+                diagonal = self._h1_diagonal[:, indices, None]
+            else:
+                diagonal = self._h1_diagonal[:, None, indices, None]
         else:
-            result += (
-                self._h2_diagonal[None, :, None, indices]
-                * state.coefficients
-            )
+            if self.representation.uses_compact_angular_storage:
+                diagonal = self._h2_diagonal[:, None, indices]
+            else:
+                diagonal = self._h2_diagonal[None, :, None, indices]
+        result += diagonal * state.coefficients
         if incoming is not None:
-            self._add_coordinate2_incoming(state, result, incoming)
+            self._add_partitioned_incoming(state, result, incoming)
         return result
 
-    def _add_coordinate2_incoming(
+    def _add_partitioned_incoming(
         self,
         state: DistributedTwoRadialState,
         result: np.ndarray,
@@ -593,12 +729,26 @@ class TwoRadialDistributedHamiltonian:
             indices,
         ):
             raise ValueError("received weak contribution for an unowned index")
-        scale = (
-            self.representation.kinetic_prefactor2
-            / state.owned_R_weights[positions]
+        kinetic_prefactor = (
+            self.representation.kinetic_prefactor1
+            if self.partitioned_coordinate == 1
+            else self.representation.kinetic_prefactor2
         )
-        shaped_scale = scale.reshape((1,) * (values.ndim - 1) + (scale.size,))
-        result[..., positions] += values * shaped_scale
+        scale = (
+            kinetic_prefactor
+            / state.owned_partitioned_weights[positions]
+        )
+        shaped_scale = _reshape_for_axis(
+            scale,
+            values.ndim,
+            self._partitioned_axis,
+        )
+        _add_axis(
+            result,
+            self._partitioned_axis,
+            positions,
+            values * shaped_scale,
+        )
 
     def _exchange_state_halo(
         self,
@@ -620,7 +770,11 @@ class TwoRadialDistributedHamiltonian:
         requests = []
         received = None
         if partition.n_halo:
-            shape = (*state.coefficients.shape[:-1], partition.n_halo)
+            shape = _shape_with_axis(
+                state.coefficients.shape,
+                self._partitioned_axis,
+                partition.n_halo,
+            )
             received = self._cached_buffer(
                 self._halo_receive_buffers,
                 (state.rank, state.coefficients.dtype.str),
@@ -636,7 +790,11 @@ class TwoRadialDistributedHamiltonian:
             )
         if state.rank + 1 < self.layout.n_ranks:
             requested = self.layout.partition(state.rank + 1).halo_indices
-            shape = (*state.coefficients.shape[:-1], requested.size)
+            shape = _shape_with_axis(
+                state.coefficients.shape,
+                self._partitioned_axis,
+                requested.size,
+            )
             sent = self._cached_buffer(
                 self._halo_send_buffers,
                 (state.rank, state.coefficients.dtype.str),
@@ -696,7 +854,11 @@ class TwoRadialDistributedHamiltonian:
         received_indices = None
         if rank + 1 < self.layout.n_ranks:
             received_indices = self.layout.partition(rank + 1).halo_indices
-            shape = (*self.layout.owned_shape(rank)[:-1], received_indices.size)
+            shape = _shape_with_axis(
+                self.layout.owned_shape(rank),
+                self._partitioned_axis,
+                received_indices.size,
+            )
             received = self._cached_buffer(
                 self._weak_receive_buffers,
                 (rank, np.dtype(dtype).str),
@@ -857,8 +1019,16 @@ class TwoRadialDistributedReductions:
         self.reset_profile()
         self._quadrature_weights = tuple(
             np.multiply.outer(
-                layout.representation.grid1.weights,
-                layout.representation.grid2.weights[partition.owned_indices],
+                (
+                    layout.representation.grid1.weights[partition.owned_indices]
+                    if layout.partitioned_coordinate == 1
+                    else layout.representation.grid1.weights
+                ),
+                (
+                    layout.representation.grid2.weights[partition.owned_indices]
+                    if layout.partitioned_coordinate == 2
+                    else layout.representation.grid2.weights
+                ),
             )
             for partition in layout.partitions
         )
@@ -1076,7 +1246,7 @@ class TwoRadialDistributedReductions:
             )
 
 
-def _coordinate2_element_matrices(grid) -> tuple[np.ndarray, ...]:
+def _coordinate_element_matrices(grid) -> tuple[np.ndarray, ...]:
     dvr = grid.dvr
     matrices = []
     for element, (full_map, stiffness) in enumerate(
@@ -1100,7 +1270,51 @@ def _owned_global_values(
         global_indices,
     ):
         raise ValueError("requested halo value is not owned by the source rank")
-    return np.ascontiguousarray(state.coefficients[..., positions])
+    return np.ascontiguousarray(
+        np.take(
+            state.coefficients,
+            positions,
+            axis=state.layout.partitioned_axis,
+        )
+    )
+
+
+def _shape_with_axis(shape, axis: int, size: int) -> tuple[int, ...]:
+    result = list(shape)
+    result[axis] = int(size)
+    return tuple(result)
+
+
+def _reshape_for_axis(
+    values: np.ndarray,
+    ndim: int,
+    axis: int,
+) -> np.ndarray:
+    shape = [1] * ndim
+    shape[axis] = values.size
+    return values.reshape(shape)
+
+
+def _assign_axis(
+    destination: np.ndarray,
+    axis: int,
+    indices: np.ndarray,
+    values: np.ndarray,
+) -> None:
+    selection = [slice(None)] * destination.ndim
+    selection[axis] = indices
+    destination[tuple(selection)] = values
+
+
+def _add_axis(
+    destination: np.ndarray,
+    axis: int,
+    indices: np.ndarray,
+    values: np.ndarray,
+) -> None:
+    selection = [slice(None)] * destination.ndim
+    selection[axis] = indices
+    destination[tuple(selection)] += values
 
 
 def _rank_ordered(

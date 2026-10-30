@@ -161,6 +161,24 @@ serial reference are excluded from that measurement. Confirm convergence,
 unit norm, matching energies and iteration counts, and agreement with the
 phase-aligned serial state before running timing-only jobs.
 
+To compare the two one-dimensional layouts on the same unequal `r` and `R`
+grids, repeat a validated rank count with each partition choice:
+
+```bash
+for coordinate in r R; do
+    sbatch \
+        --job-name="correct_h2p_${coordinate}_2r" \
+        --ntasks=2 \
+        job_mpi.sh \
+        examples/mpi_non_bo_diatomic_ground_state.py \
+        --system H2+ \
+        --partition-coordinate "${coordinate}"
+done
+```
+
+The default is `R`; specifying it explicitly here makes the comparison record
+self-describing.
+
 ## Submit the initial rank series
 
 Submit separate one-node jobs with 1, 2, and 4 ranks:
