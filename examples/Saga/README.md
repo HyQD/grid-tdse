@@ -459,6 +459,29 @@ divided by wall time times allocated cores. Use it together with Slurm's CPU
 statistics and the recorded thread-pool state; it is not by itself proof that
 every library used all assigned threads efficiently.
 
+The completed Saga baseline used `l_max=2` and `l_max=4` workloads with 5000
+timed actions. Pure MPI was the fastest configuration at every tested core
+count from two through eight cores. Use one physical CPU core per MPI rank and
+set OpenMP, OpenBLAS, MKL, and Numba to one thread per rank for subsequent
+SIL/SIA jobs unless a propagation-level benchmark demonstrates otherwise. In
+particular, do not request extra CPUs per task for the current element-local
+Numba kernels: they are serial kernels, so unused per-rank CPUs increase the
+allocation without accelerating that work.
+
+For the recommended pure-MPI configuration, the essential Slurm settings are:
+
+```text
+--ntasks=<number-of-MPI-ranks>
+--cpus-per-task=1
+--cpu-bind=cores
+```
+
+and the numerical thread variables should all be one. Choose a process grid
+whose dimensions multiply to the rank count and are supported by the
+electronic and internuclear element counts. The archived measurements and
+their timing-variability caveats are in
+[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
+
 ## Notes
 
 - The current internuclear grid has four FEM-DVR elements, so it supports at

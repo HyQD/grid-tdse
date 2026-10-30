@@ -416,14 +416,21 @@ on several process-grid shapes.
 
 ### Phase 6: establish shared-memory and hybrid execution baselines
 
-**Status:** local benchmark and Saga workflow implemented; controlled Saga
-measurements and the execution-model recommendation remain pending. The
-benchmark records build, CPU, affinity, Slurm, MPI, and thread-pool provenance,
-times a fixed number of 2D Hamiltonian actions, profiles each Hamiltonian
-component, checks the gathered action against the serial element-local result,
-and writes one JSON record per run. The Saga submission helper holds total
-core count fixed while enumerating serial, shared-memory, pure-MPI, and hybrid
-rank/thread factorizations, with three repetitions by default.
+**Status:** complete at the Hamiltonian level. Controlled Saga measurements
+were performed for `l_max=2` and `l_max=4` with 1, 2, 4, and 8 allocated cores,
+three repetitions per rank/thread factorization, and 5000 timed Hamiltonian
+actions per job. All configurations agreed numerically with the serial action.
+Pure MPI was fastest at every core count for both workloads; shared-memory
+threading provided little benefit and hybrid performance primarily followed
+its MPI rank count. The measurements, provenance, and interpretation are
+archived in
+[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
+
+The default for subsequent SIL/SIA work is therefore one physical CPU core per
+MPI rank, one OpenMP/BLAS/Numba thread per rank, and core binding. The complete
+ground-state and real-time propagation paths must still repeat the fixed-core
+execution-model comparison because Krylov reductions and time-dependent work
+can change the preferred balance.
 
 Benchmark the operational two-dimensional Hamiltonian before committing the
 subsequent SIL/SIA solvers to one execution model. Compare configurations at a
@@ -464,11 +471,11 @@ repeated for the complete ground-state and real-time propagation paths after
 those paths are operational, because Krylov reductions and time-dependent
 work can change the preferred rank/thread balance.
 
-**Completion gate:** representative Hamiltonian workloads identify the useful
-serial, threaded, pure-MPI, and hybrid configurations at fixed core counts;
-all configurations agree numerically; no configuration is oversubscribed; and
-the recommended execution and binding settings are documented for subsequent
-SIL/SIA development.
+**Completion gate:** satisfied. Representative Hamiltonian workloads identify
+the useful serial, threaded, pure-MPI, and hybrid configurations at fixed core
+counts; all configurations agree numerically; no configuration is
+oversubscribed; and the recommended execution and binding settings are
+documented for subsequent SIL/SIA development.
 
 ### Phase 7: complete distributed SIL/SIA ground-state propagation
 
