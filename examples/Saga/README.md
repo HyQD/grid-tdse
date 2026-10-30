@@ -104,11 +104,17 @@ cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" 
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_angular_scaling.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_hamiltonian_baseline.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
+cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_hamiltonian_execution_baseline.sh" \
+   "${PROJECT_ROOT}/jobs/grid-tdse/"
 
 cd "${PROJECT_ROOT}/jobs/grid-tdse"
 chmod +x job_mpi.sh job_serial.sh \
     submit_mpi_ground_state_rank_series.sh \
-    submit_mpi_angular_scaling.sh
+    submit_mpi_angular_scaling.sh \
+    job_hamiltonian_baseline.sh \
+    submit_hamiltonian_execution_baseline.sh
 ```
 
 Replace `<project-id>` and `<username>` in the copied job scripts. Jobs
@@ -130,6 +136,19 @@ bash -n job_mpi.sh
 
 Apply these substitutions only to the copied job script, not to the template
 inside the Git checkout.
+
+Configure the phase-6 template in the same way:
+
+```bash
+sed -i \
+    -e "s|<project-id>|${PROJECT_ID}|g" \
+    -e "s|<username>|${USER}|g" \
+    job_hamiltonian_baseline.sh
+
+grep -n -E 'account=|project_root=' job_hamiltonian_baseline.sh
+bash -n job_hamiltonian_baseline.sh
+bash -n submit_hamiltonian_execution_baseline.sh
+```
 
 ## Submit a non-MPI job
 
@@ -323,6 +342,122 @@ Do not compare total solve times across angular cutoffs without also comparing
 their iteration counts. Use `Solve time per iteration` to assess how the local
 Hamiltonian workload grows, while retaining total solve time as the practical
 time-to-solution measure.
+
+## Compare serial, threaded, MPI, and hybrid Hamiltonian execution
+
+Phase 6 benchmarks a fixed number of two-dimensional Hamiltonian actions. It
+does not perform imaginary-time propagation and must not be interpreted as a
+ground-state convergence calculation. The benchmark uses the same physical
+input and deterministic complex state for every execution configuration and
+performs an untimed comparison with the serial element-local Hamiltonian.
+
+The submission helper compares every factorization
+
+```text
+total cores = MPI ranks * threads per rank
+```
+
+for each requested total core count. Its defaults are 1, 2, 4, and 8 total
+cores with three repetitions. Thus, the four-core group contains `1 x 4`,
+`2 x 2`, and `4 x 1`, allowing shared-memory, hybrid, and pure-MPI execution
+to be compared at the same allocation size.
+
+Start with a short deployment smoke test:
+
+```bash
+export GRID_TDSE_PHASE6_REPETITIONS=1
+export GRID_TDSE_PHASE6_ACTIONS=2
+export GRID_TDSE_PHASE6_WARMUP_ACTIONS=1
+export GRID_TDSE_PHASE6_RUN_ROOT="${PROJECT_ROOT}/jobs/grid-tdse/phase6-smoke"
+
+bash submit_hamiltonian_execution_baseline.sh 1 2
+```
+
+After checking correctness and runtime, unset the smoke overrides and submit
+the controlled series:
+
+```bash
+unset GRID_TDSE_PHASE6_REPETITIONS
+unset GRID_TDSE_PHASE6_ACTIONS
+unset GRID_TDSE_PHASE6_WARMUP_ACTIONS
+export GRID_TDSE_PHASE6_RUN_ROOT="${PROJECT_ROOT}/jobs/grid-tdse/phase6-hamiltonian"
+
+bash submit_hamiltonian_execution_baseline.sh 1 2 4 8
+```
+
+The helper refuses to replace an existing manifest. Select a new run
+directory for every series. Each run produces:
+
+- a Slurm output file below `output/`;
+- a complete JSON record below `results/`; and
+- `phase6_jobs.csv`, mapping job IDs to core, rank, thread, and repetition
+  settings.
+
+The JSON file records NumPy and SciPy build information, detected BLAS thread
+pools, thread environment variables, CPU model and affinity, Slurm placement,
+MPI version, Git revision, memory use, component profiles, and numerical
+agreement. `threadpoolctl` is included in the development dependencies and
+must be present in the Saga environment.
+
+The job template assigns `SLURM_CPUS_PER_TASK` threads to BLAS/OpenMP and
+binds each task to that many physical cores. Numba remains independently fixed
+to one thread because the current element-local Numba kernels are not parallel
+kernels. Override `GRID_TDSE_NUMBA_THREADS` only in a separate experiment;
+mixing that change into the baseline would make configurations incomparable.
+
+Useful optional placement controls are:
+
+```bash
+export GRID_TDSE_PHASE6_CONSTRAINT=<Slurm-feature>
+export GRID_TDSE_PHASE6_NODELIST=<single-node>
+export GRID_TDSE_PHASE6_EXCLUDE=<comma-separated-nodes>
+export GRID_TDSE_PHASE6_EXCLUSIVE=1
+```
+
+Use a node constraint when one is documented for the desired Saga node type.
+A fixed node is useful for diagnosing an outlier but should not silently become
+the only production benchmark. Exclusive-node runs reduce interference but
+can consume substantially more allocation; use them deliberately.
+
+Inspect the numerical and timing summaries with:
+
+```bash
+grep --text -H -E \
+    'Execution kind|MPI ranks|Threads per rank|Total allocated cores|Process grid|Global coefficients|Timed actions|Wall time per action|Process CPU time|Allocated-core utilization|Peak memory|Coordinate-[12] work|Coulomb work|halo|weak|Hamiltonian max error|Result JSON' \
+    "${GRID_TDSE_PHASE6_RUN_ROOT}/output/"*.out
+```
+
+Inspect Slurm resource accounting using the job IDs from the manifest:
+
+```bash
+job_ids=$(tail -n +2 "${GRID_TDSE_PHASE6_RUN_ROOT}/phase6_jobs.csv" \
+    | cut -d, -f1 \
+    | paste -sd, -)
+
+sacct -j "${job_ids}" \
+    --format=JobID,JobName%34,State,Elapsed,TotalCPU,AllocCPUS,MaxRSS,NodeList
+```
+
+Generate medians, timing spreads, speedups, efficiencies, and an archive-ready
+CSV after all jobs have finished:
+
+```bash
+cd "${SRC_ROOT}/grid-tdse"
+python benchmarks/summarize_non_bo_diatomic_2d_execution.py \
+    "${GRID_TDSE_PHASE6_RUN_ROOT}/results" \
+    --csv "${GRID_TDSE_PHASE6_RUN_ROOT}/summary.csv"
+```
+
+The summarizer keeps every source filename and job ID in the CSV and reports
+the full minimum-to-maximum timing spread. Inspect configurations with large
+spreads rather than deleting their slow repetitions.
+
+Compare medians across the three repetitions, retain and document outliers,
+and require the same Hamiltonian result before interpreting speedup. The
+benchmark's allocated-core utilization is based on summed process CPU time
+divided by wall time times allocated cores. Use it together with Slurm's CPU
+statistics and the recorded thread-pool state; it is not by itself proof that
+every library used all assigned threads efficiently.
 
 ## Notes
 
