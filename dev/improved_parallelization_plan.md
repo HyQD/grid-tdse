@@ -349,7 +349,8 @@ layout metadata.
 
 ### Phase 4: implement the two-dimensional `(r,R)` layout
 
-**Status:** complete locally. The additive `TwoRadialDistributed2DLayout`
+**Status:** complete and validated on Saga. The additive
+`TwoRadialDistributed2DLayout`
 supports explicit or cost-selected rectangular process grids, row-major rank
 topology, connected element-tile ownership, per-axis bridges and halos, global
 Cartesian halo owners, edge-neighbor and row/column rank groups, full and
@@ -358,9 +359,12 @@ serial archive round trips, and phase-aligned comparison helpers. Tests cover
 unequal element counts and polynomial orders, a prime rank count, several
 process grids, ownership validation, and invalid decompositions. A real
 four-rank local MPI run exactly scattered, redistributed from `2 x 2` to
-`1 x 4`, and gathered a complex H2+ state. The reusable
-`examples/mpi_two_radial_2d_layout.py` driver is ready for the corresponding
-Saga deployment check.
+`1 x 4`, and gathered a complex H2+ state. On Saga, a three-rank automatic
+layout selected `(3, 1)`, while four-rank jobs exactly redistributed from
+`(2, 2)` to both `(1, 4)` and `(4, 1)`. All three jobs recovered the original
+3081 coefficients with zero phase-aligned difference at printed precision.
+The cluster results are archived in the
+[Saga MPI benchmark](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
 1. Define a rectangular `P_r x P_R` process topology.
 2. Define permanent ownership, bridge ownership, halos, and neighbors in both
