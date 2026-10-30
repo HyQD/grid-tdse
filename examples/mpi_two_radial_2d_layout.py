@@ -6,8 +6,8 @@ For a four-rank smoke test that also redistributes the state, run::
         --process-grid 2 2 --redistribute-process-grid 1 4
 
 The calculation constructs a non-BO H2+ representation and product state, but
-does not apply the Hamiltonian.  Distributed Hamiltonian support belongs to
-the next implementation phase.
+deliberately validates layout collectives only.  Use
+``mpi_two_radial_2d_hamiltonian.py`` to validate distributed operator actions.
 """
 
 import argparse
