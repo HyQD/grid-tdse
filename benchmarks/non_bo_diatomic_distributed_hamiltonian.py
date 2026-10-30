@@ -36,6 +36,11 @@ def parse_arguments():
     parser.add_argument("--system", choices=("H2+", "HD+", "D2+"), default="H2+")
     parser.add_argument("--ranks", type=int, default=2)
     parser.add_argument("--l-max", type=int, default=2)
+    parser.add_argument(
+        "--partition-coordinate",
+        choices=("r", "R"),
+        default="R",
+    )
     parser.add_argument("--seed", type=int, default=31415)
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--codata-set", default="2022")
@@ -146,7 +151,11 @@ if archived is None:
 else:
     state = archived.state_for(representation)
 
-layout = TwoRadialDistributedLayout(representation, args.ranks)
+layout = TwoRadialDistributedLayout(
+    representation,
+    args.ranks,
+    partitioned_coordinate=1 if args.partition_coordinate == "r" else 2,
+)
 distributed_hamiltonian = TwoRadialDistributedHamiltonian(layout)
 reductions = TwoRadialDistributedReductions(layout)
 local_state = layout.distribute(state)
@@ -177,9 +186,10 @@ distributed_energy = reductions.inner_product_all(local_state, local_action)
 print(f"System:                     {calculation.system_name}")
 print(f"State source:               {args.archive or 'reproducible complex state'}")
 print(f"Emulated ranks:             {args.ranks}")
+print(f"Partitioned coordinate:    {args.partition_coordinate}")
 print(f"Global state shape:         {representation.psi_shape}")
 print(
-    "Owned R points/rank:     "
+    f"Owned {args.partition_coordinate} points/rank:     "
     + ", ".join(str(part.n_owned) for part in layout.partitions)
 )
 print(f"Serial minimum:             {serial_min:.6f} s")

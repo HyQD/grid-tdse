@@ -142,9 +142,19 @@ def _serial_result(calculation, options):
     )
 
 
-def _distributed_results(calculation, n_ranks, options):
+def _distributed_results(
+    calculation,
+    n_ranks,
+    options,
+    *,
+    partitioned_coordinate=2,
+):
     representation = calculation.representation
-    layout = TwoRadialDistributedLayout(representation, n_ranks)
+    layout = TwoRadialDistributedLayout(
+        representation,
+        n_ranks,
+        partitioned_coordinate=partitioned_coordinate,
+    )
     local_initial = layout.distribute(calculation.initial_state)
     group = _ThreadCommunicatorGroup(n_ranks)
     solvers = [
@@ -219,6 +229,31 @@ def test_distributed_lanczos_itp_matches_serial_iterations(n_ranks):
         )
 
 
+@pytest.mark.parametrize("partitioned_coordinate", [1, 2])
+def test_both_radial_layouts_match_the_same_serial_ground_state(
+    partitioned_coordinate,
+):
+    calculation = _calculation()
+    calculation.initial_state = (1.0 + 0.2j) * calculation.initial_state
+    options = _solver_options(max_iterations=2)
+    serial = _serial_result(calculation, options)
+
+    layout, distributed = _distributed_results(
+        calculation,
+        2,
+        options,
+        partitioned_coordinate=partitioned_coordinate,
+    )
+    state = layout.assemble([result.state for result in distributed])
+
+    np.testing.assert_allclose(state, serial.state, atol=2.0e-11, rtol=2.0e-11)
+    assert distributed[0].energy == pytest.approx(serial.energy, abs=2.0e-12)
+    assert distributed[0].residual_norm == pytest.approx(
+        serial.residual_norm,
+        abs=2.0e-12,
+    )
+
+
 def test_one_rank_distributed_solver_converges_from_an_eigenstate():
     calculation = _calculation()
     representation = calculation.representation
@@ -279,9 +314,14 @@ def test_distributed_solver_validates_local_state_rank():
         solver.solve(rank_one_state)
 
 
-def test_distributed_solver_returns_rank_local_profiles():
+@pytest.mark.parametrize("partitioned_coordinate", [1, 2])
+def test_distributed_solver_returns_rank_local_profiles(partitioned_coordinate):
     calculation = _calculation()
-    layout = TwoRadialDistributedLayout(calculation.representation, 1)
+    layout = TwoRadialDistributedLayout(
+        calculation.representation,
+        1,
+        partitioned_coordinate=partitioned_coordinate,
+    )
     solver = TwoRadialDistributedGroundStateSolver(
         layout,
         profile=True,
