@@ -2,13 +2,14 @@
 
 ## Scope
 
-This report archives Saga validation and scaling results for Phases 1--5 of
+This report archives Saga validation and scaling results for Phases 1--6 of
 the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
 Phases 1--3 cover the one-dimensional decomposition and its coordinate
 selection. Phase 4 validates two-dimensional process-grid topology and state
-collectives, and Phase 5 validates the distributed two-dimensional
-Hamiltonian.
+collectives, Phase 5 validates the distributed two-dimensional Hamiltonian,
+and Phase 6 compares serial, threaded, pure-MPI, and hybrid Hamiltonian
+execution at fixed allocated core counts.
 
 The Phase 1 and Phase 2 layout retains every angular channel and the complete
 electronic coordinate `r` on each rank. Contiguous FEM-DVR elements of the
@@ -378,9 +379,75 @@ pair-exchange reduction.
 The elapsed times include module, environment, MPI, and Numba startup and must
 not be interpreted as Hamiltonian scaling measurements. The CSV records
 `MaxRSS` from each application step because the top-level Slurm job rows did
-not report it. These results complete the Phase 5 Saga deployment gate. Phase
-6 will establish repeated shared-memory, pure-MPI, and hybrid performance
-baselines using workloads large enough to amortize startup costs.
+not report it. These results complete the Phase 5 Saga deployment gate.
+
+## Phase 6 shared-memory and hybrid execution baseline
+
+Phase 6 compared serial, shared-memory, pure-MPI, and hybrid execution of the
+two-dimensional Hamiltonian at equal allocated core counts. Each configuration
+performed five warm-up actions followed by 5000 timed actions and was repeated
+three times. All 60 jobs completed normally on one Saga node per job.
+
+The calculations used H2+, `M_tot=0`, the radial grids listed above, Poisson
+Coulomb multipoles, and grid-tdse commit
+`fda07b85e48c381c269fb299f8c90313dea03c93`. The runtime used Python 3.14.9,
+NumPy 2.5.2, SciPy 1.18.0, OpenBLAS 0.3.34, and
+`OpenMPI/5.0.10-GCC-15.2.0`. Slurm launched ranks with `srun --mpi=pmix` and
+core binding. OpenMP, OpenBLAS, and MKL thread counts equaled the assigned
+threads per rank; Numba remained at one thread because the current Numba
+kernels are serial.
+
+Every configuration agreed with the serial element-local Hamiltonian. The
+maximum absolute action error was `1.172e-13` for `l_max=2` and `2.274e-13`
+for `l_max=4`. The workloads contained 24648 and 89349 complex coefficients,
+respectively.
+
+The median wall times per action were:
+
+| `l_max` | cores | shared memory | best hybrid | pure MPI | pure-MPI speedup |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 1 | -- | -- | 4.466 ms | 1.000 |
+| 2 | 2 | 4.717 ms | -- | 3.030 ms | 1.474 |
+| 2 | 4 | 4.529 ms | 2.980 ms | 2.260 ms | 1.976 |
+| 2 | 8 | 3.972 ms | 2.182 ms | 1.659 ms | 2.692 |
+| 4 | 1 | -- | -- | 28.124 ms | 1.000 |
+| 4 | 2 | 24.062 ms | -- | 11.332 ms | 2.482 |
+| 4 | 4 | 29.135 ms | 11.202 ms | 6.237 ms | 4.509 |
+| 4 | 8 | 28.000 ms | 7.312 ms | 3.915 ms | 7.183 |
+
+Here the one-core row is the serial reference, represented as one MPI rank
+with one thread. Pure MPI was the fastest execution model at every core count
+for both workloads. For `l_max=4`, it was approximately 2.12 times faster than
+shared memory at two cores, 1.80 times faster than the best hybrid
+configuration at four cores, and 1.87 times faster than the best hybrid
+configuration at eight cores.
+
+The superlinear reported `l_max=4` speedups at two and four cores should not be
+read as algorithmic parallel efficiencies above 100%. Timing spreads for that
+series ranged from approximately 15% to 31% for many threaded and distributed
+configurations, reflecting cache, node, and runtime variation. The archive
+retains all repetitions and uses medians without removing outliers. The gaps
+between pure MPI and the alternatives are nevertheless large enough that the
+execution-model ranking is unambiguous.
+
+Increasing numerical-library thread counts did not materially accelerate the
+dominant element-local work. The shared-memory timings were nearly flat, and
+the eight-thread `l_max=2` run used only about 50% of its allocated-core
+capacity. Hybrid performance mainly followed its MPI rank count. This is
+consistent with the current Numba kernels being serial and BLAS threading not
+covering the dominant Hamiltonian work.
+
+The Phase 6 recommendation for subsequent SIL/SIA development on Saga is
+therefore pure MPI: one physical CPU core per rank, one thread for OpenMP,
+OpenBLAS, MKL, and Numba, core binding, and a process grid chosen for the two
+radial dimensions. A hybrid option is not justified by these Hamiltonian-only
+measurements. The comparison must be repeated for complete ground-state and
+real-time propagation, where Krylov reductions and time-dependent work may
+change the balance. Pure MPI also increases aggregate memory with rank count,
+even though memory per rank decreases, so memory remains a production-sizing
+constraint.
+
+These results satisfy the Phase 6 Hamiltonian-level completion gate.
 
 ## Data
 
@@ -394,4 +461,8 @@ The Phase 4 Cartesian-layout records are in
 [`data/saga_non_bo_diatomic_mpi_phase4.csv`](data/saga_non_bo_diatomic_mpi_phase4.csv).
 The Phase 5 Cartesian-Hamiltonian records are in
 [`data/saga_non_bo_diatomic_mpi_phase5.csv`](data/saga_non_bo_diatomic_mpi_phase5.csv).
+The Phase 6 execution-model summary is in
+[`data/saga_non_bo_diatomic_hamiltonian_phase6.csv`](data/saga_non_bo_diatomic_hamiltonian_phase6.csv),
+with its compact runtime and problem provenance in
+[`data/saga_non_bo_diatomic_hamiltonian_phase6_provenance.json`](data/saga_non_bo_diatomic_hamiltonian_phase6_provenance.json).
 Raw Slurm output is intentionally not tracked.

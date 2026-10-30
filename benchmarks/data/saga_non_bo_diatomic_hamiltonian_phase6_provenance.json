@@ -1,0 +1,62 @@
+{
+  "schema": "grid-tdse-saga-phase6-archive-v1",
+  "date": "2026-10-30",
+  "source_record_schema": "grid-tdse-non-bo-2d-execution-v1",
+  "grid_tdse_commit": "fda07b85e48c381c269fb299f8c90313dea03c93",
+  "raw_archives": [
+    "full-20261030-144848",
+    "full-l4-20261030-153248"
+  ],
+  "raw_archive_policy": "Per-job JSON and Slurm output remain outside Git in the Saga results archive.",
+  "runtime": {
+    "python": "3.14.9",
+    "numpy": "2.5.2",
+    "scipy": "1.18.0",
+    "mpi_module": "OpenMPI/5.0.10-GCC-15.2.0",
+    "mpi_library": "Open MPI v5.0.10, revision v5.0.10, built 2026-02-23",
+    "blas": "OpenBLAS 0.3.34, pthreads, SkylakeX",
+    "cpu": "Intel Xeon Gold 6138 CPU @ 2.00GHz",
+    "launcher": "srun --mpi=pmix",
+    "distribution": "block:block",
+    "binding": "cores",
+    "nodes_per_job": 1
+  },
+  "threading": {
+    "omp_threads": "threads_per_rank",
+    "openblas_threads": "threads_per_rank",
+    "mkl_threads": "threads_per_rank",
+    "numba_threads": 1,
+    "omp_places": "cores",
+    "omp_proc_bind": "close"
+  },
+  "problem": {
+    "system": "H2+",
+    "M_tot": 0,
+    "electronic_element_bounds": [0, 4, 8, 12, 16],
+    "electronic_points_per_element": 11,
+    "internuclear_element_bounds": [0, 2, 4, 6, 8],
+    "internuclear_points_per_element": 21,
+    "angular_cutoffs": "m_max=l_max; lambda_max=mu_max=2*l_max",
+    "coulomb_method": "poisson",
+    "random_seed": 26031,
+    "tile_size": 2048,
+    "warmup_actions": 5,
+    "timed_actions": 5000
+  },
+  "series": [
+    {
+      "raw_archive": "full-20261030-144848",
+      "l_max": 2,
+      "global_shape": [8, 39, 79],
+      "global_coefficients": 24648,
+      "jobs": 30
+    },
+    {
+      "raw_archive": "full-l4-20261030-153248",
+      "l_max": 4,
+      "global_shape": [29, 39, 79],
+      "global_coefficients": 89349,
+      "jobs": 30
+    }
+  ]
+}
