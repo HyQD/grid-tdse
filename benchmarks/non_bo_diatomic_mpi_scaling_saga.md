@@ -231,10 +231,68 @@ but use substantially more total core time.
 These correctness and repeated performance measurements satisfy the Phase 2
 completion gate.
 
+## Phase 3 coordinate-selectable partitioning
+
+Phase 3 generalized the one-dimensional decomposition so either the electronic
+coordinate `r` or the internuclear coordinate `R` can be distributed. The
+implementation was introduced by commit
+`3f2cb7d03325982019becc295aff3676fe621f55` and merged to `main` by commit
+`46d7be6`. The exact `HEAD` checked
+out for the Saga jobs was not captured, so the accompanying CSV deliberately
+leaves the runtime-commit field empty.
+
+The Saga validation used the same `l_max=2` H2+ representation and radial grids
+listed above. Fixed 20-iteration smoke tests were run with one, two, and four
+ranks for both partitioned coordinates. Every completed run produced
+
+```text
+Energy:              -0.357645049472 Eh
+State change:         1.562e-02
+Eigenstate residual:  2.926e-02
+Norm:                 1.000000000000
+```
+
+The phase-aligned differences from the serial calculation were between
+`3.088e-12` and `5.085e-12`; energy differences were between `2.109e-15` and
+`1.094e-14` Eh. These are fixed-iteration correctness results, not converged
+ground-state energies.
+
+The smoke-test solve times were:
+
+| partitioned coordinate | 1 rank | 2 ranks | 4 ranks |
+|:---:|---:|---:|---:|
+| `r` | 4.808367 s | 3.147618 s | 2.451119 s |
+| `R` | 5.049671 s | 3.227014 s | 2.519233 s |
+
+The original two-rank `r` job, `20728584`, encountered a transient shared-file
+failure while importing `coverage.inorout` from the Conda environment. The file
+was present and importable when the environment was inspected subsequently.
+The clean retry, job `20728607`, completed normally and agreed with the serial
+calculation. The incident is retained in the data record as an environment
+failure and is not treated as a distributed-solver failure.
+
+Fully converged two-rank calculations then validated both layouts against the
+serial solver:
+
+| partitioned coordinate | job | iterations | energy | residual | solve time | time/iteration | serial energy difference | serial state difference |
+|:---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `r` | 20728610 | 2938 | -0.577283887513 Eh | 9.953e-09 | 135.308057 s | 0.046054 s | 1.110e-16 Eh | 6.126e-12 |
+| `R` | 20728611 | 2938 | -0.577283887513 Eh | 9.952e-09 | 138.816755 s | 0.047249 s | 1.110e-16 Eh | 6.321e-12 |
+
+Both calculations retained unit norm and reached a state change of
+`4.990e-09`. The `r`-partitioned run was approximately 2.5% faster than the
+`R`-partitioned run, but a single timing per layout is insufficient to infer a
+general performance preference. The important result is full-convergence and
+serial equivalence for both ownership directions. Phase 3's correctness gate
+is therefore complete; repeated unequal-grid performance comparisons remain
+part of the later benchmark phases.
+
 ## Data
 
 The Phase 1 machine-readable records are in
 [`data/saga_non_bo_diatomic_mpi_scaling.csv`](data/saga_non_bo_diatomic_mpi_scaling.csv).
 The Phase 2 records are in
 [`data/saga_non_bo_diatomic_mpi_phase2.csv`](data/saga_non_bo_diatomic_mpi_phase2.csv).
+The Phase 3 coordinate-partitioning records are in
+[`data/saga_non_bo_diatomic_mpi_phase3.csv`](data/saga_non_bo_diatomic_mpi_phase3.csv).
 Raw Slurm output is intentionally not tracked.
