@@ -335,8 +335,8 @@ ranks. Energies, norms, residuals, and phase-aligned states agreed with the
 serial comparison. The initial two-rank `r` run encountered a transient missing
 file in the shared Python environment; its clean retry passed and is not
 treated as a solver failure. Unequal-grid performance comparison remains part
-of the later benchmark phases. The Saga results are archived in
-[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
+of the later benchmark phases. The results are archived in the
+[Saga MPI benchmark](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
 1. Generalize ownership metadata so either coordinate can be partitioned.
 2. Implement coordinate-1 bridge exchange using the same element-local rules.
@@ -348,6 +348,19 @@ Hamiltonian and ground state, and the selected coordinate can be archived in
 layout metadata.
 
 ### Phase 4: implement the two-dimensional `(r,R)` layout
+
+**Status:** complete locally. The additive `TwoRadialDistributed2DLayout`
+supports explicit or cost-selected rectangular process grids, row-major rank
+topology, connected element-tile ownership, per-axis bridges and halos, global
+Cartesian halo owners, edge-neighbor and row/column rank groups, full and
+compact angular storage, exact scatter/gather, process-grid redistribution,
+serial archive round trips, and phase-aligned comparison helpers. Tests cover
+unequal element counts and polynomial orders, a prime rank count, several
+process grids, ownership validation, and invalid decompositions. A real
+four-rank local MPI run exactly scattered, redistributed from `2 x 2` to
+`1 x 4`, and gathered a complex H2+ state. The reusable
+`examples/mpi_two_radial_2d_layout.py` driver is ready for the corresponding
+Saga deployment check.
 
 1. Define a rectangular `P_r x P_R` process topology.
 2. Define permanent ownership, bridge ownership, halos, and neighbors in both
