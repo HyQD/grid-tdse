@@ -366,3 +366,80 @@ def test_itp_progress_can_be_disabled(capsys):
     solver.solve(np.ones(2), lambda state: state, np.vdot)
 
     assert capsys.readouterr().out == ""
+
+
+def test_itp_observer_receives_initial_interval_and_final_states(capsys):
+    samples = []
+
+    def observe(state, diagnostics):
+        assert not state.flags.writeable
+        samples.append((state.copy(), diagnostics))
+
+    solver = ImaginaryTimeGroundStateSolver(
+        time_step=0.1,
+        max_iterations=5,
+        energy_tolerance=1.0e-30,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0e-30,
+        linear_rtol=1.0e-13,
+        linear_atol=1.0e-15,
+        progress_interval=1,
+    )
+    result = solver.solve(
+        np.ones(2),
+        lambda state: np.array([0.5, 2.0]) * state,
+        np.vdot,
+        iteration_observer=observe,
+        observer_interval=2,
+        print_progress=False,
+    )
+
+    assert [record.iteration for _, record in samples] == [0, 2, 4, 5]
+    assert samples[0][1].imaginary_time == 0.0
+    assert samples[0][1].step_wall_time == 0.0
+    assert all(record.step_wall_time >= 0.0 for _, record in samples)
+    np.testing.assert_array_equal(samples[-1][0], result.state)
+    assert capsys.readouterr().out == ""
+
+
+def test_itp_observer_can_request_only_initial_and_final_states():
+    iterations = []
+    solver = ImaginaryTimeGroundStateSolver(
+        max_iterations=3,
+        energy_tolerance=1.0e-30,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0e-30,
+        progress_interval=None,
+    )
+
+    solver.solve(
+        np.ones(2),
+        lambda state: np.array([0.5, 2.0]) * state,
+        np.vdot,
+        iteration_observer=lambda state, record: iterations.append(
+            record.iteration
+        ),
+    )
+
+    assert iterations == [0, 3]
+
+
+@pytest.mark.parametrize(
+    ("keyword", "value", "error"),
+    [
+        ("iteration_observer", 1, TypeError),
+        ("observer_interval", 0, ValueError),
+        ("observer_interval", 1.5, TypeError),
+        ("print_progress", 1, TypeError),
+    ],
+)
+def test_itp_validates_observer_options(keyword, value, error):
+    solver = ImaginaryTimeGroundStateSolver(max_iterations=1)
+
+    with pytest.raises(error):
+        solver.solve(
+            np.ones(2),
+            lambda state: state,
+            np.vdot,
+            **{keyword: value},
+        )

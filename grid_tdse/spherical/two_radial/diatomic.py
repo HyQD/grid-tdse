@@ -21,8 +21,15 @@ from grid_tdse.ground_state import (
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
 from .coulomb import CoulombTerm, RadialCoulombMethod
 from .grids import FEMDVRGridSpec
+from .ground_state_sampling import (
+    DiatomicIonGroundStateReporter,
+    DiatomicIonGroundStateSample,
+    ground_state_sample_metadata,
+)
 from .observables import (
     AngularMomentumExpectations,
+    DiatomicIonObservableEvaluator,
+    DiatomicIonObservables,
     angular_momentum_expectations,
     diagonal_angular_expectation,
     validated_state,
@@ -96,6 +103,10 @@ class DiatomicIonGroundStateResult:
     angular_momentum: AngularMomentumExpectations
     inversion_expectation: float
     pair_exchange_expectation: float | None
+    initial_observables: DiatomicIonObservables
+    observables: DiatomicIonObservables
+    samples: tuple[DiatomicIonGroundStateSample, ...]
+    sample_interval: int | None
     radial_operator_mode: RadialOperatorMode = "global"
 
     @property
@@ -174,6 +185,9 @@ class DiatomicIonGroundStateResult:
                 "total_l_z": self.angular_momentum.total_l_z,
                 "inversion_expectation": self.inversion_expectation,
                 "pair_exchange_expectation": self.pair_exchange_expectation,
+                "observables": asdict(self.observables),
+                "sample_interval": self.sample_interval,
+                "samples": ground_state_sample_metadata(self.samples),
             },
             overwrite=overwrite,
         )
@@ -239,6 +253,9 @@ class NonBornOppenheimerDiatomicIonGroundState:
         krylov_reorthogonalize: bool = True,
         krylov_breakdown_tolerance: float = 1.0e-14,
         progress_interval: int | None = 10,
+        sample_interval: int | None = 10,
+        log_path: str | PathLike[str] | None = None,
+        log_overwrite: bool = False,
         use_preconditioner: bool = True,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
@@ -304,6 +321,13 @@ class NonBornOppenheimerDiatomicIonGroundState:
         self.M_tot = M_tot
         self.radial_coulomb_method = radial_coulomb_method
         self.radial_operator_mode = radial_operator_mode
+        self.sample_interval = _optional_positive_integer(
+            sample_interval, "sample_interval"
+        )
+        self.log_path = None if log_path is None else Path(log_path)
+        if not isinstance(log_overwrite, (bool, np.bool_)):
+            raise TypeError("log_overwrite must be boolean")
+        self.log_overwrite = bool(log_overwrite)
 
         electron_parity, pair_parity = self._coordinate_parities()
         electron_basis = AngularBasisSpec(
@@ -390,6 +414,10 @@ class NonBornOppenheimerDiatomicIonGroundState:
             "product" if isinstance(initial_state, str) else "array"
         )
         self.initial_state = self._prepare_initial_state(initial_state)
+        self.observable_evaluator = DiatomicIonObservableEvaluator(
+            self.representation,
+            self.parameters,
+        )
 
     @property
     def system_name(self) -> str:
@@ -405,12 +433,23 @@ class NonBornOppenheimerDiatomicIonGroundState:
         """Run normalized imaginary-time propagation."""
 
         initial = self.initial_state.copy()
-        ground_state = self.solver.solve(
-            initial,
-            self.hamiltonian,
-            self.representation.inner_product,
-            preconditioner=self.preconditioner,
-        )
+        with DiatomicIonGroundStateReporter(
+            self.observable_evaluator,
+            log_path=self.log_path,
+            log_overwrite=self.log_overwrite,
+        ) as reporter:
+            ground_state = self.solver.solve(
+                initial,
+                self.hamiltonian,
+                self.representation.inner_product,
+                preconditioner=self.preconditioner,
+                iteration_observer=reporter.observe,
+                observer_interval=self.sample_interval,
+                print_progress=False,
+            )
+        samples = tuple(reporter.samples)
+        initial_observables = samples[0].observables
+        final_observables = samples[-1].observables
         return DiatomicIonGroundStateResult(
             parameters=self.parameters,
             inversion_parity=self.inversion_parity,
@@ -419,14 +458,20 @@ class NonBornOppenheimerDiatomicIonGroundState:
             representation=self.representation,
             initial_state=initial,
             ground_state=ground_state,
-            initial_angular_momentum=self.angular_momentum_expectations(initial),
-            angular_momentum=self.angular_momentum_expectations(ground_state.state),
-            inversion_expectation=self.inversion_expectation(ground_state.state),
-            pair_exchange_expectation=(
-                self.pair_exchange_expectation(ground_state.state)
-                if self.parameters.has_identical_pair
-                else None
+            initial_angular_momentum=AngularMomentumExpectations(
+                initial_observables.total_l_squared,
+                initial_observables.total_l_z,
             ),
+            angular_momentum=AngularMomentumExpectations(
+                final_observables.total_l_squared,
+                final_observables.total_l_z,
+            ),
+            inversion_expectation=final_observables.inversion,
+            pair_exchange_expectation=final_observables.pair_exchange,
+            initial_observables=initial_observables,
+            observables=final_observables,
+            samples=samples,
+            sample_interval=self.sample_interval,
             radial_operator_mode=self.radial_operator_mode,
         )
 
@@ -641,4 +686,13 @@ def _nonnegative_integer(value, name: str) -> int:
     result = int(value)
     if result < 0:
         raise ValueError(f"{name} must be non-negative")
+    return result
+
+
+def _optional_positive_integer(value, name: str) -> int | None:
+    if value is None:
+        return None
+    result = _nonnegative_integer(value, name)
+    if result == 0:
+        raise ValueError(f"{name} must be positive")
     return result

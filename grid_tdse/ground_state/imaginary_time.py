@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Literal
 
 import numpy as np
@@ -25,6 +26,7 @@ class GroundStateIteration:
     state_change: float
     residual_norm: float
     norm: float
+    step_wall_time: float = 0.0
     linear_iterations: int = 0
     linear_residual_norm: float = 0.0
     krylov_operator_calls: int = 0
@@ -235,6 +237,11 @@ class ImaginaryTimeGroundStateSolver:
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
+        iteration_observer: (
+            Callable[[np.ndarray, GroundStateIteration], None] | None
+        ) = None,
+        observer_interval: int | None = None,
+        print_progress: bool = True,
     ) -> GroundStateResult:
         """Run normalized imaginary-time propagation.
 
@@ -255,6 +262,15 @@ class ImaginaryTimeGroundStateSolver:
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
             :class:`integrator_lib.CrankNicolson`. It is rejected for SIL and
             SIA.
+        iteration_observer
+            Optional callback receiving a read-only normalized state and its
+            diagnostics at iteration zero, every ``observer_interval`` steps,
+            and the final step.
+        observer_interval
+            Positive sampling interval. ``None`` requests only the initial and
+            final states when an observer is supplied.
+        print_progress
+            Whether the solver prints its compact built-in progress line.
         """
 
         if not callable(hamiltonian):
@@ -263,12 +279,35 @@ class ImaginaryTimeGroundStateSolver:
             raise TypeError("inner_product must be callable")
         if inner_products is not None and not callable(inner_products):
             raise TypeError("inner_products must be callable or None")
+        if iteration_observer is not None and not callable(iteration_observer):
+            raise TypeError("iteration_observer must be callable or None")
+        observer_interval = _optional_positive_integer(
+            observer_interval, "observer_interval"
+        )
+        if not isinstance(print_progress, (bool, np.bool_)):
+            raise TypeError("print_progress must be boolean")
 
         state = _state_array(initial_state)
         shape = state.shape
         state = self._normalize(state, inner_product)
         initial_action = _hamiltonian_action(hamiltonian, state, shape)
         previous_energy = self._energy(state, initial_action, inner_product)
+        initial_residual = initial_action - previous_energy * state
+        if iteration_observer is not None:
+            initial_record = GroundStateIteration(
+                iteration=0,
+                imaginary_time=0.0,
+                energy=previous_energy,
+                energy_change=0.0,
+                state_change=0.0,
+                residual_norm=self._norm(initial_residual, inner_product),
+                norm=self._norm(state, inner_product),
+            )
+            _notify_iteration_observer(
+                iteration_observer,
+                state,
+                initial_record,
+            )
 
         integrator = self._build_integrator(
             inner_product,
@@ -283,6 +322,7 @@ class ImaginaryTimeGroundStateSolver:
         history = []
         converged = False
         for iteration in range(1, self.max_iterations + 1):
+            step_started = perf_counter()
             imaginary_time = iteration * self.time_step
             previous_state = state
             state = integrator(
@@ -299,6 +339,7 @@ class ImaginaryTimeGroundStateSolver:
             residual = action - energy * state
             residual_norm = self._norm(residual, inner_product)
             norm = self._norm(state, inner_product)
+            step_wall_time = perf_counter() - step_started
             record = GroundStateIteration(
                 iteration=iteration,
                 imaginary_time=imaginary_time,
@@ -307,6 +348,7 @@ class ImaginaryTimeGroundStateSolver:
                 state_change=state_change,
                 residual_norm=residual_norm,
                 norm=norm,
+                step_wall_time=step_wall_time,
                 **self._step_diagnostics(integrator),
             )
             history.append(record)
@@ -316,12 +358,20 @@ class ImaginaryTimeGroundStateSolver:
                 and state_change <= self.state_tolerance
                 and residual_norm <= self.residual_tolerance
             )
-            if self.progress_interval is not None and (
+            final_iteration = converged or iteration == self.max_iterations
+            if print_progress and self.progress_interval is not None and (
                 iteration % self.progress_interval == 0
-                or converged
-                or iteration == self.max_iterations
+                or final_iteration
             ):
                 self._print_progress(record)
+            if iteration_observer is not None and (
+                final_iteration
+                or (
+                    observer_interval is not None
+                    and iteration % observer_interval == 0
+                )
+            ):
+                _notify_iteration_observer(iteration_observer, state, record)
             if converged:
                 break
             previous_energy = energy
@@ -462,6 +512,12 @@ def _inner_product_value(inner_product, left, right) -> complex:
     if not np.isfinite(result.real) or not np.isfinite(result.imag):
         raise ValueError("inner_product returned a non-finite value")
     return result
+
+
+def _notify_iteration_observer(observer, state, record) -> None:
+    view = state.view()
+    view.flags.writeable = False
+    observer(view, record)
 
 
 def _positive_real(value, name: str) -> float:

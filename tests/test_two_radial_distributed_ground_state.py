@@ -83,6 +83,8 @@ class _ThreadCommunicatorGroup:
         self.messages = defaultdict(deque)
         self.reduction_values = defaultdict(dict)
         self.reduction_results = {}
+        self.gather_values = defaultdict(dict)
+        self.gather_results = {}
 
     def communicator(self, rank):
         return _ThreadCommunicator(self, rank)
@@ -94,6 +96,7 @@ class _ThreadCommunicator:
         self.rank = rank
         self.size = group.size
         self.reduction_round = 0
+        self.gather_round = 0
 
     def Isend(self, buffer, dest, tag):
         key = (self.rank, dest, tag)
@@ -129,6 +132,23 @@ class _ThreadCommunicator:
     def Allreduce(self, send_buffer, receive_buffer):
         np.copyto(receive_buffer, self.allreduce(np.asarray(send_buffer).copy()))
 
+    def allgather(self, value):
+        gather_round = self.gather_round
+        self.gather_round += 1
+        with self.group.condition:
+            values = self.group.gather_values[gather_round]
+            values[self.rank] = value
+            if len(values) == self.size:
+                self.group.gather_results[gather_round] = [
+                    values[rank] for rank in range(self.size)
+                ]
+                self.group.condition.notify_all()
+            else:
+                self.group.condition.wait_for(
+                    lambda: gather_round in self.group.gather_results
+                )
+            return self.group.gather_results[gather_round]
+
 
 def _serial_result(calculation, options):
     solver = ImaginaryTimeGroundStateSolver(
@@ -148,6 +168,9 @@ def _distributed_results(
     options,
     *,
     partitioned_coordinate=2,
+    observable_evaluator=None,
+    sample_interval=10,
+    log_path=None,
 ):
     representation = calculation.representation
     layout = TwoRadialDistributedLayout(
@@ -161,6 +184,9 @@ def _distributed_results(
         TwoRadialDistributedGroundStateSolver(
             layout,
             group.communicator(rank),
+            observable_evaluator=observable_evaluator,
+            sample_interval=sample_interval,
+            log_path=log_path,
             **options,
         )
         for rank in range(n_ranks)
@@ -385,3 +411,68 @@ def test_only_root_enables_progress_output():
 
     assert root_solver.solver.progress_interval == 7
     assert other_solver.solver.progress_interval is None
+
+
+@pytest.mark.parametrize("partitioned_coordinate", [1, 2])
+def test_distributed_sampling_matches_serial_observables_and_logs_once(
+    partitioned_coordinate,
+    tmp_path,
+    capsys,
+):
+    calculation = _calculation()
+    options = _solver_options(max_iterations=3)
+    serial = _serial_result(calculation, options)
+    expected_initial = calculation.observable_evaluator(
+        calculation.initial_state
+    )
+    expected_final = calculation.observable_evaluator(serial.state)
+    log_path = tmp_path / f"coordinate-{partitioned_coordinate}.log"
+
+    _, distributed = _distributed_results(
+        calculation,
+        2,
+        options,
+        partitioned_coordinate=partitioned_coordinate,
+        observable_evaluator=calculation.observable_evaluator,
+        sample_interval=2,
+        log_path=log_path,
+    )
+
+    for result in distributed:
+        assert [sample.iteration for sample in result.samples] == [0, 2, 3]
+        initial = result.samples[0].observables
+        assert initial.r == pytest.approx(expected_initial.r, abs=2.0e-13)
+        assert initial.R == pytest.approx(expected_initial.R, abs=2.0e-13)
+        assert initial.cos2_theta_R == pytest.approx(
+            expected_initial.cos2_theta_R,
+            abs=2.0e-13,
+        )
+        assert initial.inversion == pytest.approx(expected_initial.inversion)
+        assert initial.pair_exchange == pytest.approx(
+            expected_initial.pair_exchange
+        )
+        actual = result.samples[-1].observables
+        assert actual.r == pytest.approx(expected_final.r, abs=2.0e-13)
+        assert actual.R == pytest.approx(expected_final.R, abs=2.0e-13)
+        assert actual.total_l_squared == pytest.approx(
+            expected_final.total_l_squared,
+            abs=2.0e-13,
+        )
+        assert actual.cos2_theta_R == pytest.approx(
+            expected_final.cos2_theta_R,
+            abs=2.0e-13,
+        )
+        np.testing.assert_allclose(
+            actual.dipole_total,
+            expected_final.dipole_total,
+            atol=2.0e-13,
+        )
+        assert all(
+            sample.observable_wall_time >= 0.0 for sample in result.samples
+        )
+    terminal = capsys.readouterr().out
+    logfile = log_path.read_text(encoding="utf-8")
+    for iteration in (0, 2, 3):
+        marker = f"ITP sample {iteration} "
+        assert terminal.count(marker) == 1
+        assert logfile.count(marker) == 1
