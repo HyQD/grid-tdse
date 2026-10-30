@@ -335,7 +335,8 @@ ranks. Energies, norms, residuals, and phase-aligned states agreed with the
 serial comparison. The initial two-rank `r` run encountered a transient missing
 file in the shared Python environment; its clean retry passed and is not
 treated as a solver failure. Unequal-grid performance comparison remains part
-of the later benchmark phases.
+of the later benchmark phases. The Saga results are archived in
+[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
 1. Generalize ownership metadata so either coordinate can be partitioned.
 2. Implement coordinate-1 bridge exchange using the same element-local rules.
