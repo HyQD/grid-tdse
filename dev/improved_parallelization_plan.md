@@ -41,10 +41,12 @@ The wavefunction uses an electronic Jacobi radius `r`, an internuclear radius
 different and commonly use different FEM-DVR grids. Nuclear pair exchange does
 not interchange `r` and `R`.
 
-The present distributed layout retains all angular channels and the complete
-electronic coordinate `r` on every rank, while distributing element-aligned
-intervals of `R`. This is a one-dimensional process grid and is equivalent to
-the `P_r=1` limit of the desired two-dimensional layout.
+The production foundation now includes a two-dimensional element-aligned
+layout over a rectangular `P_r x P_R` process grid. Each rank retains all
+angular channels but owns only a connected Cartesian tile of the electronic
+and internuclear radial coordinates. The earlier one-dimensional layouts are
+retained as the `P_r=1` and `P_R=1` limits for compatibility, validation, and
+small-rank execution.
 
 ### Two-electron atoms
 
@@ -100,25 +102,46 @@ The following foundations are complete:
 - neighboring `R` bridge exchange and weak-form contribution assembly;
 - distributed Coulomb actions on locally owned `R` points;
 - distributed physical inner products, norms, energies, and residuals;
-- distributed SIL imaginary-time propagation;
-- local and Saga agreement with serial ground-state calculations;
+- one-dimensional distributed SIL imaginary-time propagation;
+- local and Saga agreement between one-dimensional distributed and serial
+  ground-state calculations;
+- coordinate-selectable one-dimensional partitioning in either radial
+  direction;
+- a rectangular two-dimensional process-grid layout with scatter, gather, and
+  redistribution;
+- a two-dimensional distributed Hamiltonian with independent radial halo and
+  weak-form exchanges;
+- local and Saga agreement between two-dimensional and serial Hamiltonian
+  actions for H2+, HD+, and D2+;
+- a fixed-core Saga comparison of serial, shared-memory, pure-MPI, and hybrid
+  Hamiltonian execution;
+- serial and one-dimensional distributed ground-state sampling, including
+  expectation values, dipoles, symmetry diagnostics, iteration timing, and
+  interval-based terminal and logfile output;
 - distributed-compatible CN preconditioner prototypes.
 
 The following limitations remain:
 
-- the rank count cannot exceed the number of `R` elements;
-- every rank retains the complete `r` coordinate;
-- the optimized one-dimensional path overlaps neighboring communication but
-  the future two-dimensional path must do so independently in both radial
-  directions;
+- SIL and SIA ground-state propagation have not yet been connected to the
+  two-dimensional state layout and Hamiltonian;
+- the two-dimensional ground-state path has not yet been validated through
+  convergence against serial H2+, HD+, and D2+ references;
+- the two-dimensional process-grid dimensions remain bounded by the available
+  FEM-DVR elements in their respective radial directions;
 - rank-local Coulomb data and the principal one-dimensional work arrays are
-  reused, while further kernel-level allocation profiling remains useful;
+  reused, and the two-dimensional Hamiltonian reuses persistent work and
+  communication buffers, while further kernel-level allocation profiling
+  remains useful;
 - Krylov orthogonalization batches basis projections, but norms and iteration
   diagnostics still require latency-sensitive scalar reductions;
 - distributed real-time field interactions and absorbers are not complete;
 - distributed checkpoint output gathers the complete state to rank zero;
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
+
+The non-BO roadmap is complete through Phase 6. Phase 7, distributed SIL/SIA
+ground-state propagation on the two-dimensional layout, is the next active
+implementation phase.
 
 ## Saga findings to date
 
@@ -135,10 +158,14 @@ The validated Saga environment used:
 - rank-local Numba cache directories;
 - core binding through Slurm.
 
-Increasing `--cpus-per-task` does not help the current pure-MPI path because
-each rank performs serial local work. Additional CPUs per task would be
-reserved but unused. Hybrid MPI/threading should be considered only after an
-explicit threaded local kernel has been implemented and benchmarked.
+The Phase 6 fixed-core measurements confirm that increasing
+`--cpus-per-task` does not help the current element-local kernels. Pure MPI was
+fastest at every tested core count for both `l_max=2` and `l_max=4`.
+Additional CPUs per task would be reserved without accelerating the dominant
+serial Numba work. The current default is therefore one physical CPU core and
+one numerical thread per MPI rank. Hybrid MPI/threading should be reconsidered
+only after an explicit threaded local kernel is implemented or when the
+complete SIL/SIA propagation path is benchmarked.
 
 ### Correctness validation
 
@@ -211,11 +238,13 @@ than the MPI decomposition. Future performance studies should:
 
 ### Interpretation
 
-The current one-dimensional layout is effective for angularly expensive
-problems but cannot expose more ranks than there are `R` elements. Increasing
-the electronic grid increases work and memory on every rank without raising
-the rank limit. Increasing the number of `R` elements raises the limit, while
-adding points inside existing `R` elements only increases work per rank.
+The earlier one-dimensional layout is effective for angularly expensive
+problems but cannot expose more ranks than there are elements in its selected
+partitioning direction. The two-dimensional layout removes the replication of
+the other radial coordinate and can use up to `P_r * P_R` ranks, subject to the
+element counts and useful local tile size in both directions. Increasing
+points inside existing elements raises work per rank without increasing this
+topological rank limit; increasing the number of elements can raise it.
 
 The observed behavior is consistent with a sparse, memory-bandwidth-sensitive
 Hamiltonian. Cache effects, memory bandwidth, per-routine overhead, and local
@@ -231,6 +260,12 @@ benchmarks/
     non_bo_diatomic_mpi_scaling_saga.md
     data/
         saga_non_bo_diatomic_mpi_scaling.csv
+        saga_non_bo_diatomic_mpi_phase2.csv
+        saga_non_bo_diatomic_mpi_phase3.csv
+        saga_non_bo_diatomic_mpi_phase4.csv
+        saga_non_bo_diatomic_mpi_phase5.csv
+        saga_non_bo_diatomic_hamiltonian_phase6.csv
+        saga_non_bo_diatomic_hamiltonian_phase6_provenance.json
 ```
 
 The CSV should contain at least:
@@ -247,10 +282,10 @@ memory, wall time, speedup, parallel efficiency, and core-time consumption.
 
 ## Target distributed architecture
 
-The desired shared abstraction is a two-dimensional element layout:
+The implemented shared abstraction is a two-dimensional element layout:
 
 ```text
-TwoRadialDistributedLayout2D
+TwoRadialDistributed2DLayout
     process grid: P1 x P2
     all retained angular channels per tile
     contiguous coordinate-1 element range
@@ -259,17 +294,34 @@ TwoRadialDistributedLayout2D
     optional system-specific exchange policy
 ```
 
-The process-grid aspect ratio should be chosen from element counts, radial
-orders, angular workload, memory limits, and estimated halo volume. Equal-size
-square blocks are not appropriate for general non-BO grids. Load balancing
-should use estimated tile cost and permit multiple connected tiles per rank.
+The process-grid aspect ratio is chosen from element counts and estimated tile
+cost. Future refinements can additionally account for radial orders, angular
+workload, memory limits, and measured halo volume. Equal-size square blocks
+are not appropriate for general non-BO grids; the implementation permits
+unequal connected element ranges.
 
-The existing layout remains available as `P1=1`, preserving validation and a
-simple low-rank execution path.
+The existing one-dimensional layouts remain available as the `(1,P2)` and
+`(P1,1)` process-grid limits, preserving validation and simple low-rank
+execution paths.
 
 ## Non-BO diatomic implementation path
 
 The non-BO path must be completed before atomic parallel development begins.
+
+| phase | scope | status |
+|---:|:---|:---|
+| 1 | archive and instrument the one-dimensional implementation | complete |
+| 2 | optimize reductions, communication, and allocation | complete |
+| 3 | make one-dimensional partitioning coordinate-selectable | complete |
+| 4 | implement the two-dimensional state layout | complete |
+| 5 | implement the two-dimensional Hamiltonian | complete |
+| 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
+| 7 | complete distributed SIL/SIA ground-state propagation | next |
+| 8 | complete distributed SIL/SIA dynamics | pending |
+| 9 | implement scalable distributed state I/O | pending |
+| 10 | benchmark the complete SIL/SIA path on Saga | pending |
+| 11 | deploy and benchmark on Olivia and Betzy | pending |
+| 12 | add distributed Crank--Nicolson | pending |
 
 ### Phase 1: archive and instrument the current implementation
 
@@ -479,15 +531,25 @@ documented for subsequent SIL/SIA development.
 
 ### Phase 7: complete distributed SIL/SIA ground-state propagation
 
-1. Generalize distributed SIL imaginary-time propagation to the 2D layout.
-2. Use SIL as the production method for the Hermitian ground-state problem.
-3. Retain SIA as an independent general-exponential reference.
-4. Preserve normalized iteration, energy change, phase-invariant state change,
+**Status:** next implementation phase. The two-dimensional state layout,
+Hamiltonian, reductions, and pure-MPI execution recommendation are available;
+the complete imaginary-time solver has not yet been connected to them.
+
+1. Connect the two-dimensional distributed state, Hamiltonian, physical inner
+   products, and batched Krylov projections to SIL and SIA callbacks.
+2. Generalize distributed SIL imaginary-time propagation to the 2D layout.
+3. Use SIL as the production method for the Hermitian ground-state problem.
+4. Retain SIA as an independent general-exponential reference.
+5. Preserve normalized iteration, energy change, phase-invariant state change,
    and eigenstate-residual convergence checks.
-5. Verify conserved `M_tot`, inversion, and applicable pair-exchange sectors.
-6. Support initialization from generated states and compatible archives.
-7. Compare time to solution, Hamiltonian calls, reductions, and memory with the
+6. Extend the existing ground-state sampling and interval logfile path to the
+   two-dimensional layout without gathering the state for each sample.
+7. Verify conserved `M_tot`, inversion, and applicable pair-exchange sectors.
+8. Support initialization from generated states and compatible archives.
+9. Compare time to solution, Hamiltonian calls, reductions, and memory with the
    one-dimensional MPI and serial solvers.
+10. Validate locally on several small process grids before performing
+    single-node and then multi-node Saga correctness runs.
 
 Ground-state calculations must not use a CAP.
 
