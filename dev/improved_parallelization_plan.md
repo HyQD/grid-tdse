@@ -416,6 +416,15 @@ on several process-grid shapes.
 
 ### Phase 6: establish shared-memory and hybrid execution baselines
 
+**Status:** local benchmark and Saga workflow implemented; controlled Saga
+measurements and the execution-model recommendation remain pending. The
+benchmark records build, CPU, affinity, Slurm, MPI, and thread-pool provenance,
+times a fixed number of 2D Hamiltonian actions, profiles each Hamiltonian
+component, checks the gathered action against the serial element-local result,
+and writes one JSON record per run. The Saga submission helper holds total
+core count fixed while enumerating serial, shared-memory, pure-MPI, and hybrid
+rank/thread factorizations, with three repetitions by default.
+
 Benchmark the operational two-dimensional Hamiltonian before committing the
 subsequent SIL/SIA solvers to one execution model. Compare configurations at a
 fixed total CPU-core count so that a threaded run is not mistaken for a free
