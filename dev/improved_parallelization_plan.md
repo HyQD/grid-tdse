@@ -381,7 +381,7 @@ scatter/gather round trips.
 
 ### Phase 5: implement the two-dimensional Hamiltonian
 
-**Status:** complete locally; Saga deployment validation remains. The
+**Status:** complete and validated on Saga. The
 additive `TwoRadialDistributed2DHamiltonian` applies both element-local radial
 operators with independent edge-only halo and weak-form exchanges, while
 diagonal one-body terms and precomputed tile-local Coulomb multipoles remain
@@ -392,8 +392,14 @@ tests cover full and fixed-`M_tot` angular storage and `(1,1)`, `(1,2)`,
 `(2,1)`, and `(2,2)` layouts. Random complex H2+, HD+, and D2+ actions agree
 with the serial element-local Hamiltonian. A real four-rank local MPI run on a
 `(2,2)` grid agreed with serial to `3.6e-15` in the complete action. The
-reusable `examples/mpi_two_radial_2d_hamiltonian.py` driver is ready for Saga
-deployment validation.
+reusable `examples/mpi_two_radial_2d_hamiltonian.py` driver was then used for
+Saga deployment validation. On Saga, serial-limit `(1,1)`, one-coordinate `(1,2)`
+and `(2,1)`, and Cartesian `(2,2)` process grids all agreed with the serial
+Hamiltonian. The validation covered H2+, HD+, and D2+, including an H2+
+`l_max=2` case; component and complete-action maximum errors were at most
+`7.944e-15`, and every Coulomb comparison was exact at printed precision. The
+cluster results are archived in the
+[Saga MPI benchmark](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
 1. Apply both radial derivatives from element-local tile data.
 2. Exchange left/right and up/down bridge data only for derivative terms.

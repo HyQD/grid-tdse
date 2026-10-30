@@ -2,18 +2,20 @@
 
 ## Scope
 
-This report archives Saga validation and scaling results for Phases 1--4 of
+This report archives Saga validation and scaling results for Phases 1--5 of
 the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
 Phases 1--3 cover the one-dimensional decomposition and its coordinate
 selection. Phase 4 validates two-dimensional process-grid topology and state
-collectives before the distributed two-dimensional Hamiltonian is introduced.
+collectives, and Phase 5 validates the distributed two-dimensional
+Hamiltonian.
 
 The Phase 1 and Phase 2 layout retains every angular channel and the complete
 electronic coordinate `r` on each rank. Contiguous FEM-DVR elements of the
 internuclear coordinate `R` are distributed, so the maximum useful rank count
 equals the number of `R` elements. Phase 3 permits either radial coordinate to
-be distributed, and Phase 4 partitions both over a Cartesian process grid.
+be distributed, Phase 4 partitions both over a Cartesian process grid, and
+Phase 5 applies the Hamiltonian on that layout.
 
 ## Runtime configuration
 
@@ -330,6 +332,56 @@ because the top-level Slurm job rows did not report it. These results complete
 the Phase 4 Saga deployment gate and establish the state-layout baseline for
 the Phase 5 two-dimensional Hamiltonian.
 
+## Phase 5 Cartesian two-coordinate Hamiltonian
+
+Phase 5 introduced `TwoRadialDistributed2DHamiltonian`, which applies both
+element-local radial operators and the Coulomb interaction on Cartesian
+two-coordinate state tiles. These short Saga jobs are correctness and
+deployment tests rather than scaling measurements. Each job scattered the
+same deterministic complex state, evaluated the distributed components and
+complete Hamiltonian, gathered the results, and compared them with the serial
+element-local implementation.
+
+The validation was prepared at `2026-10-30T13:23:55+01:00` with:
+
+- grid-tdse commit `fafa53dc8602a9c0f2ba37ea57f78e3531ccdaed`;
+- grid-lib commit `8950c3ae01425488a6d78ba054a3b394dd851727`;
+- integrator-lib commit `04a161fbaa42955c68e374b391bcd76d77aa8edc`;
+- `OpenMPI/5.0.10-GCC-15.2.0`;
+- Open MPI 5.0.10 revision `v5.0.10`, built on 2026-02-23; and
+- the project-local `grid_tdse` Python environment.
+
+The electronic grid used bounds `(0, 2, 5)` with five FEM-DVR points per
+element, and the internuclear grid used bounds `(0, 1.5, 4)` with five points
+per element. The calculations used `M_tot=0`, analytic radial Coulomb
+multipoles, and deterministic seed 1729. Identical nuclei used the
+symmetry-adapted basis and positive pair-exchange parity; HD+ retained the
+unreduced angular space.
+
+| job | system | `l_max` | ranks | process grid | global coefficients | local coefficients | coordinate 1 error | coordinate 2 error | Coulomb error | complete error | elapsed |
+|---:|:---:|---:|---:|:---:|---:|---:|---:|---:|---:|---:|---:|
+| 20730392 | H2+ | 1 | 1 | `(1, 1)` | 49 | 49--49 | 3.662e-15 | 0.000e+00 | 0.000e+00 | 3.662e-15 | 50 s |
+| 20730394 | H2+ | 1 | 2 | `(1, 2)` | 49 | 21--28 | 3.662e-15 | 1.144e-16 | 0.000e+00 | 3.662e-15 | 35 s |
+| 20730397 | H2+ | 1 | 2 | `(2, 1)` | 49 | 21--28 | 3.553e-15 | 0.000e+00 | 0.000e+00 | 3.553e-15 | 29 s |
+| 20730400 | H2+ | 1 | 4 | `(2, 2)` | 49 | 9--16 | 3.553e-15 | 1.144e-16 | 0.000e+00 | 3.553e-15 | 29 s |
+| 20730446 | H2+ | 2 | 4 | `(2, 2)` | 392 | 72--128 | 7.944e-15 | 2.289e-16 | 0.000e+00 | 7.944e-15 | 34 s |
+| 20730452 | HD+ | 1 | 4 | `(2, 2)` | 294 | 54--96 | 7.324e-15 | 2.220e-16 | 0.000e+00 | 7.324e-15 | 32 s |
+| 20730453 | D2+ | 1 | 4 | `(2, 2)` | 49 | 9--16 | 3.553e-15 | 1.241e-16 | 0.000e+00 | 3.553e-15 | 28 s |
+
+All seven jobs completed normally. Both one-coordinate decompositions and the
+genuinely two-dimensional `(2, 2)` decomposition reproduce the serial action.
+The largest complete-action discrepancy was `7.944e-15`, and every Coulomb
+comparison was zero at printed precision. The larger HD+ state is expected:
+unlike H2+ and D2+, the heteronuclear system cannot use identical-particle
+pair-exchange reduction.
+
+The elapsed times include module, environment, MPI, and Numba startup and must
+not be interpreted as Hamiltonian scaling measurements. The CSV records
+`MaxRSS` from each application step because the top-level Slurm job rows did
+not report it. These results complete the Phase 5 Saga deployment gate. Phase
+6 will establish repeated shared-memory, pure-MPI, and hybrid performance
+baselines using workloads large enough to amortize startup costs.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -340,4 +392,6 @@ The Phase 3 coordinate-partitioning records are in
 [`data/saga_non_bo_diatomic_mpi_phase3.csv`](data/saga_non_bo_diatomic_mpi_phase3.csv).
 The Phase 4 Cartesian-layout records are in
 [`data/saga_non_bo_diatomic_mpi_phase4.csv`](data/saga_non_bo_diatomic_mpi_phase4.csv).
+The Phase 5 Cartesian-Hamiltonian records are in
+[`data/saga_non_bo_diatomic_mpi_phase5.csv`](data/saga_non_bo_diatomic_mpi_phase5.csv).
 Raw Slurm output is intentionally not tracked.
