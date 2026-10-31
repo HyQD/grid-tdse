@@ -1,13 +1,21 @@
 # Distributed non-BO diatomic ground states
 
-`TwoRadialDistributedGroundStateSolver` connects the distributed two-radial
-state, field-free Hamiltonian, and physical reductions to short-iterative
-Lanczos imaginary-time propagation.
+`TwoRadialDistributedGroundStateSolver` connects the one-coordinate
+distributed state, field-free Hamiltonian, and physical reductions to
+short-iterative Lanczos imaginary-time propagation.
+`TwoRadialDistributed2DGroundStateSolver` extends the same
+representation-independent iteration to a Cartesian process grid and supports
+both short-iterative Lanczos (SIL) and short-iterative Arnoldi (SIA).
 
 The implementation targets the first complete MPI calculation for
 non-Born--Oppenheimer diatomic ions. It supports FEM-DVR, element-aligned
 distribution of either `r` or `R`, and both full and compact fixed-`M_tot`
 angular storage. `R` remains the default distributed coordinate.
+
+The Cartesian solver partitions both `r` and `R`, retaining all angular
+channels on every rank. SIL is the production choice for the Hermitian
+field-free ground-state problem. SIA provides an independent general
+exponential-action reference. Neither ground-state solver permits a CAP.
 
 ## Algorithm
 
@@ -43,6 +51,12 @@ not the represented state or convergence criteria.
 The implementation reuses `ImaginaryTimeGroundStateSolver` and
 `integrator-lib`; it does not contain a separate MPI implementation of the
 Lanczos algorithm.
+
+For the Cartesian path, `TwoRadialDistributed2DReductions` integrates only
+permanently owned radial tiles, so FEM-DVR bridge points are counted exactly
+once. Batched SIL/SIA projections use one collective per projection batch.
+The two radial derivative actions independently exchange edge bridge values
+along their Cartesian process-grid directions.
 
 ## Installation and execution
 
@@ -166,8 +180,30 @@ The example:
 - gathers the final state on rank zero;
 - compares its energy and phase-aligned state with a serial SIL calculation.
 
-Set `COMPARE_WITH_SERIAL=False` when the additional serial calculation is not
+Pass `--no-serial-comparison` when the additional serial calculation is not
 desired.
+
+### Run the Cartesian SIL/SIA example
+
+Use a `2 x 2` process grid for a four-rank local correctness run:
+
+```bash
+OMP_NUM_THREADS=1 \
+OPENBLAS_NUM_THREADS=1 \
+MKL_NUM_THREADS=1 \
+mpiexec --mca btl self,sm -n 4 \
+python -u examples/mpi_non_bo_diatomic_2d_ground_state.py \
+    --process-grid 2x2 \
+    --integrator sil \
+    --max-iterations 20
+```
+
+Replace `sil` with `sia` to exercise the Arnoldi reference path. Omitting
+`--process-grid` requests automatic process-grid selection. The example also
+accepts `--system H2+|HD+|D2+`, `--l-max`, `--sample-interval`, and a
+compatible serial archive through `--initial-state`. The optional
+`--no-serial-comparison` flag prevents the final gather and serial reference
+calculation.
 
 ## Interface
 
@@ -205,12 +241,49 @@ state changes, residuals, and Krylov diagnostics are global quantities and are
 the same on every rank. Use `gather_two_radial_state` when a serial global
 array is needed on one rank.
 
+The corresponding Cartesian interface is:
+
+```python
+from grid_tdse.spherical.two_radial import (
+    TwoRadialDistributed2DGroundStateSolver,
+    TwoRadialDistributed2DLayout,
+    scatter_two_radial_2d_state,
+)
+
+layout = TwoRadialDistributed2DLayout(
+    representation,
+    comm.size,
+    process_grid=(2, 2),
+)
+local_state = scatter_two_radial_2d_state(
+    layout,
+    comm,
+    initial_state if comm.rank == 0 else None,
+)
+solver = TwoRadialDistributed2DGroundStateSolver(
+    layout,
+    comm,
+    integrator="sil",
+    time_step=0.25,
+    max_iterations=2000,
+    observable_evaluator=observable_evaluator,
+    sample_interval=10,
+)
+result = solver.solve(local_state)
+```
+
+Use `load_distributed_two_radial_2d_state` to initialize collectively from a
+compatible serial archive. Observable sampling performs distributed local
+contributions and collective reductions; it does not gather the wavefunction.
+Only the root rank writes the optional progress logfile.
+
 ## Local validation
 
 The test suite uses a thread-based communicator to execute the actual
 neighbor exchange and collective-reduction paths without requiring a local
-MPI installation. One-, two-, and three-rank results are compared with serial
-Lanczos imaginary-time propagation. The checks cover:
+MPI installation. One-dimensional one-, two-, and three-rank results and
+Cartesian `(1,1)`, `(1,2)`, `(2,1)`, and `(2,2)` results are compared with
+serial imaginary-time propagation. The checks cover:
 
 - assembled state coefficients;
 - energy histories;
@@ -219,15 +292,20 @@ Lanczos imaginary-time propagation. The checks cover:
 - eigenstate residuals;
 - Krylov dimensions;
 - batched Krylov reduction counts and reduced-value counts;
-- convergence from a represented eigenstate.
+- convergence from a represented eigenstate;
+- SIL and SIA equivalence to their corresponding serial iterations;
+- H2+, HD+, and D2+ one-step equivalence; and
+- distributed observable sampling and root-only logging.
 
-Actual MPI deployment and correctness validation on Saga are a separate next
-step. Performance conclusions must not be drawn from the thread-based tests or
-the small local MPI validation.
+Four-rank local MPI smoke tests exercise SIL and SIA on a real `(2,2)` process
+grid. Fully converged correctness and performance validation on Saga remain a
+separate deployment step. Performance conclusions must not be drawn from the
+thread-based tests or the small local MPI validation.
 
 ## Current scope
 
-The distributed ground-state driver supports SIL for the Hermitian field-free
-Hamiltonian. It does not support Crank--Nicolson, SIA, CAPs, masks,
-time-dependent fields, or distributed checkpoint histories. Distributed
-real-time SIL and SIA are subsequent implementation steps.
+The one-coordinate driver supports SIL. The Cartesian driver supports SIL and
+SIA for the Hermitian field-free Hamiltonian. Ground-state CAPs are not
+supported. Crank--Nicolson, time-dependent fields, distributed real-time
+propagation, and scalable distributed checkpoint histories remain subsequent
+implementation phases.
