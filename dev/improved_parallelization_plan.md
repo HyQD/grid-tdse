@@ -139,8 +139,9 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 7. Phase 8, distributed SIL/SIA
-real-time dynamics, is the next active implementation phase.
+The non-BO roadmap is complete through Phase 7. Phase 8 is an intermediate
+ground-state stress and continuation study before distributed SIL/SIA
+real-time dynamics begins in Phase 9.
 
 ## Saga findings to date
 
@@ -586,7 +587,43 @@ Ground-state calculations must not use a CAP.
 energies and states on multiple 2D process grids, and a two-node correctness
 run reproduces the single-node and serial H2+ result.
 
-### Phase 8: complete distributed SIL/SIA dynamics
+### Phase 8: stress-test and archive production ground states
+
+Before using archived states as the starting point for dynamics, establish how
+far the completed Cartesian ground-state solver can be taken in angular and
+electronic-grid resolution.
+
+1. Run continuation chains `l_max = 0, 2, 4, 6, 8, 10` for H2+, HD+, and D2+.
+2. Embed each converged state into the next angular basis instead of restarting
+   from the low-quality analytic product state.
+3. Use the established `r = [0, 4, 8, 12, 16]` and
+   `R = [0, 2, 4, 6, 8]` element boundaries, 21 internuclear points per
+   element, and first 11 and then 21 electronic points per element.
+4. Complete the 11-point chains first. Initially stop the more expensive
+   21-point chains at `l_max=6`, extending them to 8 and 10 only when measured
+   wall time and memory are acceptable.
+5. Use SIL, `M_tot=0`, positive inversion parity, and positive pair-exchange
+   parity with adapted bases for H2+/D2+. For HD+, retain positive inversion
+   parity without pair-exchange adaptation. These correspond to the legacy
+   `sp` and `s` sectors, respectively.
+6. Submit each cutoff as a separate Slurm job with an `afterok` dependency on
+   its parent. A failed, timed-out, or unconverged parent must block all higher
+   cutoffs.
+7. Save only converged, self-describing states and retain their parent-state
+   identifiers, solver tolerances, process grid, provenance, logs, and Slurm
+   accounting.
+8. Record total coefficients, per-rank memory, iterations, time to solution,
+   Hamiltonian components, halo exchange, reductions, and final observables.
+9. Keep large production states in a versioned external data archive with
+   checksums and a repository manifest. Commit only small states that have a
+   concrete testing or example use.
+
+**Completion gate:** the useful cutoff for both electronic grids is documented
+for all three isotopologues, every retained state satisfies the convergence
+criteria and symmetry diagnostics, and at least one practical dynamics
+starting state has a reproducible archive and provenance record.
+
+### Phase 9: complete distributed SIL/SIA dynamics
 
 1. Add the z-polarized length- and velocity-gauge field actions to the
    distributed Hamiltonian.
@@ -626,7 +663,7 @@ Validation should include:
 archived ground state, propagated and checkpointed with SIL or SIA, restarted,
 and reproduced by the serial implementation within specified tolerances.
 
-### Phase 9: implement scalable distributed state I/O
+### Phase 10: implement scalable distributed state I/O
 
 1. Remove the requirement to gather production-scale states to rank zero.
 2. Evaluate MPI-enabled HDF5 hyperslab storage against rank-local shards with a
@@ -639,7 +676,7 @@ and reproduced by the serial implementation within specified tolerances.
 without constructing the full state on one rank, including redistribution to a
 different rank count.
 
-### Phase 10: benchmark the complete SIL/SIA path on Saga
+### Phase 11: benchmark the complete SIL/SIA path on Saga
 
 Perform controlled studies in this order:
 
@@ -665,7 +702,7 @@ convergence from a fixed-iteration performance pilot.
 problem size, the onset of communication saturation, and a recommended Saga
 job configuration for production non-BO dynamics.
 
-### Phase 11: deploy and benchmark the SIL/SIA path on Olivia and Betzy
+### Phase 12: deploy and benchmark the SIL/SIA path on Olivia and Betzy
 
 Treat cluster deployment as a separate portability phase. The Python solver,
 distributed layouts, Hamiltonian, and integrators must remain shared; only the
@@ -732,7 +769,7 @@ ranges and recommended production configurations on all three clusters. Any
 machine that is no longer generally available should retain a documented
 validation record without blocking subsequent development.
 
-### Phase 12: add distributed Crank--Nicolson
+### Phase 13: add distributed Crank--Nicolson
 
 Distributed CN follows, rather than blocks, the production SIL/SIA path.
 
