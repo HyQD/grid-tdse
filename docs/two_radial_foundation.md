@@ -176,6 +176,44 @@ pairs is $(l_{\max}+1)^2+l_{\max}(l_{\max}+1)(2l_{\max}+1)/3$. At
 blocks. Symmetry-adapted coordinate bases have different counts because some
 $l$ values have already been removed.
 
+### Estimating wavefunction storage
+
+`get_size_NBO_Psi` reports the permanent size of one real field-free state,
+one complex z-polarized time-dependent state, and unrestricted real and
+complex reference states. It accepts either existing `FEMDVRGridSpec`
+objects or `(nodes, points_per_element)` tuples without constructing the DVR
+operators:
+
+```python
+from grid_tdse.spherical.two_radial import FEMDVRGridSpec, get_size_NBO_Psi
+
+r_grid = FEMDVRGridSpec([0, 4, 8, 12, 16], [11] * 4)
+R_grid = ([0, 2, 4, 6, 8], 21)
+
+sizes = get_size_NBO_Psi(
+    "H2+",
+    r_grid,
+    R_grid,
+    l_max=2,
+    m_max=2,
+    M_tot=0,
+    inversion_parity=1,
+    pair_exchange_parity=1,
+    symmetry_adapted_basis=True,
+)
+print(sizes)
+```
+
+The executable
+[`examples/non_bo_diatomic_wavefunction_size.py`](../examples/non_bo_diatomic_wavefunction_size.py)
+provides command-line options for the system, angular cutoffs, symmetry
+sector, and compact or Cartesian angular storage.
+
+The unrestricted references set `M_tot=None` and disable all angular-parity
+reductions. Reported GB values are decimal, while GiB values are binary. The
+estimate covers only one wavefunction array; Krylov bases, work arrays,
+Hamiltonian data, MPI halos, and other runtime allocations are excluded.
+
 ## Coulomb action
 
 The setup evaluates scalar Gaunt coefficients and stores only nonzero angular
