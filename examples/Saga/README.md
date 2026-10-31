@@ -4,6 +4,10 @@ These scripts provide starting points for serial and MPI `grid-tdse` jobs on
 Saga. They use the project-local Conda layout documented in
 [`docs/saga_setup.md`](../../docs/saga_setup.md).
 
+For dependent, converged `l_max = 0 -> 2 -> ...` non-BO ground-state chains,
+including the 11- and 21-point electronic-grid stress tests, use the dedicated
+[`ground_state_chains` workflow](ground_state_chains/README.md).
+
 Before submitting them:
 
 1. Replace `<project-id>` and `<username>` in each job script.
