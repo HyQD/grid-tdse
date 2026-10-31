@@ -2,14 +2,15 @@
 
 ## Scope
 
-This report archives Saga validation and scaling results for Phases 1--6 of
+This report archives Saga validation and scaling results for Phases 1--7 of
 the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
 Phases 1--3 cover the one-dimensional decomposition and its coordinate
 selection. Phase 4 validates two-dimensional process-grid topology and state
 collectives, Phase 5 validates the distributed two-dimensional Hamiltonian,
-and Phase 6 compares serial, threaded, pure-MPI, and hybrid Hamiltonian
-execution at fixed allocated core counts.
+Phase 6 compares serial, threaded, pure-MPI, and hybrid Hamiltonian execution
+at fixed allocated core counts, and Phase 7 validates complete Cartesian SIL
+and SIA ground-state propagation.
 
 The Phase 1 and Phase 2 layout retains every angular channel and the complete
 electronic coordinate `r` on each rank. Contiguous FEM-DVR elements of the
@@ -449,6 +450,86 @@ constraint.
 
 These results satisfy the Phase 6 Hamiltonian-level completion gate.
 
+## Phase 7 Cartesian SIL/SIA ground-state propagation
+
+Phase 7 connected the Cartesian state layout and Hamiltonian to normalized
+SIL and SIA imaginary-time propagation, batched physical reductions, and
+distributed observable sampling. The Saga validation used grid-tdse commit
+`ab8bc5c49db3bfe096b10137d89f4ce17ec498c2`, grid-lib commit
+`8950c3ae01425488a6d78ba054a3b394dd851727`, integrator-lib commit
+`04a161fbaa42955c68e374b391bcd76d77aa8edc`, Python 3.14.9, mpi4py 4.1.2,
+and `OpenMPI/5.0.10-GCC-15.2.0`. Each rank used one CPU core and one numerical
+thread. The full calculations used the radial grids and angular-cutoff
+relations documented above with `l_max=2`.
+
+Four-rank `(2,2)` smoke tests first advanced the `l_max=0` H2+ state for 20
+steps. SIL and SIA both reached `-0.267367161696` Eh with unit norm, state
+change `1.802e-02`, and residual `3.441e-02`. Their distributed energies
+agreed with their serial references within `2.220e-16` Eh, and their
+phase-aligned states agreed within `2.423e-12`. These fixed-step smoke values
+are correctness checks, not converged ground-state results.
+
+The converged SIL results were:
+
+| system | process grid | ranks | iterations | energy (Eh) | solve time | serial state difference |
+|:---|:---:|---:|---:|---:|---:|---:|
+| H2+ | `1x2` | 2 | 2938 | -0.577283887513 | 182.588 s | 6.884e-12 |
+| H2+ | `2x1` | 2 | 2938 | -0.577283887513 | 175.976 s | 5.571e-12 |
+| H2+ | `2x2` | 4 | 2938 | -0.577283887513 | 117.252 s | 1.037e-11 |
+| HD+ | `1x2` | 2 | 2715 | -0.571643021288 | 251.454 s | 1.264e-11 |
+| HD+ | `2x1` | 2 | 2715 | -0.571643021288 | 236.261 s | 9.201e-12 |
+| HD+ | `2x2` | 4 | 2715 | -0.571643021288 | 142.630 s | 6.632e-12 |
+| D2+ | `1x2` | 2 | 3443 | -0.579201162618 | 190.402 s | 6.655e-12 |
+| D2+ | `2x1` | 2 | 3443 | -0.579201162618 | 188.258 s | 8.856e-12 |
+| D2+ | `2x2` | 4 | 3443 | -0.579201162618 | 122.364 s | 7.817e-12 |
+
+Every run converged with unit norm and an eigenstate residual below
+`9.987e-09`. Process-grid orientation did not change the energy or iteration
+count. Serial energy differences were at most `2.220e-16` Eh. The `(2,2)`
+layout was fastest for all three ions, while `(2,1)` was only modestly faster
+than `(1,2)`.
+
+The converged four-rank H2+ SIA reference reproduced the SIL energy and
+iteration count. Its distributed solve took `168.942` seconds, compared with
+`117.252` seconds for SIL on the same process grid. SIA reduced 639900 scalar
+values in 171312 collectives, while SIL reduced 407120 values in 171752
+collectives. The larger Arnoldi projection batches account for part of the
+additional SIA cost and support retaining SIL as the production Hermitian
+ground-state method.
+
+A four-rank one-dimensional `R`-partitioned SIL baseline took `112.761`
+seconds and agreed with serial to `6.373e-12` in the state. The Cartesian
+`(2,2)` result took approximately 4% longer in this single comparison and
+spent `13.907` rather than `8.889` seconds in collective reductions. This is a
+modest low-rank overhead; the two-dimensional layout removes the four-rank
+limit of the one-coordinate decomposition. These are single timing samples,
+not a repeated performance ranking.
+
+Distributed interval sampling preserved the requested symmetry sector. H2+
+and D2+ ended with `<I>=1` and `<P>=1`; HD+ ended with `<I>=1` and correctly
+reported `<P>` as unavailable. All three field-free states had zero total
+angular momentum projection, zero vector dipoles, `<cos(theta_R)>=0`, and
+`<cos^2(theta_R)>=1/3`. The final radial and angular expectations were:
+
+| system | `<r>` | `<R>` | `<l_r^2>` | `<l_R^2>` |
+|:---|---:|---:|---:|---:|
+| H2+ | 1.382695358159 | 1.912485692182 | 0.184928443907 | 0.184928443907 |
+| HD+ | 1.406939370008 | 1.949478261595 | 0.189809210382 | 0.189809210382 |
+| D2+ | 1.373808073659 | 1.889882474318 | 0.179817078672 | 0.179817078672 |
+
+Finally, a four-rank H2+ `(2,2)` calculation placed two ranks on each of Saga
+nodes `c1-30` and `c1-31`. It converged in 2938 iterations to the same energy,
+unit norm, and `9.953e-09` residual as the single-node calculations. Its
+serial energy and state differences were `2.220e-16` Eh and `1.037e-11`.
+This establishes MPI correctness across a network boundary. Its `104.146`
+second solve time is retained as a correctness measurement and is not treated
+as evidence of multi-node acceleration without repetitions.
+
+These results satisfy the Phase 7 completion gate: H2+, HD+, and D2+ converge
+to their serial references on multiple Cartesian process grids, SIL and SIA
+agree for H2+, distributed observables and logging are operational, and a
+multi-node correctness calculation passes.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -465,4 +546,8 @@ The Phase 6 execution-model summary is in
 [`data/saga_non_bo_diatomic_hamiltonian_phase6.csv`](data/saga_non_bo_diatomic_hamiltonian_phase6.csv),
 with its compact runtime and problem provenance in
 [`data/saga_non_bo_diatomic_hamiltonian_phase6_provenance.json`](data/saga_non_bo_diatomic_hamiltonian_phase6_provenance.json).
+The Phase 7 Cartesian ground-state records are in
+[`data/saga_non_bo_diatomic_mpi_phase7.csv`](data/saga_non_bo_diatomic_mpi_phase7.csv),
+with runtime, problem, and raw-archive provenance in
+[`data/saga_non_bo_diatomic_mpi_phase7_provenance.json`](data/saga_non_bo_diatomic_mpi_phase7_provenance.json).
 Raw Slurm output is intentionally not tracked.

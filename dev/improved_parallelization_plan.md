@@ -126,8 +126,6 @@ The following foundations are complete:
 
 The following limitations remain:
 
-- the two-dimensional ground-state path has not yet been validated on Saga
-  through full convergence against serial H2+, HD+, and D2+ references;
 - the two-dimensional process-grid dimensions remain bounded by the available
   FEM-DVR elements in their respective radial directions;
 - rank-local Coulomb data and the principal one-dimensional work arrays are
@@ -141,9 +139,8 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 6. Phase 7 has a locally
-validated implementation and now requires Saga deployment, fully converged
-ion references, and a multi-node correctness run.
+The non-BO roadmap is complete through Phase 7. Phase 8, distributed SIL/SIA
+real-time dynamics, is the next active implementation phase.
 
 ## Saga findings to date
 
@@ -181,6 +178,15 @@ For an earlier validation grid, the distributed H2+ calculation converged in
 Saga HD+ sanity checks converged to `-0.566541180708` Eh with energy differences
 at machine precision and phase-aligned state differences below approximately
 `1.2e-11`.
+
+The Cartesian Saga ground-state validation converged H2+, HD+, and D2+ with
+`(1,2)`, `(2,1)`, and `(2,2)` process grids. Every calculation retained unit
+norm, matched the serial energy within `2.220e-16` Eh, and matched the
+phase-aligned serial state within `1.264e-11`. A converged H2+ SIA reference
+reproduced the SIL result. A two-node `(2,2)` H2+ calculation on `c1-30` and
+`c1-31` also reproduced the serial state, completing the multi-node
+correctness gate. The archived measurements are documented in
+[`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
 ### Angular strong scaling
 
@@ -318,8 +324,8 @@ The non-BO path must be completed before atomic parallel development begins.
 | 4 | implement the two-dimensional state layout | complete |
 | 5 | implement the two-dimensional Hamiltonian | complete |
 | 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
-| 7 | complete distributed SIL/SIA ground-state propagation | in progress |
-| 8 | complete distributed SIL/SIA dynamics | pending |
+| 7 | complete distributed SIL/SIA ground-state propagation | complete |
+| 8 | complete distributed SIL/SIA dynamics | next |
 | 9 | implement scalable distributed state I/O | pending |
 | 10 | benchmark the complete SIL/SIA path on Saga | pending |
 | 11 | deploy and benchmark on Olivia and Betzy | pending |
@@ -533,7 +539,8 @@ documented for subsequent SIL/SIA development.
 
 ### Phase 7: complete distributed SIL/SIA ground-state propagation
 
-**Status:** local implementation complete; Saga validation pending.
+**Status:** complete. The local implementation and Saga deployment are
+validated.
 `TwoRadialDistributed2DGroundStateSolver` connects the Cartesian state and
 Hamiltonian to SIL or SIA using quadrature-weighted batched reductions.
 Generated states and compatible serial archives are supported. Distributed
@@ -545,6 +552,17 @@ D2+ one-step equivalence. Real four-rank local MPI smoke tests passed for SIL
 and SIA on `(2,2)`; the SIL gathered state agreed with serial to
 `3.520e-16` and its energy to `5.551e-17` Eh after one step. These are local
 correctness measurements, not converged physical results.
+
+Saga then converged H2+, HD+, and D2+ with SIL on `(1,2)`, `(2,1)`, and
+`(2,2)` process grids. All layouts reproduced the serial energies within
+`2.220e-16` Eh and phase-aligned states within `1.264e-11`. A converged H2+
+SIA calculation reproduced the SIL result, and distributed sampling retained
+the requested inversion and pair-exchange sectors. A four-rank `(2,2)` H2+
+calculation spanning nodes `c1-30` and `c1-31` converged to the same state.
+The one-dimensional four-rank baseline took `112.761` seconds and the
+Cartesian `(2,2)` SIL calculation took `117.252` seconds, showing modest 2D
+overhead at this low rank count while removing the one-coordinate four-rank
+limit. Full records and provenance are archived in the Saga benchmark report.
 
 1. Connect the two-dimensional distributed state, Hamiltonian, physical inner
    products, and batched Krylov projections to SIL and SIA callbacks.
@@ -564,9 +582,9 @@ correctness measurements, not converged physical results.
 
 Ground-state calculations must not use a CAP.
 
-**Completion gate:** H2+, HD+, and D2+ converge to serial-reference energies
-and states on multiple 2D process grids, including at least one multi-node
-correctness run after single-node scaling is established.
+**Completion gate:** satisfied. H2+, HD+, and D2+ converge to serial-reference
+energies and states on multiple 2D process grids, and a two-node correctness
+run reproduces the single-node and serial H2+ result.
 
 ### Phase 8: complete distributed SIL/SIA dynamics
 
