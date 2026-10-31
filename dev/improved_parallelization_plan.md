@@ -113,6 +113,10 @@ The following foundations are complete:
   weak-form exchanges;
 - local and Saga agreement between two-dimensional and serial Hamiltonian
   actions for H2+, HD+, and D2+;
+- two-dimensional distributed SIL and SIA imaginary-time propagation with
+  batched physical reductions and distributed observable sampling;
+- local thread-emulated and real-MPI agreement between Cartesian and serial
+  SIL/SIA iterations;
 - a fixed-core Saga comparison of serial, shared-memory, pure-MPI, and hybrid
   Hamiltonian execution;
 - serial and one-dimensional distributed ground-state sampling, including
@@ -122,10 +126,8 @@ The following foundations are complete:
 
 The following limitations remain:
 
-- SIL and SIA ground-state propagation have not yet been connected to the
-  two-dimensional state layout and Hamiltonian;
-- the two-dimensional ground-state path has not yet been validated through
-  convergence against serial H2+, HD+, and D2+ references;
+- the two-dimensional ground-state path has not yet been validated on Saga
+  through full convergence against serial H2+, HD+, and D2+ references;
 - the two-dimensional process-grid dimensions remain bounded by the available
   FEM-DVR elements in their respective radial directions;
 - rank-local Coulomb data and the principal one-dimensional work arrays are
@@ -139,9 +141,9 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 6. Phase 7, distributed SIL/SIA
-ground-state propagation on the two-dimensional layout, is the next active
-implementation phase.
+The non-BO roadmap is complete through Phase 6. Phase 7 has a locally
+validated implementation and now requires Saga deployment, fully converged
+ion references, and a multi-node correctness run.
 
 ## Saga findings to date
 
@@ -316,7 +318,7 @@ The non-BO path must be completed before atomic parallel development begins.
 | 4 | implement the two-dimensional state layout | complete |
 | 5 | implement the two-dimensional Hamiltonian | complete |
 | 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
-| 7 | complete distributed SIL/SIA ground-state propagation | next |
+| 7 | complete distributed SIL/SIA ground-state propagation | in progress |
 | 8 | complete distributed SIL/SIA dynamics | pending |
 | 9 | implement scalable distributed state I/O | pending |
 | 10 | benchmark the complete SIL/SIA path on Saga | pending |
@@ -531,9 +533,18 @@ documented for subsequent SIL/SIA development.
 
 ### Phase 7: complete distributed SIL/SIA ground-state propagation
 
-**Status:** next implementation phase. The two-dimensional state layout,
-Hamiltonian, reductions, and pure-MPI execution recommendation are available;
-the complete imaginary-time solver has not yet been connected to them.
+**Status:** local implementation complete; Saga validation pending.
+`TwoRadialDistributed2DGroundStateSolver` connects the Cartesian state and
+Hamiltonian to SIL or SIA using quadrature-weighted batched reductions.
+Generated states and compatible serial archives are supported. Distributed
+sampling evaluates expectation values, dipoles, symmetry diagnostics, and
+timings without gathering the state; only the root rank prints and writes the
+optional logfile. Thread-emulated tests cover `(1,1)`, `(1,2)`, `(2,1)`, and
+`(2,2)` layouts, SIL/SIA agreement with serial iterations, and H2+, HD+, and
+D2+ one-step equivalence. Real four-rank local MPI smoke tests passed for SIL
+and SIA on `(2,2)`; the SIL gathered state agreed with serial to
+`3.520e-16` and its energy to `5.551e-17` Eh after one step. These are local
+correctness measurements, not converged physical results.
 
 1. Connect the two-dimensional distributed state, Hamiltonian, physical inner
    products, and batched Krylov projections to SIL and SIA callbacks.
