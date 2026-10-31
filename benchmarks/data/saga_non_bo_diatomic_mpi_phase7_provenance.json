@@ -1,0 +1,56 @@
+{
+  "schema": "grid-tdse-saga-phase7-archive-v1",
+  "date": "2026-10-31T11:26:28+01:00",
+  "grid_tdse_commit": "ab8bc5c49db3bfe096b10137d89f4ce17ec498c2",
+  "grid_lib_commit": "8950c3ae01425488a6d78ba054a3b394dd851727",
+  "integrator_lib_commit": "04a161fbaa42955c68e374b391bcd76d77aa8edc",
+  "raw_archive": "phase7-20261031-112519",
+  "raw_archive_policy": "Per-job Slurm output and interval logfiles remain outside Git in the Saga results archive.",
+  "runtime": {
+    "python": "3.14.9",
+    "python_path": "/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python",
+    "mpi4py": "4.1.2",
+    "mpi_module": "OpenMPI/5.0.10-GCC-15.2.0",
+    "mpi_library": "Open MPI v5.0.10, revision v5.0.10, built 2026-02-23",
+    "launcher": "srun --mpi=pmix",
+    "cpu_binding": "cores",
+    "cpus_per_rank": 1,
+    "numerical_threads_per_rank": 1
+  },
+  "problem": {
+    "M_tot": 0,
+    "electronic_element_bounds": [0, 4, 8, 12, 16],
+    "electronic_points_per_element": 11,
+    "internuclear_element_bounds": [0, 2, 4, 6, 8],
+    "internuclear_points_per_element": 21,
+    "angular_cutoffs": "m_max=l_max; lambda_max=mu_max=2*l_max",
+    "coulomb_method": "poisson",
+    "radial_operator_mode": "element-local",
+    "time_step": 0.5,
+    "maximum_iterations": 4000,
+    "energy_tolerance": 1e-10,
+    "state_tolerance": 1e-8,
+    "residual_tolerance": 1e-8,
+    "maximum_krylov_dimension": 20,
+    "krylov_rtol": 1e-10,
+    "krylov_atol": 0.0,
+    "maximum_krylov_refinements": 8
+  },
+  "series": {
+    "jobs": 14,
+    "smoke_jobs": 2,
+    "converged_cartesian_sil_jobs": 9,
+    "converged_cartesian_sia_jobs": 1,
+    "one_dimensional_baseline_jobs": 1,
+    "multi_node_jobs": 1,
+    "systems": ["H2+", "HD+", "D2+"],
+    "cartesian_process_grids": ["1x2", "2x1", "2x2"],
+    "multi_node_placement": ["c1-30", "c1-31"]
+  },
+  "completion": {
+    "all_full_jobs_converged": true,
+    "maximum_serial_energy_difference": 5.551e-16,
+    "maximum_serial_state_difference": 1.264e-11,
+    "multi_node_correctness_passed": true
+  }
+}
