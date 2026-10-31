@@ -93,6 +93,11 @@ from .state_archive import (
     save_two_radial_state,
     two_radial_compatibility_metadata,
 )
+from .storage import (
+    NBOWavefunctionSizeReport,
+    WavefunctionStorageSize,
+    get_size_NBO_Psi,
+)
 from .system import (
     AngularRadialPotential,
     CoordinateSpec,
@@ -135,6 +140,7 @@ __all__ = [
     "DistributedTwoRadial2DState",
     "DistributedTwoRadialState",
     "FEMDVRGridSpec",
+    "NBOWavefunctionSizeReport",
     "NonBornOppenheimerDiatomicIonGroundState",
     "NonBornOppenheimerDiatomicIonTDSE",
     "RadialCoulombMultipoles",
@@ -169,11 +175,13 @@ __all__ = [
     "TwoElectronAtomGroundStateResult",
     "TwoElectronAtomParameters",
     "TwoElectronAtomTDSE",
+    "WavefunctionStorageSize",
     "angular_radial_potential",
     "build_coulomb_couplings",
     "build_radial_coulomb_multipoles",
     "build_two_radial_real_time_preconditioner",
     "gather_two_radial_state",
+    "get_size_NBO_Psi",
     "gather_two_radial_2d_state",
     "load_distributed_two_radial_2d_state",
     "load_distributed_two_radial_state",
