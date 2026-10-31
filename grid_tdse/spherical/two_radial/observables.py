@@ -123,6 +123,32 @@ class DiatomicIonObservableEvaluator:
         global_values = reductions.global_sum(local, rank=state.rank)
         return self._normalized(global_values)
 
+    def distributed_2d(self, state, reductions) -> DiatomicIonObservables:
+        """Collectively return observables for a Cartesian MPI state."""
+
+        from .distributed_2d_reductions import (
+            TwoRadialDistributed2DReductions,
+        )
+        from .distributed_2d_state import DistributedTwoRadial2DState
+
+        if not isinstance(state, DistributedTwoRadial2DState):
+            raise TypeError("state must be a DistributedTwoRadial2DState")
+        if state.layout.representation is not self.system:
+            raise ValueError("state uses a different two-radial representation")
+        if not isinstance(reductions, TwoRadialDistributed2DReductions):
+            raise TypeError(
+                "reductions must be TwoRadialDistributed2DReductions"
+            )
+        local = self._local_values(
+            state.coefficients,
+            state.owned_r,
+            state.owned_r_weights,
+            state.owned_R,
+            state.owned_R_weights,
+        )
+        global_values = reductions.global_sum(local, rank=state.rank)
+        return self._normalized(global_values)
+
     def _local_values(self, state, r, w_r, R, w_R) -> np.ndarray:
         values = np.asarray(state)
         r = np.asarray(r)
@@ -440,7 +466,11 @@ def _coordinate_angular_action(system, state, coordinate, matrix):
     result = np.zeros_like(state, dtype=np.result_type(state.dtype, matrix.dtype))
     for input_pair, (i, j) in enumerate(system.angular_pairs.pairs):
         input_channel = i if coordinate == 1 else j
-        block = state[input_pair] if system.uses_compact_angular_storage else state[i, j]
+        block = (
+            state[input_pair]
+            if system.uses_compact_angular_storage
+            else state[i, j]
+        )
         for output_channel in np.flatnonzero(matrix[:, input_channel]):
             if coordinate == 1:
                 output_i, output_j = int(output_channel), j

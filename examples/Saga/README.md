@@ -482,10 +482,58 @@ electronic and internuclear element counts. The archived measurements and
 their timing-variability caveats are in
 [`benchmarks/non_bo_diatomic_mpi_scaling_saga.md`](../../benchmarks/non_bo_diatomic_mpi_scaling_saga.md).
 
+## Validate Cartesian SIL/SIA ground-state propagation
+
+Phase 7 uses the generic `job_mpi.sh` launcher with the Cartesian ground-state
+example. Start with a short four-rank SIL correctness job on one node:
+
+```bash
+sbatch \
+    --job-name=p7_h2p_sil_2x2_smoke \
+    --nodes=1 \
+    --ntasks=4 \
+    --cpus-per-task=1 \
+    --time=00:10:00 \
+    --output=p7_h2p_sil_2x2_smoke-%j.out \
+    job_mpi.sh \
+    examples/mpi_non_bo_diatomic_2d_ground_state.py \
+    --process-grid 2x2 \
+    --integrator sil \
+    --l-max 0 \
+    --max-iterations 20 \
+    --sample-interval 10
+```
+
+Repeat the smoke test with `--integrator sia`. Both runs must agree with their
+serial comparisons in energy and phase-aligned state. The smoke-test energy is
+not a converged ground-state result.
+
+After the smoke tests pass, run fully converged SIL calculations for H2+, HD+,
+and D2+ on the same physical grids and tolerances as the serial references.
+Use the Cartesian process grids `(1,2)`, `(2,1)`, and `(2,2)` on one node
+before attempting a multi-node correctness job. Keep one CPU and one numerical
+thread per rank. Use `--no-serial-comparison` only after the correctness gate
+has been established; it avoids gathering the final state and running the
+serial reference.
+
+Inspect the essential output with:
+
+```bash
+grep --text -H -E \
+    'MPI ranks:|Process grid:|System:|Integrator:|Converged:|Iterations:|Energy:|State change:|Eigenstate residual:|Norm:|Distributed solve time:|Serial energy difference:|Serial state difference:' \
+    p7_*.out
+```
+
+Archive the exact grid, angular cutoffs, integrator options, Git revisions,
+MPI module, node placement, and Slurm accounting alongside the numerical and
+timing results. Do not mark Phase 7 complete until all three ions converge to
+the serial references and at least one multi-node correctness run passes.
+
 ## Notes
 
-- The current internuclear grid has four FEM-DVR elements, so it supports at
-  most four ranks with the element-aligned decomposition.
+- The reference grids have four FEM-DVR elements in each radial direction.
+  The Cartesian decomposition therefore supports up to a `4 x 4` process
+  grid, although useful scaling may saturate before 16 ranks.
 - Keep all validation runs on identical grids, angular truncations, symmetry
   sectors, CODATA data, initial states, timesteps, and tolerances.
 - Use the `devel` quality of service only for short validation jobs. Remove
