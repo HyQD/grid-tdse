@@ -290,6 +290,42 @@ def _midpoint_nodes(half_bond_length, radial_extent, maximum_spacing):
     return tuple(nodes)
 
 
+def _midpoint_reference(
+    system,
+    atomic_radial_extent,
+    radial_spacing,
+    radial_n_points,
+    l_max,
+) -> H2PlusMidpointReference:
+    midpoint_extent = atomic_radial_extent + system.half_bond_length
+    midpoint_nodes = _midpoint_nodes(
+        system.half_bond_length,
+        midpoint_extent,
+        radial_spacing,
+    )
+    midpoint_hamiltonian = OneElectronDiatomicHamiltonian(
+        system,
+        nodes=midpoint_nodes,
+        n_points=[radial_n_points] * (len(midpoint_nodes) - 1),
+        l_max=l_max,
+        m_max=0,
+        nuclear_L_max=2 * l_max,
+        nuclear_method="analytic",
+    )
+    midpoint_solution = diagonalize_fixed_m(
+        midpoint_hamiltonian, m=0, n_states=1
+    )
+    return H2PlusMidpointReference(
+        electronic_energy=midpoint_solution.electronic_energy,
+        total_energy=midpoint_solution.total_energy,
+        radial_nodes=midpoint_nodes,
+        radial_n_points=radial_n_points,
+        l_max=l_max,
+        basis_size=int(np.prod(midpoint_hamiltonian.fixed_m_shape(0))),
+        radial_extent=midpoint_extent,
+    )
+
+
 def validate_h2plus_ground_state(
     *,
     internuclear_distance: float = 2.0,
@@ -398,34 +434,12 @@ def validate_h2plus_ground_state(
         )
     coarse, refined, reference = becke_results
 
-    midpoint_extent = (
-        radial_specification.r_max + system.half_bond_length
-    )
-    midpoint_nodes = _midpoint_nodes(
-        system.half_bond_length,
-        midpoint_extent,
-        midpoint_radial_spacing,
-    )
-    midpoint_hamiltonian = OneElectronDiatomicHamiltonian(
+    midpoint = _midpoint_reference(
         system,
-        nodes=midpoint_nodes,
-        n_points=[midpoint_radial_n_points] * (len(midpoint_nodes) - 1),
-        l_max=midpoint_l_max,
-        m_max=0,
-        nuclear_L_max=2 * midpoint_l_max,
-        nuclear_method="analytic",
-    )
-    midpoint_solution = diagonalize_fixed_m(
-        midpoint_hamiltonian, m=0, n_states=1
-    )
-    midpoint = H2PlusMidpointReference(
-        electronic_energy=midpoint_solution.electronic_energy,
-        total_energy=midpoint_solution.total_energy,
-        radial_nodes=midpoint_nodes,
-        radial_n_points=midpoint_radial_n_points,
-        l_max=midpoint_l_max,
-        basis_size=int(np.prod(midpoint_hamiltonian.fixed_m_shape(0))),
-        radial_extent=midpoint_extent,
+        radial_specification.r_max,
+        midpoint_radial_spacing,
+        midpoint_radial_n_points,
+        midpoint_l_max,
     )
 
     reference_energies = np.asarray(reference.electronic_energies)

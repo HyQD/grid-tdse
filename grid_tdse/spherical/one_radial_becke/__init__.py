@@ -14,6 +14,11 @@ from .basis import (
     fixed_m_channels,
     full_lm_channels,
 )
+from .convergence_validation import (
+    H2PlusConvergencePoint,
+    H2PlusConvergenceStudy,
+    run_h2plus_convergence_study,
+)
 from .geometry import CenterGeometry, classify_centers
 from .ground_state import (
     GeneralizedEigenDiagnostics,
@@ -68,6 +73,8 @@ __all__ = [
     "GeneralizedEigenDiagnostics",
     "GeneralizedEigenResult",
     "H2PlusBeckeResult",
+    "H2PlusConvergencePoint",
+    "H2PlusConvergenceStudy",
     "H2PlusGroundStateValidation",
     "H2PlusMatrices",
     "H2PlusMidpointReference",
@@ -87,6 +94,7 @@ __all__ = [
     "classify_centers",
     "fixed_m_channels",
     "full_lm_channels",
+    "run_h2plus_convergence_study",
     "run_two_center_overlap_study",
     "solve_becke_eigenproblem",
     "solve_generalized_hermitian",
