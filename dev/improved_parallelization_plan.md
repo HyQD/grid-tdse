@@ -158,14 +158,13 @@ The validated Saga environment used:
 - rank-local Numba cache directories;
 - core binding through Slurm.
 
-The Phase 6 fixed-core measurements confirm that increasing
-`--cpus-per-task` does not help the current element-local kernels. Pure MPI was
-fastest at every tested core count for both `l_max=2` and `l_max=4`.
-Additional CPUs per task would be reserved without accelerating the dominant
-serial Numba work. The current default is therefore one physical CPU core and
-one numerical thread per MPI rank. Hybrid MPI/threading should be reconsidered
-only after an explicit threaded local kernel is implemented or when the
-complete SIL/SIA propagation path is benchmarked.
+The Phase 6 fixed-core measurements found pure MPI fastest at every tested
+core count for both `l_max=2` and `l_max=4`. Those runs kept
+`NUMBA_NUM_THREADS=1`; their larger `--cpus-per-task` values therefore tested
+library-thread availability, not threading of the Numba Coulomb kernel. The
+current production default remains one physical CPU core and one numerical
+thread per MPI rank, but an explicit fixed-core Numba-thread study is required
+before ruling out hybrid execution for the high-angular-cutoff Coulomb action.
 
 ### Correctness validation
 
@@ -617,6 +616,34 @@ electronic-grid resolution.
 9. Keep large production states in a versioned external data archive with
    checksums and a repository manifest. Commit only small states that have a
    concrete testing or example use.
+
+#### Phase 8a: characterize the Coulomb-kernel optimization target
+
+The `l_max=6` and `l_max=8` continuation runs show that the Coulomb action
+becomes the dominant Hamiltonian component as the number of angular couplings
+grows. Establish a reproducible kernel baseline before changing its storage or
+loop structure:
+
+1. Time the production compact Coulomb kernel in isolation for real
+   ground-state-like and complex dynamics-like states at `l_max=4,6,8`.
+   Exclude construction, JIT compilation, communication, and correctness
+   checks from the timed interval, but retain an untimed serial comparison.
+2. Sweep the internal tile size on the complex `l_max=8` case. Use repeated
+   medians and, where Saga permits `perf` access, record cycles, instructions,
+   cache references, and cache misses to distinguish arithmetic work from
+   memory/cache limitations.
+3. At a fixed allocation of 16 physical cores, compare 16 ranks x 1 Numba
+   thread, 8 x 2, and 4 x 4 for both real and complex states. Keep BLAS at one
+   thread and bind each rank to its allocated cores so this measures Numba
+   threading rather than oversubscription.
+4. Archive the raw JSON records, job manifest, provenance, Slurm accounting,
+   summaries, and optional counter files before implementing an optimized
+   kernel.
+
+**Phase 8a gate:** a stable tile size and execution configuration are selected,
+all configurations agree with the serial Coulomb action, and the measurements
+are sufficient to define a performance regression benchmark for subsequent
+kernel work.
 
 **Completion gate:** the useful cutoff for both electronic grids is documented
 for all three isotopologues, every retained state satisfies the convergence
