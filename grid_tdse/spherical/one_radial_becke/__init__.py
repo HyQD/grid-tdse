@@ -25,6 +25,12 @@ from .metric import CanonicalOrthogonalization, canonical_orthogonalization
 from .partition import BeckePartition, BeckePartitionEvaluation
 from .quadrature import BeckeMulticenterQuadrature, BeckeQuadratureShell
 from .specification import FEMDVRQuadratureSpec
+from .validation import (
+    MatrixRelativeErrors,
+    MidpointL0Validation,
+    MidpointMatrixSet,
+    validate_midpoint_l0,
+)
 
 __all__ = [
     "BeckeAssemblyDiagnostics",
@@ -43,6 +49,9 @@ __all__ = [
     "GeneralizedEigenDiagnostics",
     "GeneralizedEigenResult",
     "MatrixAssemblyDiagnostics",
+    "MatrixRelativeErrors",
+    "MidpointL0Validation",
+    "MidpointMatrixSet",
     "assemble_becke_matrices",
     "canonical_orthogonalization",
     "classify_centers",
@@ -50,4 +59,5 @@ __all__ = [
     "full_lm_channels",
     "solve_becke_eigenproblem",
     "solve_generalized_hermitian",
+    "validate_midpoint_l0",
 ]
