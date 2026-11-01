@@ -9,7 +9,10 @@ import sys
 from time import perf_counter
 from typing import Callable, TextIO
 
-from grid_tdse.ground_state import GroundStateIteration
+from grid_tdse.ground_state import (
+    GroundStateEigenIteration,
+    GroundStateIteration,
+)
 
 from .observables import DiatomicIonObservables
 
@@ -24,7 +27,7 @@ class DiatomicIonGroundStateSample:
     is their sum.
     """
 
-    diagnostics: GroundStateIteration
+    diagnostics: GroundStateIteration | GroundStateEigenIteration
     observables: DiatomicIonObservables
     observable_wall_time: float
     logging_wall_time: float = 0.0
@@ -35,8 +38,10 @@ class DiatomicIonGroundStateSample:
         return self.diagnostics.iteration
 
     @property
-    def imaginary_time(self) -> float:
-        return self.diagnostics.imaginary_time
+    def imaginary_time(self) -> float | None:
+        if isinstance(self.diagnostics, GroundStateIteration):
+            return self.diagnostics.imaginary_time
+        return None
 
 
 class DiatomicIonGroundStateReporter:
@@ -98,7 +103,7 @@ class DiatomicIonGroundStateReporter:
     def observe(
         self,
         state,
-        diagnostics: GroundStateIteration,
+        diagnostics: GroundStateIteration | GroundStateEigenIteration,
     ) -> None:
         """Evaluate, print, write, and retain one sampled state."""
 
@@ -107,7 +112,10 @@ class DiatomicIonGroundStateReporter:
         local_observable_time = perf_counter() - observable_started
         observable_time = self.reduce_max(local_observable_time)
         step_time = self.reduce_max(diagnostics.step_wall_time)
-        diagnostics = replace(diagnostics, step_wall_time=step_time)
+        if isinstance(diagnostics, GroundStateEigenIteration):
+            diagnostics = replace(diagnostics, wall_time=step_time)
+        else:
+            diagnostics = replace(diagnostics, step_wall_time=step_time)
         sample = DiatomicIonGroundStateSample(
             diagnostics=diagnostics,
             observables=observables,
@@ -172,16 +180,26 @@ def format_diatomic_ground_state_sample(
         if values.pair_exchange is None
         else f"{values.pair_exchange:.12f}"
     )
+    if isinstance(record, GroundStateEigenIteration):
+        heading = (
+            f"Direct eigensolver sample {record.iteration} "
+            f"(subspace={record.subspace_dimension}):"
+        )
+    else:
+        heading = (
+            f"ITP sample {record.iteration} "
+            f"(tau={record.imaginary_time:.8f}):"
+        )
     return "\n".join(
         (
-            f"ITP sample {record.iteration} (tau={record.imaginary_time:.8f}):",
+            heading,
             f"E = {record.energy:.12f} Eh  |dE| = {record.energy_change:.3e} Eh",
             (
                 f"dPsi = {record.state_change:.3e}  "
                 f"residual = {record.residual_norm:.3e}  "
                 f"norm = {record.norm:.12f}"
             ),
-            f"IT step time = {record.step_wall_time:.6f} s",
+            f"Solver iteration time = {record.step_wall_time:.6f} s",
             f"<I> = {values.inversion:.12f}  <P> = {exchange}",
             f"<r> = {values.r:.12f}  <R> = {values.R:.12f}",
             (
@@ -228,7 +246,11 @@ def ground_state_sample_metadata(samples) -> dict:
     for sample in samples:
         record = sample.diagnostics
         columns["iteration"].append(record.iteration)
-        columns["imaginary_time"].append(record.imaginary_time)
+        columns["imaginary_time"].append(
+            record.imaginary_time
+            if isinstance(record, GroundStateIteration)
+            else None
+        )
         columns["energy"].append(record.energy)
         columns["energy_change"].append(record.energy_change)
         columns["state_change"].append(record.state_change)

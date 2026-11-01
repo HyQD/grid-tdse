@@ -1,6 +1,7 @@
-"""Non-Born--Oppenheimer H2+ ground state by imaginary-time propagation."""
+"""Serial non-Born--Oppenheimer diatomic-ion ground state."""
 
 from pathlib import Path
+from time import perf_counter
 
 from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
@@ -14,8 +15,14 @@ INITIAL_STATE = "product"
 STATE_TOLERANCE = 1.0e-8
 RADIAL_COULOMB_METHOD = "poisson"
 RADIAL_OPERATOR_MODE = "element-local"
+GROUND_STATE_SOLVER = "itp"  # Choose "itp", "lanczos", or "davidson".
 INTEGRATOR = "crank-nicolson"  # Choose "crank-nicolson", "sil", or "sia".
-USE_PRECONDITIONER = INTEGRATOR == "crank-nicolson"
+USE_PRECONDITIONER = (
+    GROUND_STATE_SOLVER == "itp" and INTEGRATOR == "crank-nicolson"
+)
+MAXIMUM_SUBSPACE_DIMENSION = 30
+RETAINED_RITZ_VECTORS = 4
+DAVIDSON_PRECONDITIONER = "one-body-spectral"
 
 # The electron coordinate is measured from the nuclear center of mass.
 electronic_grid = FEMDVRGridSpec(
@@ -48,10 +55,14 @@ grid_label = (
 extent_label = (
     f"{electronic_grid.nodes[-1]:g}-{internuclear_grid.nodes[-1]:g}"
 )
-initial_state_label = "prod" if INITIAL_STATE == "product" else INITIAL_STATE
+initial_state_label = (
+    "prod"
+    if INITIAL_STATE == "product"
+    else Path(INITIAL_STATE).stem
+)
 GROUND_STATE_PATH = Path(__file__).resolve().parent / "ground_states" / (
     f"{system_label}__{symmetry_label}_{grid_label}_{extent_label}_{l_max}__"
-    f"{initial_state_label}_{STATE_TOLERANCE:.0e}.npz"
+    f"{initial_state_label}_{GROUND_STATE_SOLVER}_{STATE_TOLERANCE:.0e}.npz"
 )
 GROUND_STATE_OVERWRITE = False
 SAMPLE_INTERVAL = 10
@@ -77,8 +88,11 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     radial_operator_mode=RADIAL_OPERATOR_MODE,
     # Reproducible particle masses and deterministic product-state guess.
     codata_set="2022",
+    # A compatible lower-l_max archive path can replace "product" here; it
+    # is validated and embedded into this representation automatically.
     initial_state=INITIAL_STATE,
-    # Representation-independent imaginary-time iteration.
+    solver=GROUND_STATE_SOLVER,
+    # Representation-independent imaginary-time iteration options.
     time_step=0.25,
     max_iterations=15000,
     energy_tolerance=1.0e-10,
@@ -98,6 +112,19 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     max_krylov_refinements=8,
     krylov_reorthogonalize=True,
     krylov_breakdown_tolerance=1.0e-14,
+    # Thick-restarted Lanczos and Davidson options.
+    maximum_subspace_dimension=MAXIMUM_SUBSPACE_DIMENSION,
+    retained_ritz_vectors=RETAINED_RITZ_VECTORS,
+    eigensolver_breakdown_tolerance=1.0e-14,
+    eigensolver_reorthogonalization="always",
+    eigensolver_reorthogonalization_threshold=0.5,
+    eigensolver_hermiticity_tolerance=1.0e-10,
+    eigensolver_reality_tolerance=1.0e-12,
+    track_subspace_orthogonality=True,
+    davidson_preconditioner=DAVIDSON_PRECONDITIONER,
+    davidson_relative_floor=1.0e-8,
+    davidson_absolute_floor=1.0e-12,
+    davidson_level_shift=0.0,
     progress_interval=SAMPLE_INTERVAL,
     sample_interval=SAMPLE_INTERVAL,
     log_path=LOG_PATH,
@@ -105,7 +132,9 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     use_preconditioner=USE_PRECONDITIONER,
 )
 
+solve_started = perf_counter()
 result = calculation.solve()
+solve_wall_time = perf_counter() - solve_started
 last = result.history[-1]
 
 if not result.converged:
@@ -117,15 +146,28 @@ saved_path = result.save(
 
 print(f"System:                   {result.parameters.name}")
 print(f"Particles:                {result.parameters.particles}")
-print(f"ITP integrator:           {result.integrator}")
+print(f"Ground-state solver:      {result.solver_name}")
+print(f"ITP integrator:           {result.integrator or 'N/A'}")
 print(f"Converged:                {result.converged}")
 print(f"Iterations:               {result.iterations}")
 print(f"Energy:                   {result.energy:.12f} Eh")
 print(f"Energy change:            {last.energy_change:.3e} Eh")
 print(f"State change:             {last.state_change:.3e}")
 print(f"Eigenstate residual:      {last.residual_norm:.3e}")
+print(f"Solve wall time:          {solve_wall_time:.6f} s")
 print(f"<L_total^2>:              {result.angular_momentum.total_l_squared:.12f}")
 print(f"<L_total,z>:              {result.angular_momentum.total_l_z:.12f}")
 print(f"<inversion>:              {result.inversion_expectation:.12f}")
-print(f"<pair exchange>:          {result.pair_exchange_expectation:.12f}")
+pair_exchange = result.pair_exchange_expectation
+print(
+    "<pair exchange>:          "
+    + ("N/A" if pair_exchange is None else f"{pair_exchange:.12f}")
+)
+if result.solver_name != "itp":
+    print(f"Hamiltonian actions:      {result.ground_state.hamiltonian_actions}")
+    print(f"Subspace restarts:        {result.ground_state.restarts}")
+    print(
+        "Maximum subspace:       "
+        f"{result.ground_state.maximum_subspace_dimension}"
+    )
 print(f"Saved state:              {saved_path}")
