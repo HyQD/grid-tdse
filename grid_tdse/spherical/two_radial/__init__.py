@@ -27,6 +27,13 @@ from .dipole import (
     DipoleGauge,
     TwoRadialAxialDipoleInteraction,
 )
+from .dynamics_initialization import (
+    DiatomicDynamicsInitializationResult,
+    DiatomicDynamicsInitialStatePolicy,
+    DistributedDiatomicDynamicsInitializationResult,
+    prepare_distributed_non_bo_diatomic_dynamics_initial_state,
+    prepare_non_bo_diatomic_dynamics_initial_state,
+)
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadial2DRankLayout,
@@ -132,6 +139,8 @@ __all__ = [
     "DiatomicIonGroundStateResult",
     "DiatomicIonGroundStateSample",
     "DiatomicIonParameters",
+    "DiatomicDynamicsInitializationResult",
+    "DiatomicDynamicsInitialStatePolicy",
     "DiatomicIonObservableEvaluator",
     "DiatomicIonObservables",
     "DipoleGauge",
@@ -141,6 +150,7 @@ __all__ = [
     "DistributedGroundStateResult",
     "DistributedHamiltonianComponents",
     "DistributedHamiltonianProfile",
+    "DistributedDiatomicDynamicsInitializationResult",
     "DistributedReductionProfile",
     "DistributedTwoRadial2DState",
     "DistributedTwoRadialState",
@@ -196,6 +206,8 @@ __all__ = [
     "load_two_radial_state",
     "phase_align_two_radial_state",
     "phase_aligned_two_radial_state_difference",
+    "prepare_distributed_non_bo_diatomic_dynamics_initial_state",
+    "prepare_non_bo_diatomic_dynamics_initial_state",
     "radial_potential",
     "redistribute_two_radial_2d_state",
     "save_distributed_two_radial_2d_state",
