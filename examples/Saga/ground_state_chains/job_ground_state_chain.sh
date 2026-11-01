@@ -35,13 +35,37 @@ export OMPI_MCA_coll="^hcoll"
 script=${1:?Pass the archived ground-state-chain Python worker}
 shift
 
+cd "${SRC_ROOT}/grid-tdse"
+
 echo "Starting job ${SLURM_JOB_ID} on ${SLURMD_NODENAME:-unknown} at $(date)"
 echo "Python:       $(command -v python)"
 echo "MPI module:   ${GRID_TDSE_MPI_MODULE}"
 echo "MPI ranks:    ${SLURM_NTASKS}"
 echo "Worker:       ${script}"
 module list
-python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
+
+echo "Running serial compute-node import and font-cache preflight"
+python - <<'PY'
+import numpy as np
+import scipy
+import PIL
+from PIL import ImageColor
+import matplotlib
+from matplotlib import font_manager
+import numba
+import grid_tdse
+from mpi4py import MPI
+
+font_path = font_manager.findfont("DejaVu Sans")
+print("NumPy:", np.__version__, np.__file__)
+print("SciPy:", scipy.__version__, scipy.__file__)
+print("Pillow:", PIL.__version__, ImageColor.__file__)
+print("Matplotlib:", matplotlib.__version__, font_path)
+print("Numba:", numba.__version__)
+print("grid-tdse:", grid_tdse.__file__)
+print(MPI.Get_library_version().rstrip("\x00"))
+print("Preflight imports complete")
+PY
 
 time srun \
     --mpi=pmix \

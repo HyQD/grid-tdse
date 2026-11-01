@@ -81,6 +81,13 @@ The submission helper copies the worker and job wrapper into the run directory
 and records their checksums, but the imported editable package still comes
 from `${SRC_ROOT}/grid-tdse`.
 
+Before launching the MPI ranks, every job runs one serial import and font-cache
+preflight on its allocated compute node. This validates the shared environment
+and warms Python package metadata without having every rank import NumPy,
+SciPy, Pillow, Matplotlib, Numba, MPI, and `grid_tdse` simultaneously. The
+preflight is local to each allocation: independent ground-state jobs may still
+run concurrently and do not require Slurm dependencies between chains.
+
 ## 2. Submit one system first
 
 The safest first production submission is the full 11-point H2+ chain:
