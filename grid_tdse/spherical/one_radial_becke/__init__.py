@@ -21,6 +21,13 @@ from .ground_state import (
     solve_becke_eigenproblem,
     solve_generalized_hermitian,
 )
+from .kinetic_validation import (
+    KineticElementComparison,
+    KineticIntegrationSettings,
+    TwoCenterKineticMatrix,
+    TwoCenterKineticValidation,
+    validate_two_center_kinetic,
+)
 from .metric import CanonicalOrthogonalization, canonical_orthogonalization
 from .partition import BeckePartition, BeckePartitionEvaluation
 from .quadrature import BeckeMulticenterQuadrature, BeckeQuadratureShell
@@ -53,11 +60,15 @@ __all__ = [
     "FEMDVRQuadratureSpec",
     "GeneralizedEigenDiagnostics",
     "GeneralizedEigenResult",
+    "KineticElementComparison",
+    "KineticIntegrationSettings",
     "MatrixAssemblyDiagnostics",
     "MatrixRelativeErrors",
     "MidpointL0Validation",
     "MidpointMatrixSet",
     "OverlapRankDecision",
+    "TwoCenterKineticMatrix",
+    "TwoCenterKineticValidation",
     "TwoCenterOverlapStudy",
     "TwoCenterOverlapValidation",
     "assemble_becke_matrices",
@@ -69,5 +80,6 @@ __all__ = [
     "solve_becke_eigenproblem",
     "solve_generalized_hermitian",
     "validate_midpoint_l0",
+    "validate_two_center_kinetic",
     "validate_two_center_overlap",
 ]
