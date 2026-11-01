@@ -21,6 +21,13 @@ from .ground_state import (
     solve_becke_eigenproblem,
     solve_generalized_hermitian,
 )
+from .h2plus_validation import (
+    H2PlusBeckeResult,
+    H2PlusGroundStateValidation,
+    H2PlusMatrices,
+    H2PlusMidpointReference,
+    validate_h2plus_ground_state,
+)
 from .kinetic_validation import (
     KineticElementComparison,
     KineticIntegrationSettings,
@@ -60,6 +67,10 @@ __all__ = [
     "FEMDVRQuadratureSpec",
     "GeneralizedEigenDiagnostics",
     "GeneralizedEigenResult",
+    "H2PlusBeckeResult",
+    "H2PlusGroundStateValidation",
+    "H2PlusMatrices",
+    "H2PlusMidpointReference",
     "KineticElementComparison",
     "KineticIntegrationSettings",
     "MatrixAssemblyDiagnostics",
@@ -79,6 +90,7 @@ __all__ = [
     "run_two_center_overlap_study",
     "solve_becke_eigenproblem",
     "solve_generalized_hermitian",
+    "validate_h2plus_ground_state",
     "validate_midpoint_l0",
     "validate_two_center_kinetic",
     "validate_two_center_overlap",
