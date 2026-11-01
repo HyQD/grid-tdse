@@ -15,9 +15,11 @@ from .coulomb import (
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
 from .diatomic import (
+    DavidsonPreconditionerName,
     DiatomicIonGroundStateResult,
     DiatomicIonParameters,
     NonBornOppenheimerDiatomicIonGroundState,
+    SerialGroundStateSolverName,
 )
 from .dipole import (
     AxialCoordinateDipole,
@@ -81,9 +83,11 @@ from .observables import (
 from .preconditioner import (
     RealTimePreconditionerName,
     TwoRadialAdditiveSchwarzRealTimePreconditioner,
+    TwoRadialDiagonalDavidsonPreconditioner,
     TwoRadialDiagonalRealTimePreconditioner,
     TwoRadialElementBlockJacobiRealTimePreconditioner,
     TwoRadialOneBodyPreconditioner,
+    TwoRadialOneBodyDavidsonPreconditioner,
     TwoRadialRealTimePreconditioner,
     build_two_radial_real_time_preconditioner,
 )
@@ -124,6 +128,7 @@ __all__ = [
     "CoulombCouplings",
     "CoulombMultipoleSpec",
     "CoulombTerm",
+    "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
     "DiatomicIonGroundStateSample",
     "DiatomicIonParameters",
@@ -150,7 +155,9 @@ __all__ = [
     "RadialPotential",
     "RadialSincDVRGridSpec",
     "RealTimePreconditionerName",
+    "SerialGroundStateSolverName",
     "TwoRadialAdditiveSchwarzRealTimePreconditioner",
+    "TwoRadialDiagonalDavidsonPreconditioner",
     "TwoRadialDiagonalRealTimePreconditioner",
     "TwoRadialElementBlockJacobiRealTimePreconditioner",
     "TwoRadialHamiltonian",
@@ -166,6 +173,7 @@ __all__ = [
     "TwoRadialDistributedHamiltonian",
     "TwoRadialDistributedReductions",
     "TwoRadialOneBodyPreconditioner",
+    "TwoRadialOneBodyDavidsonPreconditioner",
     "TwoRadialRealTimePreconditioner",
     "TwoRadialRankLayout",
     "TwoRadialState",
