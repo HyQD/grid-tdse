@@ -5,6 +5,11 @@ from typing import Literal
 
 import numpy as np
 
+from grid_tdse.ground_state.davidson import (
+    DiagonalDavidsonPreconditioner,
+    safeguarded_davidson_denominator,
+)
+
 from .system import TwoRadialSystem
 
 
@@ -90,6 +95,156 @@ class TwoRadialOneBodyPreconditioner(_TwoRadialOneBodyInverse):
         self.time_step = time_step
         self.alpha = 0.5 * time_step
         super().__init__(system, self.alpha)
+
+
+class TwoRadialDiagonalDavidsonPreconditioner:
+    r"""Apply a local one-body diagonal Davidson correction.
+
+    The coefficient-space diagonal contains the electronic and internuclear
+    one-body blocks. Coulomb couplings are omitted, making this approximation
+    point-local and suitable for a later distributed implementation.
+    """
+
+    name = "diagonal"
+
+    def __init__(
+        self,
+        system: TwoRadialSystem,
+        *,
+        relative_floor: float = 1.0e-8,
+        absolute_floor: float = 1.0e-12,
+        level_shift: float = 0.0,
+    ) -> None:
+        _validate_system(system)
+        self.system = system
+        diagonal1 = np.diagonal(system.h1, axis1=-2, axis2=-1)
+        diagonal2 = np.diagonal(system.h2, axis1=-2, axis2=-1)
+        diagonal = np.empty(system.psi_shape, dtype=float)
+        for pair, (i, j) in enumerate(system.angular_pairs.pairs):
+            block = diagonal1[i, :, None] + diagonal2[j, None, :]
+            _set_angular_block(system, diagonal, pair, i, j, block)
+        self.diagonal = diagonal
+        self._preconditioner = DiagonalDavidsonPreconditioner(
+            diagonal,
+            relative_floor=relative_floor,
+            absolute_floor=absolute_floor,
+            level_shift=level_shift,
+        )
+
+    @property
+    def last_regularized_entries(self) -> int:
+        """Number of denominators floored by the most recent application."""
+
+        return self._preconditioner.last_regularized_entries
+
+    def __call__(
+        self,
+        residual: np.ndarray,
+        ritz_value: float,
+    ) -> np.ndarray:
+        return self._preconditioner(residual, ritz_value)
+
+
+class TwoRadialOneBodyDavidsonPreconditioner:
+    r"""Apply a separable spectral approximation to a Davidson correction.
+
+    Each retained angular pair is transformed to the weighted eigenbases of
+    the two one-body Hamiltonians and divided by
+    ``epsilon_1 + epsilon_2 - theta``. Coulomb terms are omitted. Small
+    denominators receive the same sign-preserving safeguards as the generic
+    diagonal Davidson preconditioner.
+    """
+
+    name = "one-body-spectral"
+
+    def __init__(
+        self,
+        system: TwoRadialSystem,
+        *,
+        relative_floor: float = 1.0e-8,
+        absolute_floor: float = 1.0e-12,
+        level_shift: float = 0.0,
+    ) -> None:
+        _validate_system(system)
+        self.system = system
+        self.relative_floor = _nonnegative_real(
+            relative_floor,
+            "relative_floor",
+        )
+        self.absolute_floor = _positive_real(
+            absolute_floor,
+            "absolute_floor",
+        )
+        self.level_shift = _nonnegative_real(level_shift, "level_shift")
+        self._sqrt_w1 = np.sqrt(system.grid1.weights)
+        self._sqrt_w2 = np.sqrt(system.grid2.weights)
+        self._eigenvalues1, self._eigenvectors1 = _weighted_eigensystems(
+            system.h1,
+            self._sqrt_w1,
+        )
+        self._eigenvalues2, self._eigenvectors2 = _weighted_eigensystems(
+            system.h2,
+            self._sqrt_w2,
+        )
+        self.last_regularized_entries = 0
+
+    def __call__(
+        self,
+        residual: np.ndarray,
+        ritz_value: float,
+    ) -> np.ndarray:
+        residual = _validate_state(self.system, residual)
+        theta = _finite_real(ritz_value, "ritz_value")
+        result = np.empty_like(
+            residual,
+            dtype=np.result_type(residual.dtype, float),
+        )
+        regularized_entries = 0
+        for pair, (i, j) in enumerate(self.system.angular_pairs.pairs):
+            values1 = self._eigenvalues1[i]
+            vectors1 = self._eigenvectors1[i]
+            values2 = self._eigenvalues2[j]
+            vectors2 = self._eigenvectors2[j]
+            block = _angular_block(self.system, residual, pair, i, j)
+            weighted = (
+                self._sqrt_w1[:, None]
+                * block
+                * self._sqrt_w2[None, :]
+            )
+            transformed = vectors1.T.conj() @ weighted @ vectors2
+            raw_denominator = (
+                values1[:, None] + values2[None, :] - theta
+            )
+            denominator, regularized = safeguarded_davidson_denominator(
+                raw_denominator,
+                spectral_scale=max(
+                    1.0,
+                    float(np.max(np.abs(values1))),
+                    float(np.max(np.abs(values2))),
+                    abs(theta),
+                ),
+                relative_floor=self.relative_floor,
+                absolute_floor=self.absolute_floor,
+                level_shift=self.level_shift,
+            )
+            regularized_entries += regularized
+            transformed = -transformed / denominator
+            weighted_result = vectors1 @ transformed @ vectors2.T.conj()
+            block_result = (
+                weighted_result
+                / self._sqrt_w1[:, None]
+                / self._sqrt_w2[None, :]
+            )
+            _set_angular_block(
+                self.system,
+                result,
+                pair,
+                i,
+                j,
+                block_result,
+            )
+        self.last_regularized_entries = regularized_entries
+        return result
 
 
 class TwoRadialRealTimePreconditioner(_TwoRadialOneBodyInverse):
@@ -464,6 +619,31 @@ def _validate_state(system: TwoRadialSystem, state: np.ndarray) -> np.ndarray:
     if state.shape != system.psi_shape:
         raise ValueError(f"state has shape {state.shape}; expected {system.psi_shape}")
     return state
+
+
+def _finite_real(value, name: str) -> float:
+    if isinstance(value, (bool, np.bool_)) or not np.isscalar(value):
+        raise TypeError(f"{name} must be a real scalar")
+    if np.iscomplexobj(value):
+        raise TypeError(f"{name} must be a real scalar")
+    result = float(value)
+    if not np.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _nonnegative_real(value, name: str) -> float:
+    result = _finite_real(value, name)
+    if result < 0.0:
+        raise ValueError(f"{name} must be non-negative")
+    return result
+
+
+def _positive_real(value, name: str) -> float:
+    result = _nonnegative_real(value, name)
+    if result == 0.0:
+        raise ValueError(f"{name} must be positive")
+    return result
 
 
 def _angular_block(system, state, pair, channel1, channel2):

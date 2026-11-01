@@ -1,6 +1,7 @@
 """High-level ground states for non-Born--Oppenheimer diatomic ions."""
 
 import warnings
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from numbers import Integral
 from os import PathLike
@@ -14,8 +15,11 @@ from matter_field_params import (
 )
 
 from grid_tdse.ground_state import (
+    DavidsonGroundStateSolver,
+    GroundStateEigenResult,
     GroundStateResult,
     ImaginaryTimeGroundStateSolver,
+    LanczosGroundStateSolver,
 )
 
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
@@ -35,9 +39,12 @@ from .observables import (
     validated_state,
 )
 from .preconditioner import (
+    TwoRadialDiagonalDavidsonPreconditioner,
+    TwoRadialOneBodyDavidsonPreconditioner,
     TwoRadialOneBodyPreconditioner,
     lowest_weighted_eigenstate,
 )
+from .state_archive import TwoRadialState, load_two_radial_state
 from .system import (
     CoordinateSpec,
     RadialOperatorMode,
@@ -46,7 +53,20 @@ from .system import (
     radial_potential,
 )
 
-InitialState = Literal["product"] | np.ndarray
+InitialState = (
+    Literal["product"]
+    | str
+    | PathLike[str]
+    | np.ndarray
+    | TwoRadialState
+)
+SerialGroundStateResult = GroundStateResult | GroundStateEigenResult
+SerialGroundStateSolverName = Literal["itp", "lanczos", "davidson"]
+DavidsonPreconditionerName = Literal[
+    "identity",
+    "diagonal",
+    "one-body-spectral",
+]
 
 
 @dataclass(frozen=True)
@@ -98,7 +118,10 @@ class DiatomicIonGroundStateResult:
     symmetry_adapted_basis: bool
     representation: TwoRadialSystem
     initial_state: np.ndarray
-    ground_state: GroundStateResult
+    ground_state: SerialGroundStateResult
+    solver_name: SerialGroundStateSolverName
+    solver_options: Mapping[str, object]
+    initial_state_provenance: Mapping[str, object] | None
     initial_angular_momentum: AngularMomentumExpectations
     angular_momentum: AngularMomentumExpectations
     inversion_expectation: float
@@ -126,8 +149,20 @@ class DiatomicIonGroundStateResult:
         return self.ground_state.iterations
 
     @property
-    def integrator(self) -> str:
-        return self.ground_state.integrator
+    def integrator(self) -> str | None:
+        if isinstance(self.ground_state, GroundStateResult):
+            return self.ground_state.integrator
+        return None
+
+    @property
+    def norm(self) -> float:
+        return self.ground_state.norm
+
+    @property
+    def imaginary_time(self) -> float | None:
+        if isinstance(self.ground_state, GroundStateResult):
+            return self.ground_state.imaginary_time
+        return None
 
     @property
     def history(self):
@@ -158,6 +193,55 @@ class DiatomicIonGroundStateResult:
             "symmetry_adapted_basis": self.symmetry_adapted_basis,
             "M_tot": self.representation.M_tot,
         }
+        calculation = {
+            "method": (
+                "imaginary_time_propagation"
+                if self.solver_name == "itp"
+                else "direct_eigensolver"
+            ),
+            "solver": self.solver_name,
+            "solver_options": dict(self.solver_options),
+            "integrator": self.integrator,
+            "radial_operator_mode": self.radial_operator_mode,
+            "energy": self.energy,
+            "norm": self.norm,
+            "converged": self.converged,
+            "iterations": self.iterations,
+            "imaginary_time": self.imaginary_time,
+            "state_change": self.state_change,
+            "residual_norm": self.residual_norm,
+            "termination_reason": self.termination_reason,
+            "total_l_squared": self.angular_momentum.total_l_squared,
+            "total_l_z": self.angular_momentum.total_l_z,
+            "inversion_expectation": self.inversion_expectation,
+            "pair_exchange_expectation": self.pair_exchange_expectation,
+            "observables": asdict(self.observables),
+            "sample_interval": self.sample_interval,
+            "samples": ground_state_sample_metadata(self.samples),
+            "initial_state": (
+                None
+                if self.initial_state_provenance is None
+                else dict(self.initial_state_provenance)
+            ),
+        }
+        if isinstance(self.ground_state, GroundStateEigenResult):
+            calculation.update(
+                {
+                    "restarts": self.ground_state.restarts,
+                    "hamiltonian_actions": (
+                        self.ground_state.hamiltonian_actions
+                    ),
+                    "preconditioner_applications": (
+                        self.ground_state.preconditioner_applications
+                    ),
+                    "maximum_subspace_dimension": (
+                        self.ground_state.maximum_subspace_dimension
+                    ),
+                    "final_subspace_dimension": (
+                        self.ground_state.final_subspace_dimension
+                    ),
+                }
+            )
         return save_two_radial_state(
             path,
             self.state,
@@ -169,26 +253,7 @@ class DiatomicIonGroundStateResult:
                 "parameters": asdict(self.parameters),
                 "symmetry": symmetry,
             },
-            calculation={
-                "method": "imaginary_time_propagation",
-                "integrator": self.ground_state.integrator,
-                "radial_operator_mode": self.radial_operator_mode,
-                "energy": self.energy,
-                "norm": self.ground_state.norm,
-                "converged": self.converged,
-                "iterations": self.iterations,
-                "imaginary_time": self.ground_state.imaginary_time,
-                "state_change": self.state_change,
-                "residual_norm": self.residual_norm,
-                "termination_reason": self.termination_reason,
-                "total_l_squared": self.angular_momentum.total_l_squared,
-                "total_l_z": self.angular_momentum.total_l_z,
-                "inversion_expectation": self.inversion_expectation,
-                "pair_exchange_expectation": self.pair_exchange_expectation,
-                "observables": asdict(self.observables),
-                "sample_interval": self.sample_interval,
-                "samples": ground_state_sample_metadata(self.samples),
-            },
+            calculation=calculation,
             overwrite=overwrite,
         )
 
@@ -209,7 +274,11 @@ class NonBornOppenheimerDiatomicIonGroundState:
     angular-pair storage, or leave it as ``None`` for the full legacy
     representation. ``radial_coulomb_method`` selects either the FEM-DVR
     Poisson construction or direct evaluation of the analytic radial
-    multipole expression.
+    multipole expression. ``solver`` selects the established ITP path, a
+    thick-restarted Hermitian Lanczos solve, or Davidson with a selectable
+    physical preconditioner. A compatible lower-``l_max`` state archive may
+    be passed directly as ``initial_state`` and is embedded into the target
+    angular representation.
     """
 
     _CANONICAL_NAMES = {
@@ -235,6 +304,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         radial_coulomb_method: RadialCoulombMethod = "poisson",
         codata_set: str = "2022",
         initial_state: InitialState = "product",
+        solver: SerialGroundStateSolverName = "itp",
         time_step: float = 0.25,
         max_iterations: int = 1_000,
         energy_tolerance: float = 1.0e-10,
@@ -257,6 +327,22 @@ class NonBornOppenheimerDiatomicIonGroundState:
         max_krylov_refinements: int = 8,
         krylov_reorthogonalize: bool = True,
         krylov_breakdown_tolerance: float = 1.0e-14,
+        maximum_subspace_dimension: int | None = 30,
+        retained_ritz_vectors: int = 4,
+        eigensolver_breakdown_tolerance: float = 1.0e-14,
+        eigensolver_reorthogonalization: Literal[
+            "if-needed", "always"
+        ] = "always",
+        eigensolver_reorthogonalization_threshold: float = 0.5,
+        eigensolver_hermiticity_tolerance: float = 1.0e-10,
+        eigensolver_reality_tolerance: float = 1.0e-12,
+        track_subspace_orthogonality: bool = True,
+        davidson_preconditioner: DavidsonPreconditionerName = (
+            "one-body-spectral"
+        ),
+        davidson_relative_floor: float = 1.0e-8,
+        davidson_absolute_floor: float = 1.0e-12,
+        davidson_level_shift: float = 0.0,
         progress_interval: int | None = 10,
         sample_interval: int | None = 10,
         log_path: str | PathLike[str] | None = None,
@@ -282,10 +368,15 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 UserWarning,
                 stacklevel=2,
             )
+        if solver not in {"itp", "lanczos", "davidson"}:
+            raise ValueError(
+                "solver must be 'itp', 'lanczos', or 'davidson'"
+            )
+        self.solver_name: SerialGroundStateSolverName = solver
         if not isinstance(use_preconditioner, (bool, np.bool_)):
             raise TypeError("use_preconditioner must be boolean")
         self.use_preconditioner = bool(use_preconditioner)
-        if integrator in (
+        if self.solver_name == "itp" and integrator in (
             "sil",
             "sia",
             "exponential-euler",
@@ -393,35 +484,107 @@ class NonBornOppenheimerDiatomicIonGroundState:
             radial_operator_mode=radial_operator_mode,
         )
 
-        self.solver = ImaginaryTimeGroundStateSolver(
-            time_step=time_step,
-            max_iterations=max_iterations,
-            energy_tolerance=energy_tolerance,
-            state_tolerance=state_tolerance,
-            residual_tolerance=residual_tolerance,
-            integrator=integrator,
-            linear_solver=linear_solver,
-            linear_rtol=linear_rtol,
-            linear_atol=linear_atol,
-            linear_max_iterations=linear_max_iterations,
-            gmres_restart=gmres_restart,
-            max_krylov_dimension=max_krylov_dimension,
-            krylov_rtol=krylov_rtol,
-            krylov_atol=krylov_atol,
-            max_krylov_refinements=max_krylov_refinements,
-            krylov_reorthogonalize=krylov_reorthogonalize,
-            krylov_breakdown_tolerance=krylov_breakdown_tolerance,
-            progress_interval=progress_interval,
-        )
-        self.integrator = self.solver.integrator
-        self.preconditioner = (
-            TwoRadialOneBodyPreconditioner(self.representation, time_step)
-            if self.use_preconditioner
-            else None
-        )
-        self.initial_state_kind = (
-            "product" if isinstance(initial_state, str) else "array"
-        )
+        common_eigensolver_options = {
+            "max_iterations": max_iterations,
+            "maximum_subspace_dimension": maximum_subspace_dimension,
+            "retained_ritz_vectors": retained_ritz_vectors,
+            "residual_tolerance": residual_tolerance,
+            "breakdown_tolerance": eigensolver_breakdown_tolerance,
+            "reorthogonalization": eigensolver_reorthogonalization,
+            "reorthogonalization_threshold": (
+                eigensolver_reorthogonalization_threshold
+            ),
+            "hermiticity_tolerance": eigensolver_hermiticity_tolerance,
+            "reality_tolerance": eigensolver_reality_tolerance,
+            "track_orthogonality": track_subspace_orthogonality,
+            "progress_interval": progress_interval,
+        }
+        if self.solver_name == "itp":
+            self.solver = ImaginaryTimeGroundStateSolver(
+                time_step=time_step,
+                max_iterations=max_iterations,
+                energy_tolerance=energy_tolerance,
+                state_tolerance=state_tolerance,
+                residual_tolerance=residual_tolerance,
+                integrator=integrator,
+                linear_solver=linear_solver,
+                linear_rtol=linear_rtol,
+                linear_atol=linear_atol,
+                linear_max_iterations=linear_max_iterations,
+                gmres_restart=gmres_restart,
+                max_krylov_dimension=max_krylov_dimension,
+                krylov_rtol=krylov_rtol,
+                krylov_atol=krylov_atol,
+                max_krylov_refinements=max_krylov_refinements,
+                krylov_reorthogonalize=krylov_reorthogonalize,
+                krylov_breakdown_tolerance=krylov_breakdown_tolerance,
+                progress_interval=progress_interval,
+            )
+            self.integrator = self.solver.integrator
+            self.preconditioner = (
+                TwoRadialOneBodyPreconditioner(
+                    self.representation,
+                    time_step,
+                )
+                if self.use_preconditioner
+                else None
+            )
+            self.solver_options = {
+                "time_step": time_step,
+                "max_iterations": max_iterations,
+                "energy_tolerance": energy_tolerance,
+                "state_tolerance": state_tolerance,
+                "residual_tolerance": residual_tolerance,
+                "integrator": integrator,
+                "linear_solver": linear_solver,
+                "linear_rtol": linear_rtol,
+                "linear_atol": linear_atol,
+                "linear_max_iterations": linear_max_iterations,
+                "gmres_restart": gmres_restart,
+                "max_krylov_dimension": max_krylov_dimension,
+                "krylov_rtol": krylov_rtol,
+                "krylov_atol": krylov_atol,
+                "max_krylov_refinements": max_krylov_refinements,
+                "krylov_reorthogonalize": krylov_reorthogonalize,
+                "krylov_breakdown_tolerance": (
+                    krylov_breakdown_tolerance
+                ),
+                "use_preconditioner": self.use_preconditioner,
+                "progress_interval": progress_interval,
+            }
+        else:
+            solver_class = (
+                LanczosGroundStateSolver
+                if self.solver_name == "lanczos"
+                else DavidsonGroundStateSolver
+            )
+            self.solver = solver_class(**common_eigensolver_options)
+            self.integrator = None
+            self.preconditioner = None
+            self.solver_options = dict(common_eigensolver_options)
+            if self.solver_name == "davidson":
+                self.preconditioner = self._davidson_preconditioner(
+                    davidson_preconditioner,
+                    relative_floor=davidson_relative_floor,
+                    absolute_floor=davidson_absolute_floor,
+                    level_shift=davidson_level_shift,
+                )
+                self.solver_options.update(
+                    {
+                        "preconditioner": davidson_preconditioner,
+                        "preconditioner_relative_floor": (
+                            davidson_relative_floor
+                        ),
+                        "preconditioner_absolute_floor": (
+                            davidson_absolute_floor
+                        ),
+                        "preconditioner_level_shift": (
+                            davidson_level_shift
+                        ),
+                    }
+                )
+        self.initial_state_kind = "array"
+        self.initial_state_provenance = None
         self.initial_state = self._prepare_initial_state(initial_state)
         self.observable_evaluator = DiatomicIonObservableEvaluator(
             self.representation,
@@ -439,7 +602,7 @@ class NonBornOppenheimerDiatomicIonGroundState:
         return self.symmetry_adapted_basis and self.parameters.has_identical_pair
 
     def solve(self) -> DiatomicIonGroundStateResult:
-        """Run normalized imaginary-time propagation."""
+        """Solve for the lowest state in the selected symmetry sector."""
 
         initial = self.initial_state.copy()
         with DiatomicIonGroundStateReporter(
@@ -447,14 +610,18 @@ class NonBornOppenheimerDiatomicIonGroundState:
             log_path=self.log_path,
             log_overwrite=self.log_overwrite,
         ) as reporter:
+            solve_options = {
+                "iteration_observer": reporter.observe,
+                "observer_interval": self.sample_interval,
+                "print_progress": False,
+            }
+            if self.solver_name in {"itp", "davidson"}:
+                solve_options["preconditioner"] = self.preconditioner
             ground_state = self.solver.solve(
                 initial,
                 self.hamiltonian,
                 self.representation.inner_product,
-                preconditioner=self.preconditioner,
-                iteration_observer=reporter.observe,
-                observer_interval=self.sample_interval,
-                print_progress=False,
+                **solve_options,
             )
         samples = tuple(reporter.samples)
         initial_observables = samples[0].observables
@@ -467,6 +634,9 @@ class NonBornOppenheimerDiatomicIonGroundState:
             representation=self.representation,
             initial_state=initial,
             ground_state=ground_state,
+            solver_name=self.solver_name,
+            solver_options=self.solver_options,
+            initial_state_provenance=self.initial_state_provenance,
             initial_angular_momentum=AngularMomentumExpectations(
                 initial_observables.total_l_squared,
                 initial_observables.total_l_z,
@@ -541,11 +711,32 @@ class NonBornOppenheimerDiatomicIonGroundState:
         return electron_parity, pair_parity
 
     def _prepare_initial_state(self, initial_state: InitialState) -> np.ndarray:
-        if isinstance(initial_state, str):
-            if initial_state != "product":
-                raise ValueError("initial_state must be 'product' or a NumPy array")
+        if isinstance(initial_state, str) and initial_state == "product":
+            self.initial_state_kind = "product"
+            self.initial_state_provenance = {"kind": "product"}
             state = self._product_initial_state()
+        elif isinstance(initial_state, (str, PathLike, TwoRadialState)):
+            archived = (
+                load_two_radial_state(initial_state)
+                if isinstance(initial_state, (str, PathLike))
+                else initial_state
+            )
+            self._validate_initial_archive(archived)
+            state = archived.embed_into(self.representation)
+            self.initial_state_kind = "archive"
+            self.initial_state_provenance = {
+                "kind": "archive",
+                "path": (
+                    str(initial_state)
+                    if isinstance(initial_state, (str, PathLike))
+                    else None
+                ),
+                "state_data_id": archived.state_data_id,
+                "representation_id": archived.representation_id,
+            }
         else:
+            self.initial_state_kind = "array"
+            self.initial_state_provenance = {"kind": "array"}
             state = self.representation.pack_state(initial_state)
             state = self._validated_state(state)
 
@@ -557,6 +748,61 @@ class NonBornOppenheimerDiatomicIonGroundState:
                 "symmetry sector"
             )
         return state / np.sqrt(norm_squared)
+
+    def _validate_initial_archive(self, archived) -> None:
+        physical = archived.physical_state
+        if physical.get("system_family") != "non_bo_diatomic_ion":
+            raise ValueError(
+                "initial-state archive is not a non-BO diatomic-ion state"
+            )
+        if physical.get("system") != self.system_name:
+            raise ValueError(
+                f"initial-state archive contains {physical.get('system')!r}; "
+                f"expected {self.system_name!r}"
+            )
+        symmetry = physical.get("symmetry", {})
+        expected = {
+            "inversion_parity": self.inversion_parity,
+            "pair_exchange_parity": self.pair_exchange_parity,
+            "symmetry_adapted_basis": self.symmetry_adapted_basis,
+            "M_tot": self.M_tot,
+        }
+        for name, value in expected.items():
+            if symmetry.get(name) != value:
+                raise ValueError(
+                    f"initial-state archive symmetry {name!r} is "
+                    f"{symmetry.get(name)!r}; expected {value!r}"
+                )
+
+    def _davidson_preconditioner(
+        self,
+        name: DavidsonPreconditionerName,
+        *,
+        relative_floor: float,
+        absolute_floor: float,
+        level_shift: float,
+    ):
+        options = {
+            "relative_floor": relative_floor,
+            "absolute_floor": absolute_floor,
+            "level_shift": level_shift,
+        }
+        if name == "identity":
+            return None
+        if name == "diagonal":
+            return TwoRadialDiagonalDavidsonPreconditioner(
+                self.representation,
+                **options,
+            )
+        if name == "one-body-spectral":
+            return TwoRadialOneBodyDavidsonPreconditioner(
+                self.representation,
+                **options,
+            )
+        raise ValueError(
+            "davidson_preconditioner must be 'identity', 'diagonal', or "
+            "'one-body-spectral'"
+        )
 
     def _product_initial_state(self) -> np.ndarray:
         if self.M_tot not in (None, 0):
