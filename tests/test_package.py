@@ -24,6 +24,9 @@ def test_package_exports_spherical_two_radial_namespace():
     assert one_radial_becke.FEMDVRQuadratureSpec.__module__ == (
         "grid_tdse.spherical.one_radial_becke.specification"
     )
+    assert one_radial_becke.BeckeSphericalBasis.__module__ == (
+        "grid_tdse.spherical.one_radial_becke.basis"
+    )
     assert one_radial.OneElectronDiatomicSystem.__module__ == (
         "grid_tdse.spherical.one_radial.system"
     )
