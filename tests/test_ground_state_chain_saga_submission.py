@@ -17,6 +17,11 @@ JOB_SCRIPT = (
     / "ground_state_chains"
     / "job_ground_state_chain.sh"
 )
+WORKER_SCRIPT = (
+    REPOSITORY_ROOT
+    / "examples"
+    / "mpi_non_bo_diatomic_ground_state_chain.py"
+)
 
 
 def test_job_script_has_serial_compute_node_preflight():
@@ -46,4 +51,22 @@ def test_submit_script_exposes_exponential_euler():
     assert "--integrator NAME" in completed.stdout
     assert "exponential-euler" in completed.stdout
     assert "--time-step VALUE" in completed.stdout
+    assert "--max-iterations N" in completed.stdout
     assert "--max-krylov-dimension N" in completed.stdout
+    assert "--max-l-max N" in completed.stdout
+
+    contents = SUBMIT_SCRIPT.read_text(encoding="utf-8")
+    assert "GRID_TDSE_CHAIN_TIME_STEP_L${lmax}" in contents
+    assert "GRID_TDSE_CHAIN_MAX_ITERATIONS_L${lmax}" in contents
+    assert 'if (( candidate <= endpoint ))' in contents
+
+
+def test_chain_worker_reports_exponential_euler_krylov_diagnostics():
+    contents = WORKER_SCRIPT.read_text(encoding="utf-8")
+
+    assert "Integrator:" in contents
+    assert "Time step:" in contents
+    assert "Maximum Krylov dimension:" in contents
+    assert "Krylov operator calls:" in contents
+    assert "Krylov max dimension:" in contents
+    assert "Krylov max error estimate:" in contents

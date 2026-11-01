@@ -12,14 +12,20 @@ Options:
   --electronic-grid 11|21|both  Submit one or both r-grid chains (default: both)
   --integrator NAME            sil, sia, or exponential-euler (default: sil)
   --time-step VALUE            Imaginary-time step (default: 0.5)
+  --max-iterations N           Maximum ITP steps per cutoff (default: 15000)
   --max-krylov-dimension N     Maximum Krylov dimension (default: 20)
+  --max-l-max N                Stop after this even cutoff (default: grid policy)
   --extend-21                  Extend the 21-point chain from l_max=6 to 8 and 10
   --run-name NAME              Run-directory name (default: ground-state-<timestamp>)
   -h, --help                   Show this help
 
 Every l_max>0 job has an afterok dependency on the preceding cutoff. The
 11-point chain is 0 -> 2 -> 4 -> 6 -> 8 -> 10. By default the exploratory
-21-point chain is 0 -> 2 -> 4 -> 6.
+21-point chain is 0 -> 2 -> 4 -> 6. --max-l-max overrides those endpoints.
+
+Per-cutoff overrides use GRID_TDSE_CHAIN_TIME_STEP_L<N> and
+GRID_TDSE_CHAIN_MAX_ITERATIONS_L<N>, for example
+GRID_TDSE_CHAIN_TIME_STEP_L4=0.05.
 EOF
 }
 
@@ -27,7 +33,9 @@ systems=()
 electronic_grid=both
 integrator=sil
 time_step=0.5
+max_iterations=15000
 max_krylov_dimension=20
+max_l_max=""
 extend_21=false
 run_name="ground-state-$(date +%Y%m%d-%H%M%S)"
 
@@ -57,9 +65,19 @@ while (( $# > 0 )); do
             time_step=$2
             shift 2
             ;;
+        --max-iterations)
+            [[ $# -ge 2 ]] || { echo "--max-iterations requires a value" >&2; exit 2; }
+            max_iterations=$2
+            shift 2
+            ;;
         --max-krylov-dimension)
             [[ $# -ge 2 ]] || { echo "--max-krylov-dimension requires a value" >&2; exit 2; }
             max_krylov_dimension=$2
+            shift 2
+            ;;
+        --max-l-max)
+            [[ $# -ge 2 ]] || { echo "--max-l-max requires a value" >&2; exit 2; }
+            max_l_max=$2
             shift 2
             ;;
         --extend-21)
@@ -106,6 +124,49 @@ awk -v value="${time_step}" 'BEGIN { exit !(value > 0) }' || {
     echo "--max-krylov-dimension must be a positive integer" >&2
     exit 2
 }
+[[ ${max_iterations} =~ ^[1-9][0-9]*$ ]] || {
+    echo "--max-iterations must be a positive integer" >&2
+    exit 2
+}
+if [[ -n ${max_l_max} ]]; then
+    case ${max_l_max} in
+        0|2|4|6|8|10) ;;
+        *) echo "--max-l-max must be one of 0, 2, 4, 6, 8, or 10" >&2; exit 2 ;;
+    esac
+fi
+time_step=${GRID_TDSE_CHAIN_TIME_STEP:-${time_step}}
+max_iterations=${GRID_TDSE_CHAIN_MAX_ITERATIONS:-${max_iterations}}
+max_krylov_dimension=${GRID_TDSE_CHAIN_MAX_KRYLOV_DIMENSION:-${max_krylov_dimension}}
+[[ ${time_step} =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] \
+    && awk -v value="${time_step}" 'BEGIN { exit !(value > 0) }' || {
+        echo "GRID_TDSE_CHAIN_TIME_STEP must be positive" >&2
+        exit 2
+    }
+[[ ${max_iterations} =~ ^[1-9][0-9]*$ ]] || {
+    echo "GRID_TDSE_CHAIN_MAX_ITERATIONS must be a positive integer" >&2
+    exit 2
+}
+[[ ${max_krylov_dimension} =~ ^[1-9][0-9]*$ ]] || {
+    echo "GRID_TDSE_CHAIN_MAX_KRYLOV_DIMENSION must be a positive integer" >&2
+    exit 2
+}
+for cutoff in 0 2 4 6 8 10; do
+    variable="GRID_TDSE_CHAIN_TIME_STEP_L${cutoff}"
+    value=${!variable:-}
+    if [[ -n ${value} ]]; then
+        [[ ${value} =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] \
+            && awk -v candidate="${value}" 'BEGIN { exit !(candidate > 0) }' || {
+                echo "${variable} must be positive" >&2
+                exit 2
+            }
+    fi
+    variable="GRID_TDSE_CHAIN_MAX_ITERATIONS_L${cutoff}"
+    value=${!variable:-}
+    if [[ -n ${value} && ! ${value} =~ ^[1-9][0-9]*$ ]]; then
+        echo "${variable} must be a positive integer" >&2
+        exit 2
+    fi
+done
 for system in "${systems[@]}"; do
     case ${system} in
         H2+|HD+|D2+) ;;
@@ -140,9 +201,6 @@ chmod +x "${run_root}/job_ground_state_chain.sh"
 job_script="${run_root}/job_ground_state_chain.sh"
 worker="${run_root}/mpi_non_bo_diatomic_ground_state_chain.py"
 manifest="${run_root}/jobs.csv"
-time_step=${GRID_TDSE_CHAIN_TIME_STEP:-${time_step}}
-max_krylov_dimension=${GRID_TDSE_CHAIN_MAX_KRYLOV_DIMENSION:-${max_krylov_dimension}}
-max_iterations=${GRID_TDSE_CHAIN_MAX_ITERATIONS:-15000}
 printf '%s\n' \
     'job_id,system,electronic_points_per_element,l_max,ranks,process_grid,integrator,time_step,max_iterations,max_krylov_dimension,walltime,dependency,input_state,output_state,output_pattern,log_file' \
     > "${manifest}"
@@ -154,8 +212,13 @@ printf '%s\n' \
     echo "integrator_lib_commit=$(git -C "${SRC_ROOT}/integrator-lib" rev-parse HEAD)"
     echo "mpi_module=${GRID_TDSE_MPI_MODULE}"
     echo "python=$(command -v python)"
+    echo "integrator=${integrator}"
+    echo "default_time_step=${time_step}"
+    echo "default_max_iterations=${max_iterations}"
+    echo "max_krylov_dimension=${max_krylov_dimension}"
+    echo "requested_max_l_max=${max_l_max:-grid-policy}"
     python -c 'from mpi4py import MPI; print("mpi_library=" + MPI.Get_library_version().rstrip("\x00"))'
-    sha256sum "${worker}" "${job_script}"
+    sha256sum "${worker}" "${job_script}" "${run_root}/submit_ground_state_chains.sh"
 } > "${run_root}/provenance.txt"
 
 ranks_for() {
@@ -208,9 +271,33 @@ walltime_for() {
     fi
 }
 
+time_step_for() {
+    local lmax=$1 variable value
+    variable="GRID_TDSE_CHAIN_TIME_STEP_L${lmax}"
+    value=${!variable:-${time_step}}
+    [[ ${value} =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] \
+        && awk -v candidate="${value}" 'BEGIN { exit !(candidate > 0) }' || {
+            echo "${variable} must be positive" >&2
+            return 2
+        }
+    echo "${value}"
+}
+
+max_iterations_for() {
+    local lmax=$1 variable value
+    variable="GRID_TDSE_CHAIN_MAX_ITERATIONS_L${lmax}"
+    value=${!variable:-${max_iterations}}
+    [[ ${value} =~ ^[1-9][0-9]*$ ]] || {
+        echo "${variable} must be a positive integer" >&2
+        return 2
+    }
+    echo "${value}"
+}
+
 submit_chain() {
-    local system=$1 points=$2 label symmetry cutoff_list
+    local system=$1 points=$2 label symmetry cutoff_list endpoint candidate
     local previous_job="" previous_state="" lmax ranks grid walltime stem
+    local stage_time_step stage_max_iterations
     local state_dir log_file output_state output_pattern dependency job_id
     local -a dependency_args site_args initial_args
 
@@ -219,10 +306,19 @@ submit_chain() {
         HD+) label=HDp; symmetry=s ;;
         D2+) label=D2p; symmetry=sp ;;
     esac
-    cutoff_list="0 2 4 6 8 10"
-    if [[ ${points} == 21 && ${extend_21} == false ]]; then
-        cutoff_list="0 2 4 6"
+    if [[ -n ${max_l_max} ]]; then
+        endpoint=${max_l_max}
+    elif [[ ${points} == 21 && ${extend_21} == false ]]; then
+        endpoint=6
+    else
+        endpoint=10
     fi
+    cutoff_list=""
+    for candidate in 0 2 4 6 8 10; do
+        if (( candidate <= endpoint )); then
+            cutoff_list+=" ${candidate}"
+        fi
+    done
     state_dir="${state_root}/${label}/e${points}"
     mkdir -p "${state_dir}" "${log_root}/${label}/e${points}"
 
@@ -230,6 +326,8 @@ submit_chain() {
         ranks=$(ranks_for "${lmax}")
         grid=$(grid_for "${lmax}")
         walltime=$(walltime_for "${points}" "${lmax}")
+        stage_time_step=$(time_step_for "${lmax}")
+        stage_max_iterations=$(max_iterations_for "${lmax}")
         stem="${label}_${symmetry}_e${points}_l${lmax}"
         output_state="${state_dir}/${stem}.npz"
         log_file="${log_root}/${label}/e${points}/${stem}.log"
@@ -267,18 +365,19 @@ submit_chain() {
             --output-state "${output_state}" \
             --log-file "${log_file}" \
             --integrator "${integrator}" \
-            --time-step "${time_step}" \
-            --max-iterations "${max_iterations}" \
+            --time-step "${stage_time_step}" \
+            --max-iterations "${stage_max_iterations}" \
             --max-krylov-dimension "${max_krylov_dimension}" \
             --sample-interval "${GRID_TDSE_CHAIN_SAMPLE_INTERVAL:-10}" \
             "${initial_args[@]}")
         job_id=${job_id%%;*}
         printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
             "${job_id}" "${system}" "${points}" "${lmax}" "${ranks}" \
-            "${grid}" "${integrator}" "${time_step}" "${max_iterations}" \
+            "${grid}" "${integrator}" "${stage_time_step}" "${stage_max_iterations}" \
             "${max_krylov_dimension}" "${walltime}" "${dependency}" "${previous_state}" \
             "${output_state}" "${output_pattern}" "${log_file}" >> "${manifest}"
-        echo "Submitted ${stem}: ${job_id}${dependency:+ (${dependency})}"
+        echo "Submitted ${stem}: ${job_id}${dependency:+ (${dependency})}; " \
+            "dt=${stage_time_step}, max_iterations=${stage_max_iterations}"
         previous_job=${job_id}
         previous_state=${output_state}
     done

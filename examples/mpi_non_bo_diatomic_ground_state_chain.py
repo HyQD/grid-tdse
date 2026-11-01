@@ -338,6 +338,9 @@ def main() -> None:
         print(f"MPI ranks:                {communicator.size}")
         print(f"Process grid:             {layout.process_grid}")
         print(f"System:                   {arguments.system}")
+        print(f"Integrator:               {arguments.integrator}")
+        print(f"Time step:                {arguments.time_step}")
+        print(f"Maximum Krylov dimension: {arguments.max_krylov_dimension}")
         print(f"Legacy symmetry label:    {'sp' if arguments.system != 'HD+' else 's'}")
         print(f"Electronic points/element: {arguments.electronic_points_per_element}")
         initial_label = arguments.initial_state or "generated product"
@@ -358,6 +361,26 @@ def main() -> None:
         print(f"Distributed solve time:   {solve_time:.6f} s")
         print(f"Solve time per iteration: {solve_time / result.iterations:.6f} s")
         print(f"Hamiltonian calls:        {int(profile['hamiltonian_calls'])}")
+        print(
+            "Krylov operator calls:    "
+            f"{int(np.sum(result.krylov_operator_calls))}"
+        )
+        print(
+            "Krylov accepted attempts: "
+            f"{int(np.sum(result.krylov_accepted_substeps))}"
+        )
+        print(
+            "Krylov rejected attempts: "
+            f"{int(np.sum(result.krylov_rejected_substeps))}"
+        )
+        print(
+            "Krylov max dimension:     "
+            f"{int(np.max(result.krylov_dimensions))}"
+        )
+        print(
+            "Krylov max error estimate: "
+            f"{np.max(result.krylov_error_estimates):.6e}"
+        )
         print(f"Coordinate-1 work (max):  {profile['coordinate1_seconds']:.6f} s")
         print(f"Coordinate-2 work (max):  {profile['coordinate2_seconds']:.6f} s")
         print(f"Coulomb work (max):       {profile['coulomb_seconds']:.6f} s")
@@ -390,6 +413,9 @@ def main() -> None:
         "state_change": result.state_change,
         "residual_norm": result.residual_norm,
         "time_step": arguments.time_step,
+        "max_krylov_dimension": arguments.max_krylov_dimension,
+        "krylov_rtol": arguments.krylov_rtol,
+        "max_krylov_refinements": arguments.max_krylov_refinements,
         "energy_tolerance": arguments.energy_tolerance,
         "state_tolerance": arguments.state_tolerance,
         "residual_tolerance": arguments.residual_tolerance,
