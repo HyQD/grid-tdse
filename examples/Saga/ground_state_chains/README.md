@@ -1,8 +1,9 @@
 # Converged non-BO ground-state chains on Saga
 
-This workflow stress-tests the Cartesian MPI SIL ground-state solver and
-creates continuation states for later real-time dynamics. It submits one
-dependent Slurm chain per molecule and electronic grid:
+This workflow stress-tests the Cartesian MPI ground-state solvers and creates
+continuation states for later real-time dynamics. It supports SIL, SIA, and
+energy-shifted exponential Euler and submits one dependent Slurm chain per
+molecule and electronic grid:
 
 - the production 11-point electronic FEM-DVR chain uses
   `l_max = 0, 2, 4, 6, 8, 10`;
@@ -10,6 +11,10 @@ dependent Slurm chain per molecule and electronic grid:
   `l_max = 0, 2, 4, 6`;
 - `--extend-21` also submits `l_max = 8, 10` after the lower cutoffs have
   proved affordable.
+
+Use `--max-l-max` to stop either grid at an earlier cutoff. Per-cutoff time
+steps and iteration limits can be supplied through the environment without
+editing the worker or submission script.
 
 Every converged state is embedded into the next angular basis. A failed or
 timed-out job prevents its descendants from starting because Slurm uses
@@ -147,6 +152,51 @@ That command starts new chains at `l_max=0`; it does not append to an older
 run directory. This keeps every dependency chain and provenance record
 self-contained.
 
+### Preliminary exponential-Euler chain
+
+The preliminary H2+ e11 schedule uses conservative time steps established by
+local cold-product tests. It stops at `l_max=6` and gives the smaller-step
+stages enough outer iterations to cover useful imaginary time:
+
+```bash
+export GRID_TDSE_CHAIN_TIME_STEP_L0=0.1
+export GRID_TDSE_CHAIN_TIME_STEP_L2=0.1
+export GRID_TDSE_CHAIN_TIME_STEP_L4=0.05
+export GRID_TDSE_CHAIN_TIME_STEP_L6=0.01
+
+export GRID_TDSE_CHAIN_MAX_ITERATIONS_L0=20000
+export GRID_TDSE_CHAIN_MAX_ITERATIONS_L2=20000
+export GRID_TDSE_CHAIN_MAX_ITERATIONS_L4=40000
+export GRID_TDSE_CHAIN_MAX_ITERATIONS_L6=200000
+
+examples/Saga/ground_state_chains/submit_ground_state_chains.sh \
+    --system H2+ \
+    --electronic-grid 11 \
+    --integrator exponential-euler \
+    --max-krylov-dimension 20 \
+    --max-l-max 6 \
+    --run-name h2p-e11-exponential-euler-preliminary
+```
+
+The values are recorded separately for every job in `jobs.csv`. Continuation
+states differ from the cold product used to select the initial schedule, so
+inspect the reported maximum Krylov dimension and error estimate at every
+cutoff. A job that cannot satisfy the `phi_1` tolerance exits nonzero and its
+`afterok` descendants do not start.
+
+Unset the per-cutoff variables before preparing an unrelated chain:
+
+```bash
+unset GRID_TDSE_CHAIN_TIME_STEP_L0 \
+      GRID_TDSE_CHAIN_TIME_STEP_L2 \
+      GRID_TDSE_CHAIN_TIME_STEP_L4 \
+      GRID_TDSE_CHAIN_TIME_STEP_L6 \
+      GRID_TDSE_CHAIN_MAX_ITERATIONS_L0 \
+      GRID_TDSE_CHAIN_MAX_ITERATIONS_L2 \
+      GRID_TDSE_CHAIN_MAX_ITERATIONS_L4 \
+      GRID_TDSE_CHAIN_MAX_ITERATIONS_L6
+```
+
 ## 4. Optional resource overrides
 
 The conservative wall times can be overridden before submission. Variable
@@ -171,6 +221,16 @@ export GRID_TDSE_CHAIN_PARTITION=normal
 export GRID_TDSE_CHAIN_QOS="<qos-name>"
 ```
 
+Append `_L0`, `_L2`, `_L4`, `_L6`, `_L8`, or `_L10` to the time-step or
+maximum-iteration variable to override only that cutoff. For example:
+
+```bash
+export GRID_TDSE_CHAIN_TIME_STEP_L4=0.05
+export GRID_TDSE_CHAIN_MAX_ITERATIONS_L6=200000
+```
+
+The per-cutoff value takes precedence over its global counterpart.
+
 Unset an override to return to the defaults. Do not use the short development
 QoS for these production chains.
 
@@ -187,7 +247,7 @@ Follow a running job with `tail -f`, then summarize completed calculations:
 
 ```bash
 grep --text -H -E \
-    'System:|Electronic points/element:|Initial state:|l_max:|Process grid:|Converged:|Iterations:|Energy:|Eigenstate residual:|Norm:|Distributed solve time:|State archive:' \
+    'System:|Integrator:|Time step:|Maximum Krylov dimension:|Electronic points/element:|Initial state:|l_max:|Process grid:|Converged:|Iterations:|Energy:|Eigenstate residual:|Norm:|Distributed solve time:|Krylov operator calls:|Krylov max dimension:|Krylov max error estimate:|State archive:' \
     "${run_root}/output/"*.out
 ```
 
