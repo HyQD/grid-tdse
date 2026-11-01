@@ -22,6 +22,10 @@ from .diatomic import (
     _pair_exchange_parity,
 )
 from .dipole import DipoleGauge, TwoRadialAxialDipoleInteraction
+from .dynamics_initialization import (
+    DiatomicDynamicsInitialStatePolicy,
+    prepare_non_bo_diatomic_dynamics_initial_state,
+)
 from .grids import FEMDVRGridSpec
 from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
@@ -116,9 +120,15 @@ class _TwoRadialTDSE:
             raise ValueError(f"unknown {integrator} integrator options: {names}")
         self.integrator_options = options.copy()
 
-        self.initial_state = self._prepare_initial_state(initial_state)
         self.field_gauge = _field_gauge(field_gauge)
         self.fields, field_metadata = _axial_fields(fields, self.field_gauge)
+        _validate_field_angular_basis(self.representation, self.fields)
+        _validate_velocity_gauge_initial_vector_potential(
+            self.fields,
+            gauge=self.field_gauge,
+            initial_time=initial_time,
+        )
+        self.initial_state = self._prepare_initial_state(initial_state)
         self.field_free_hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
@@ -458,8 +468,13 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         *,
         electronic_grid: FEMDVRGridSpec,
         internuclear_grid: FEMDVRGridSpec,
-        initial_state: InitialState,
+        initial_state: InitialState | None = None,
         pair_exchange_parity: Parity | None,
+        initial_state_policy: DiatomicDynamicsInitialStatePolicy = "require",
+        ground_state_path: str | PathLike[str] | None = None,
+        ground_state_inversion_parity: Parity = 1,
+        ground_state_symmetry_adapted_basis: bool | None = None,
+        ground_state_options: Mapping[str, Any] | None = None,
         fields=(),
         field_gauge: DipoleGauge = "length",
         l_max: int = 2,
@@ -557,6 +572,47 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             radial_coulomb_method=radial_coulomb_method,
         )
         self.representation = self.specification.build()
+        self.initialization = None
+        if initial_state is None:
+            if ground_state_path is None:
+                raise ValueError(
+                    "ground_state_path is required when initial_state is None"
+                )
+            self.initialization = (
+                prepare_non_bo_diatomic_dynamics_initial_state(
+                    self.representation,
+                    system=self.parameters.name,
+                    electronic_grid=electronic_grid,
+                    internuclear_grid=internuclear_grid,
+                    pair_exchange_parity=self.pair_exchange_parity,
+                    archive_path=ground_state_path,
+                    policy=initial_state_policy,
+                    inversion_parity=ground_state_inversion_parity,
+                    symmetry_adapted_basis=(
+                        ground_state_symmetry_adapted_basis
+                    ),
+                    codata_set=codata_set,
+                    radial_coulomb_method=radial_coulomb_method,
+                    ground_state_options=ground_state_options,
+                )
+            )
+            initial_state = self.initialization.state
+        else:
+            if initial_state_policy != "require":
+                raise ValueError(
+                    "initial_state_policy must be 'require' when an explicit "
+                    "initial_state is provided"
+                )
+            if ground_state_path is not None:
+                raise ValueError(
+                    "ground_state_path cannot be combined with an explicit "
+                    "initial_state"
+                )
+            if ground_state_options is not None:
+                raise ValueError(
+                    "ground_state_options cannot be combined with an explicit "
+                    "initial_state"
+                )
         self.absorbing_boundaries = TwoRadialAbsorbingBoundaries(
             self.representation,
             mask1=mask_r,
@@ -582,6 +638,11 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             progress_interval=progress_interval,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
+        )
+        self.dynamics_metadata["initial_state"] = (
+            {"source": "provided"}
+            if self.initialization is None
+            else self.initialization.metadata
         )
 
     @property
@@ -717,6 +778,48 @@ def _field_gauge(value: str) -> DipoleGauge:
     if value not in ("length", "velocity"):
         raise ValueError("field_gauge must be 'length' or 'velocity'")
     return value
+
+
+def _validate_velocity_gauge_initial_vector_potential(
+    fields,
+    *,
+    gauge: DipoleGauge,
+    initial_time: float,
+) -> None:
+    if gauge != "velocity" or not fields:
+        return
+    values = []
+    for field in fields:
+        value = np.asarray(field(initial_time))
+        if value.shape != () or not np.issubdtype(value.dtype, np.number):
+            raise TypeError(
+                "velocity-gauge fields must return scalar numeric values"
+            )
+        value = complex(value.item())
+        if not np.isfinite(value.real) or not np.isfinite(value.imag):
+            raise ValueError("velocity-gauge fields must return finite values")
+        values.append(value)
+    vector_potential = sum(values, 0.0j)
+    if abs(vector_potential) > 1.0e-14:
+        raise ValueError(
+            "velocity-gauge dynamics currently require A(initial_time)=0; "
+            "a nonzero vector potential requires an explicit gauge "
+            "transformation of the field-free ground state"
+        )
+
+
+def _validate_field_angular_basis(representation, fields) -> None:
+    if not fields:
+        return
+    electronic_parities = {
+        l_value % 2 for l_value, _ in representation.basis1.states
+    }
+    if electronic_parities != {0, 1}:
+        raise ValueError(
+            "a z-polarized field requires both even and odd electronic "
+            "angular-momentum channels; increase l_max and do not impose an "
+            "electronic coordinate parity"
+        )
 
 
 def _nonnegative_integer(value, name: str) -> int:

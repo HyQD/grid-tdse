@@ -7,7 +7,8 @@ parallel implementation for two-radial wavefunctions. Development proceeds in
 the following strict order:
 
 1. complete the non-Born--Oppenheimer diatomic-ion path;
-2. prioritize distributed SIL and SIA for ground-state and real-time dynamics;
+2. use serial Davidson for production ground states and prioritize distributed
+   SIL and SIA for real-time dynamics;
 3. add distributed Crank--Nicolson only after the SIL/SIA path is complete;
 4. reuse the resulting generic infrastructure for two-electron atoms;
 5. add atomic electron-exchange compression only after a full-square atomic
@@ -98,6 +99,10 @@ The following foundations are complete:
 - compact conserved-`M_tot` angular storage;
 - serial SIL and SIA for real and imaginary time;
 - serial Krylov ground-state iteration;
+- serial thick-restarted Lanczos and preconditioned Davidson ground-state
+  solvers;
+- converged Davidson continuation chains for H2+, HD+, and D2+, including H2+
+  angular stress tests through `l_max=16`;
 - one-dimensional element-aligned distributed storage in `R`;
 - neighboring `R` bridge exchange and weak-form contribution assembly;
 - distributed Coulomb actions on locally owned `R` points;
@@ -139,9 +144,10 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 7. Phase 8 is an intermediate
-ground-state stress and continuation study before distributed SIL/SIA
-real-time dynamics begins in Phase 9.
+The non-BO roadmap is complete through Phase 8. Serial Davidson has removed
+ground-state preparation from the critical path, so distributed Davidson and
+further ITP optimization are deferred. Phase 9, the complete distributed
+SIL/SIA real-time dynamics path, is next.
 
 ## Saga findings to date
 
@@ -325,11 +331,12 @@ The non-BO path must be completed before atomic parallel development begins.
 | 5 | implement the two-dimensional Hamiltonian | complete |
 | 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
 | 7 | complete distributed SIL/SIA ground-state propagation | complete |
-| 8 | complete distributed SIL/SIA dynamics | next |
-| 9 | implement scalable distributed state I/O | pending |
-| 10 | benchmark the complete SIL/SIA path on Saga | pending |
-| 11 | deploy and benchmark on Olivia and Betzy | pending |
-| 12 | add distributed Crank--Nicolson | pending |
+| 8 | stress-test and archive production ground states | complete |
+| 9 | complete distributed SIL/SIA dynamics | next |
+| 10 | implement scalable distributed state I/O | pending |
+| 11 | benchmark the complete SIL/SIA path on Saga | pending |
+| 12 | deploy and benchmark on Olivia and Betzy | pending |
+| 13 | add distributed Crank--Nicolson | pending |
 
 ### Phase 1: archive and instrument the current implementation
 
@@ -588,34 +595,29 @@ run reproduces the single-node and serial H2+ result.
 
 ### Phase 8: stress-test and archive production ground states
 
-Before using archived states as the starting point for dynamics, establish how
-far the completed Cartesian ground-state solver can be taken in angular and
-electronic-grid resolution.
+This phase established whether ground-state preparation would limit dynamics.
+The conclusion is that it does not at the currently relevant problem sizes.
 
-1. Run continuation chains `l_max = 0, 2, 4, 6, 8, 10` for H2+, HD+, and D2+.
-2. Embed each converged state into the next angular basis instead of restarting
-   from the low-quality analytic product state.
-3. Use the established `r = [0, 4, 8, 12, 16]` and
-   `R = [0, 2, 4, 6, 8]` element boundaries, 21 internuclear points per
-   element, and first 11 and then 21 electronic points per element.
-4. Complete the 11-point chains first. Initially stop the more expensive
-   21-point chains at `l_max=6`, extending them to 8 and 10 only when measured
-   wall time and memory are acceptable.
-5. Use SIL, `M_tot=0`, positive inversion parity, and positive pair-exchange
-   parity with adapted bases for H2+/D2+. For HD+, retain positive inversion
-   parity without pair-exchange adaptation. These correspond to the legacy
-   `sp` and `s` sectors, respectively.
-6. Submit each cutoff as a separate Slurm job with an `afterok` dependency on
-   its parent. A failed, timed-out, or unconverged parent must block all higher
-   cutoffs.
-7. Save only converged, self-describing states and retain their parent-state
-   identifiers, solver tolerances, process grid, provenance, logs, and Slurm
-   accounting.
-8. Record total coefficients, per-rank memory, iterations, time to solution,
-   Hamiltonian components, halo exchange, reductions, and final observables.
-9. Keep large production states in a versioned external data archive with
-   checksums and a repository manifest. Commit only small states that have a
-   concrete testing or example use.
+1. Serial preconditioned Davidson converged H2+, HD+, and D2+ for
+   `l_max = 0, 2, 4, 6, 8` on the `8e21-4e21_16-8` reference grid, with all
+   residuals below `1e-8` and all available reference energies reproduced to
+   eight decimal places.
+2. Continuation from the preceding angular cutoff reduced the higher-cutoff
+   calculations to approximately 40--55 Hamiltonian actions.
+3. H2+ continuation remained robust through `l_max=14` on the reference grid
+   and through `l_max=16` on the `4e11-4e21_16-8` grid.
+4. The lower-resolution chain provides an angular stress test but not a
+   radially converged energy. Angular-limit extrapolation must therefore be
+   performed independently at each radial resolution.
+5. ITP and Lanczos remain independent validation paths, but further ITP
+   optimization and distributed Davidson are deferred until state size or
+   serial setup time makes them necessary.
+6. Converged production states remain self-describing and record their parent
+   state, solver settings, physical parameters, representation, observables,
+   and provenance.
+7. Large production states belong in a versioned external archive with
+   checksums and a repository manifest. Only small states with a concrete test
+   or example purpose should be committed.
 
 #### Phase 8a: characterize the Coulomb-kernel optimization target
 
@@ -640,68 +642,215 @@ loop structure:
    summaries, and optional counter files before implementing an optimized
    kernel.
 
-**Phase 8a gate:** a stable tile size and execution configuration are selected,
-all configurations agree with the serial Coulomb action, and the measurements
-are sufficient to define a performance regression benchmark for subsequent
-kernel work.
+The measurements selected tile size 512 as a stable default. Pure MPI with one
+physical core and one numerical thread per rank was fastest at the tested
+fixed allocation, while all real and complex configurations agreed with the
+reference Coulomb action.
 
-**Completion gate:** the useful cutoff for both electronic grids is documented
-for all three isotopologues, every retained state satisfies the convergence
-criteria and symmetry diagnostics, and at least one practical dynamics
-starting state has a reproducible archive and provenance record.
+**Phase 8a gate:** satisfied. The archived benchmark defines a performance
+regression baseline for subsequent kernel work.
+
+**Completion gate:** satisfied for beginning dynamics. At least one practical
+starting state can be loaded from a reproducible archive or generated quickly
+with serial Davidson. Remaining archive catalog and checksum work is
+nonblocking housekeeping.
 
 ### Phase 9: complete distributed SIL/SIA dynamics
 
-1. Add the z-polarized length- and velocity-gauge field actions to the
-   distributed Hamiltonian.
-2. Keep the length-gauge radial factors tile-local, and extend bridge exchange
-   to the radial derivatives required by the velocity-gauge action.
-3. Evaluate time-dependent Hamiltonians at the temporal midpoint, consistent
-   with the serial implementation.
-4. Use SIL for Hermitian propagation without a CAP. A separately applied mask
-   may be supported with its nonunitary effect recorded through the norm.
-5. Use SIA when a CAP makes the Hamiltonian non-Hermitian.
-6. Support separate electronic and internuclear masks or CAPs, rejecting a mask
-   and CAP on the same coordinate.
-7. Record the norm and unnormalized observables. Do not silently convert them
-   into conditional expectation values after absorption.
-8. Initially support the existing `norm_t` and `expec_z` observables, then add
-   further two-radial observables through distributed local contributions and
-   reductions.
-9. Preserve checkpoint history, field metadata, integrator diagnostics, and
-   restart time.
-10. Permit a restarted state to be exposed to a different subsequent field,
-   while strictly validating representation, grid, angular, symmetry, CODATA,
-   and state-shape metadata.
+Complete Phase 9 in the following subphases. Length-gauge Hermitian dynamics
+comes first; velocity gauge and non-Hermitian absorbers follow only after the
+shared state, sampling, and restart contracts are stable.
 
-Validation should include:
+#### Phase 9a: dynamics representation and initialization
 
-- field-free stationarity of an archived ground state up to a global phase;
-- norm conservation for Hermitian SIL and SIA propagation;
-- SIL/SIA agreement for a Hermitian pulse calculation;
-- serial/distributed agreement for length and velocity gauge separately;
-- convergence with time step and Krylov tolerance;
-- CAP-induced norm loss with SIA;
-- mask-induced norm loss with SIL or SIA;
-- checkpoint/restart equivalence to uninterrupted propagation;
-- preservation of conserved `M_tot` for a z-polarized field.
+**Implementation status:** complete locally on
+`feature/non-bo-dynamics-initialization`. The serial archive and automatic
+Davidson paths, Cartesian root-only setup and scatter, and a two-rank MPI
+equivalence test are in place. Saga deployment validation remains before the
+subphase is archived as complete.
 
-**Completion gate:** a non-BO H2+ pulse calculation can be started from an
-archived ground state, propagated and checkpointed with SIL or SIA, restarted,
-and reproduced by the serial implementation within specified tolerances.
+1. Construct a dynamics representation that retains both even and odd
+   electronic angular channels while preserving `M_tot=0` for a linearly
+   z-polarized field.
+2. Preserve pair-exchange symmetry for H2+ and D2+; HD+ has no corresponding
+   identical-pair symmetry.
+3. Embed a symmetry-adapted Davidson ground state into the larger dynamics
+   representation and validate the system, CODATA set, radial grids, angular
+   limits, physical parameters, and state shape.
+4. Support explicit initialization policies:
+
+   ```text
+   require
+   compute-if-missing
+   recompute
+   ```
+
+5. Under `compute-if-missing`, search for a metadata-compatible archive and,
+   when none exists, compute a serial Davidson state, verify convergence and
+   symmetries, save it, and embed it into the dynamics basis.
+6. In an MPI job, only rank zero may perform the serial Davidson setup; report
+   setup time separately and distribute the resulting state after a barrier.
+7. Initially require `A(t0)=0` in velocity gauge. A nonzero initial vector
+   potential requires an explicit gauge transformation of the field-free
+   ground state.
+
+**Phase 9a gate:** archived and automatically generated ground states produce
+the same serial and Cartesian-MPI initial dynamics state.
+
+#### Phase 9b: shared dynamics sampling
+
+Implement one observable evaluator and time-series schema shared by serial,
+one-dimensional MPI, and Cartesian MPI. Sample at a user-configurable accepted
+step interval and always support initial, final, and checkpoint samples.
+
+Record:
+
+- time and accepted-step index;
+- norm and norm divergence;
+- gauge-covariant energy and energy gain;
+- electric field `E(t)` or vector potential `A(t)`;
+- inversion and, when defined, pair-exchange expectations;
+- `<z_e>`, `<z_R>`, `<r>`, and `<R>`;
+- `<L^2>`, `<L_z>`, `<l_r^2>`, `<l_r,z>`, `<l_R^2>`, and `<l_R,z>`;
+- `<cos(theta_R)>` and `<cos^2(theta_R)>`;
+- electron--center distances;
+- electronic, internuclear, and total dipole vectors;
+- propagation wall time, Krylov dimensions, refinements, error estimates, and
+  accepted or rejected internal substeps.
+
+Do not identify the propagation-Hamiltonian expectation `<H(t)>` with the
+physical instantaneous energy. Following Aurbakken et al., sample the
+gauge-covariant energy operator. In dipole length gauge,
+
+```text
+K_L = H_0.
+```
+
+With Jacobi-coordinate reduced charges `xi_r`, `xi_R`, reduced masses `mu_r`,
+`mu_R`, velocity couplings `nu_i = xi_i / mu_i`, and total vector potential
+`A(t)`, the velocity-gauge operator is
+
+```text
+K_V(t) = H_0 - A(t) [nu_r p_r,z + nu_R p_R,z]
+         + A(t)^2/2 [xi_r^2/mu_r + xi_R^2/mu_R].
+```
+
+The propagation code may continue to omit the spatially uniform `A(t)^2`
+term because it changes only the global phase, but energy sampling must restore
+it. For multiple pulses, sum their vector potentials before squaring.
+
+After a mask or CAP, retain unnormalized expectation numerators. Optional
+norm-divided conditional values must use distinct names; never renormalize
+silently. Exclude numerical absorbers from the physical energy operator.
+
+The legacy `pulse.py` distance expression uses squared mean radii and is not a
+true mean or RMS distance. Store a clearly named legacy-compatible proxy for
+comparison and a physically defined RMS distance based on the corresponding
+second moments.
+
+**Phase 9b gate:** serial, one-dimensional MPI, and Cartesian-MPI evaluators
+agree for identical test states, including states with norm below one.
+
+#### Phase 9c: serial field-free and length-gauge validation
+
+1. Start from an archived or automatically generated Davidson state.
+2. Propagate field-free with SIL and verify norm conservation and stationarity
+   up to a global phase.
+3. Add a z-polarized length-gauge pulse and evaluate the Hamiltonian at each
+   temporal midpoint.
+4. Verify convergence with time step and Krylov tolerance.
+5. Compare SIL and SIA for the Hermitian calculation.
+
+**Phase 9c gate:** a serial H2+ pulse calculation produces reproducible state
+and observable time series from a Davidson initial state.
+
+#### Phase 9d: Cartesian-MPI length-gauge dynamics
+
+1. Add the distributed z-polarized length-gauge action.
+2. Keep its radial multiplication tile-local and reuse the Cartesian
+   Hamiltonian and batched physical reductions.
+3. Compare one field action, one accepted propagation step, a short time
+   series, and the final phase-aligned state with serial results.
+4. Validate `(1,2)`, `(2,1)`, and `(2,2)` process grids before multi-node use.
+
+**Phase 9d gate:** serial and distributed length-gauge pulse calculations
+agree within documented tolerances.
+
+#### Phase 9e: serial snapshots, checkpoints, and restart
+
+Provide independent options for lightweight observable samples, retained
+wavefunction snapshots, and restart-oriented checkpoints. Full-wavefunction
+snapshots support a user-specified accepted-step interval plus optional initial
+and final states. They are written after the full accepted step and after any
+configured mask, never after an internal Krylov refinement.
+
+Each snapshot stores the complete complex state, physical time, accepted-step
+index, representation, physical and CODATA parameters, field and gauge
+metadata, integrator settings, absorber metadata, norm, checksum, parent-state
+identity, and code provenance. A snapshot coincident with a checkpoint should
+be reusable for restart rather than duplicated.
+
+Preserve checkpoint history, field metadata, integrator diagnostics, and
+restart time. Permit a restarted state to encounter a different subsequent
+field while strictly validating all representation and physical metadata.
+
+**Phase 9e gate:** uninterrupted and checkpoint/restart serial calculations
+produce equivalent states and time series.
+
+#### Phase 9f: masks, CAPs, and SIA
+
+1. Add separate electronic and internuclear masks first.
+2. Add CAP propagation with SIA after mask behavior is validated.
+3. Reject simultaneous mask and CAP use on the same coordinate.
+4. Verify expected norm loss, raw and conditional observable semantics, and
+   restart equivalence.
+
+**Phase 9f gate:** absorbed serial dynamics have internally consistent norm,
+energy, and observable histories.
+
+#### Phase 9g: velocity-gauge dynamics
+
+1. Validate the serial momentum action and extend Cartesian bridge exchange to
+   the radial derivatives required by the distributed velocity-gauge action.
+2. Compare serial and distributed velocity actions, accepted steps, time
+   series, and final states.
+3. Compare corresponding length- and velocity-gauge calculations, including
+   their gauge-covariant energies.
+
+**Phase 9g gate:** paired gauge calculations converge to the same physical
+observables within spatial, angular, and temporal discretization errors.
+
+#### Phase 9h: end-to-end dynamics example
+
+Provide a production-style H2+ example that loads or computes a Davidson
+ground state, embeds it into the dynamics representation, applies a finite
+z-polarized pulse, samples the complete observable contract, writes optional
+wavefunction snapshots and checkpoints, restarts, and reproduces its serial
+result with Cartesian MPI.
+
+**Phase 9 completion gate:** the end-to-end example passes field-free,
+length-gauge, absorber, restart, and gauge-comparison acceptance tests with
+documented tolerances.
 
 ### Phase 10: implement scalable distributed state I/O
 
-1. Remove the requirement to gather production-scale states to rank zero.
+1. Remove the requirement to gather production-scale snapshots or checkpoints
+   to rank zero. Never perform such a gather implicitly.
 2. Evaluate MPI-enabled HDF5 hyperslab storage against rank-local shards with a
    manifest.
-3. Preserve all metadata required by `TwoRadialState` validation.
-4. Support restart with a different compatible MPI process grid.
-5. Make incomplete checkpoint writes detectable.
+3. Preserve the complete state plus all representation, physical, field,
+   gauge, integrator, absorber, time, checksum, and provenance metadata.
+4. Support retained full-wavefunction snapshots at a user-specified accepted
+   step interval, independently of observable and checkpoint intervals.
+5. Support restart with a different compatible MPI process grid.
+6. Make incomplete or partially committed writes detectable and keep existing
+   valid checkpoints recoverable.
+7. Estimate the uncompressed wavefunction size, expected snapshot count, and
+   total storage requirement before propagation begins.
 
-**Completion gate:** a multi-rank checkpoint can be written and reloaded
-without constructing the full state on one rank, including redistribution to a
-different rank count.
+**Completion gate:** multi-rank snapshots and checkpoints can be written and
+reloaded without constructing the full state on one rank, including
+redistribution to a different rank count.
 
 ### Phase 11: benchmark the complete SIL/SIA path on Saga
 
@@ -714,16 +863,19 @@ Perform controlled studies in this order:
 5. fixed physical problem with increasing 2D rank count for strong scaling;
 6. proportional grid and rank growth for weak scaling;
 7. repeat the fixed-core serial, threaded, pure-MPI, and hybrid comparison from
-   Phase 6 using the complete ground-state and real-time propagation paths;
+   Phase 6 using the complete real-time propagation path;
 8. one-node scaling before multi-node scaling;
-9. ground-state iteration and accepted real-time-step costs;
+9. Davidson setup and accepted real-time-step costs, reported separately;
 10. SIL and SIA comparison without a CAP, followed by SIA with a CAP;
-11. checkpoint bandwidth and restart cost.
+11. observable-sampling overhead, including gauge-covariant energy;
+12. snapshot and checkpoint bandwidth, storage, and restart cost;
+13. length- and velocity-gauge agreement and relative cost.
 
 Report wall time, core time, speedup, efficiency, peak memory per rank,
 Hamiltonian calls, collective count, communicated bytes, Krylov dimensions,
-accepted/rejected refinements, and observable agreement. Do not infer physical
-convergence from a fixed-iteration performance pilot.
+accepted/rejected refinements, sampling overhead, I/O bandwidth, storage, and
+observable agreement. Do not infer physical convergence from a fixed-iteration
+performance pilot.
 
 **Completion gate:** the report identifies the useful rank range for each
 problem size, the onset of communication saturation, and a recommended Saga
@@ -757,14 +909,15 @@ placement, and site-specific performance settings should vary by cluster.
    and MKL. Do not request GPU nodes or additional CPUs per rank until an
    explicitly threaded or GPU local kernel exists.
 7. Validate a two-rank collective test on a compute node, followed by one-,
-   two-, and four-rank H2+ correctness runs. Require agreement with serial and
-   Saga reference energies, norms, residuals, and phase-aligned states.
+   two-, and four-rank H2+ field-free and length-gauge correctness runs.
+   Require agreement with serial and Saga norms, gauge-covariant energies,
+   observable time series, and phase-aligned states.
 8. Repeat the HD+ sanity check to cover unequal nuclear masses and the absence
    of homonuclear pair-exchange adaptation.
 9. Run a representative subset of the complete Saga SIL/SIA benchmark matrix
-   on each cluster: angular growth, radial growth, strong scaling, ground-state
-   propagation, real-time dynamics without a CAP, SIA dynamics with a CAP, and
-   distributed checkpoint I/O.
+   on each cluster: angular growth, radial growth, strong scaling, Davidson
+   initialization, real-time dynamics without a CAP, SIA dynamics with a CAP,
+   and distributed snapshot and checkpoint I/O.
 10. Use identical physical inputs, commits, tolerances, and fixed-iteration
     performance pilots for cross-cluster comparisons. Record both time to
     solution and allocation cost; do not compare raw timings from mismatched
@@ -883,10 +1036,10 @@ The following should be deferred until radial tiling has been exhausted:
 
 The parallel two-radial program is complete when:
 
-1. non-BO ground states and laser-driven dynamics run with distributed SIL and
-   SIA on rectangular 2D grids;
-2. masks, CAPs, observables, checkpoints, and restarts operate without a
-   rank-zero state bottleneck;
+1. serial Davidson ground states initialize laser-driven dynamics that run
+   with distributed SIL and SIA on rectangular 2D grids;
+2. masks, CAPs, observables, wavefunction snapshots, checkpoints, and restarts
+   operate without a rank-zero state or I/O bottleneck;
 3. Saga correctness, strong scaling, weak scaling, memory, and core-time costs
    are documented;
 4. the SIL/SIA implementation is deployed and numerically validated on Olivia
@@ -901,3 +1054,6 @@ The parallel two-radial program is complete when:
 
 - Johannes Feist, *Two-photon double ionization of helium*, sections 5.5 and
   5.6.
+- Einar Aurbakken et al., "Transient spectroscopy from time-dependent
+  electronic-structure theory without multipole expansions," *Physical Review
+  A* **109**, 013109 (2024), doi:10.1103/PhysRevA.109.013109.
