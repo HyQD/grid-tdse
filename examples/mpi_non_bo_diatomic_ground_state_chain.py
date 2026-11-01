@@ -1,7 +1,7 @@
 """Continue and archive a converged Cartesian-MPI non-BO ground-state chain.
 
 This production-oriented example embeds a converged lower-``l_max`` archive
-into the next angular basis, solves with distributed SIL/SIA imaginary-time
+into the next angular basis, solves with distributed Krylov imaginary-time
 propagation, and writes a new self-describing state archive.  It is intended
 for the dependent Saga chains in ``examples/Saga/ground_state_chains``.
 """
@@ -49,7 +49,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-state", type=Path)
     parser.add_argument("--output-state", type=Path, required=True)
     parser.add_argument("--log-file", type=Path, required=True)
-    parser.add_argument("--integrator", choices=("sil", "sia"), default="sil")
+    parser.add_argument(
+        "--integrator",
+        choices=("sil", "sia", "exponential-euler"),
+        default="sil",
+    )
     parser.add_argument("--time-step", type=float, default=0.5)
     parser.add_argument("--max-iterations", type=int, default=15_000)
     parser.add_argument("--sample-interval", type=int, default=10)

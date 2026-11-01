@@ -240,7 +240,12 @@ class NonBornOppenheimerDiatomicIonGroundState:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
-        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
+        integrator: Literal[
+            "crank-nicolson",
+            "sil",
+            "sia",
+            "exponential-euler",
+        ] = "crank-nicolson",
         linear_solver: str = "bicgstab",
         linear_rtol: float = 0.0,
         linear_atol: float = 1.0e-12,
@@ -280,7 +285,11 @@ class NonBornOppenheimerDiatomicIonGroundState:
         if not isinstance(use_preconditioner, (bool, np.bool_)):
             raise TypeError("use_preconditioner must be boolean")
         self.use_preconditioner = bool(use_preconditioner)
-        if integrator in ("sil", "sia") and self.use_preconditioner:
+        if integrator in (
+            "sil",
+            "sia",
+            "exponential-euler",
+        ) and self.use_preconditioner:
             raise ValueError(
                 f"use_preconditioner=True is not supported by integrator "
                 f"{integrator!r}"

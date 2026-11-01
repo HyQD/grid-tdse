@@ -91,7 +91,7 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     linear_atol=1.0e-12,
     linear_max_iterations=None,
     gmres_restart=None,
-    # SIL/SIA exponential-Krylov options.
+    # SIL/SIA/exponential-Euler Krylov options.
     max_krylov_dimension=20,
     krylov_rtol=1.0e-10,
     krylov_atol=0.0,

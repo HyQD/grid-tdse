@@ -75,7 +75,10 @@ def _calculation(
     )
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "exponential-euler"],
+)
 @pytest.mark.parametrize(
     ("system", "pair_exchange_parity", "symmetry_adapted_basis"),
     [
@@ -115,7 +118,10 @@ def test_krylov_ground_state_integrators_are_exposed(
         )
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "exponential-euler"],
+)
 def test_krylov_ground_state_integrators_reject_cn_preconditioner(integrator):
     with pytest.raises(ValueError, match="use_preconditioner=True"):
         _calculation(
