@@ -3,6 +3,7 @@ from grid_tdse import ground_state
 from grid_tdse import real_time
 from grid_tdse import spherical
 from grid_tdse.spherical import one_radial
+from grid_tdse.spherical import one_radial_becke
 from grid_tdse.spherical import two_radial
 
 
@@ -12,7 +13,11 @@ def test_package_exports_spherical_two_radial_namespace():
     assert grid_tdse.real_time is real_time
     assert grid_tdse.spherical is spherical
     assert spherical.one_radial is one_radial
+    assert spherical.one_radial_becke is one_radial_becke
     assert spherical.two_radial is two_radial
+    assert one_radial_becke.BeckePartition.__module__ == (
+        "grid_tdse.spherical.one_radial_becke.partition"
+    )
     assert one_radial.OneElectronDiatomicSystem.__module__ == (
         "grid_tdse.spherical.one_radial.system"
     )
