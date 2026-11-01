@@ -8,6 +8,11 @@ For dependent, converged `l_max = 0 -> 2 -> ...` non-BO ground-state chains,
 including the 11- and 21-point electronic-grid stress tests, use the dedicated
 [`ground_state_chains` workflow](ground_state_chains/README.md).
 
+For isolated Coulomb-kernel measurements, including real/complex angular
+scaling, tile-size selection, hardware counters, and fixed-core MPI/Numba
+thread comparisons, use the dedicated
+[`coulomb_kernel` workflow](coulomb_kernel/README.md).
+
 Before submitting them:
 
 1. Replace `<project-id>` and `<username>` in each job script.
