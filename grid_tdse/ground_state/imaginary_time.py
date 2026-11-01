@@ -10,6 +10,8 @@ import numpy as np
 from integrator_lib import (
     ArnoldiExponential,
     CrankNicolson,
+    ExponentialEuler,
+    LanczosPhi1,
     ShortIterativeLanczos,
 )
 from scipy.sparse.linalg import LinearOperator
@@ -48,7 +50,12 @@ class GroundStateResult:
     converged: bool
     iterations: int
     imaginary_time: float
-    integrator: Literal["crank-nicolson", "sil", "sia"]
+    integrator: Literal[
+        "crank-nicolson",
+        "sil",
+        "sia",
+        "exponential-euler",
+    ]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
 
@@ -146,12 +153,20 @@ class ImaginaryTimeGroundStateSolver:
     physical inner product.
 
     Each iteration advances ``d psi / d tau = -H psi`` by one matrix-free
-    Crank--Nicolson, short-iterative Lanczos (SIL), or short-iterative Arnoldi
-    (SIA) step. It normalizes the result and evaluates the energy change,
-    phase-invariant state change, and normalized eigenstate residual.
+    Crank--Nicolson, short-iterative Lanczos (SIL), short-iterative Arnoldi
+    (SIA), or exponential-Euler step. Exponential Euler applies
+    ``h * phi_1(-h H)`` to the energy-shifted stationary residual
+    ``-(H - E[state]) state``. Every method normalizes the result and
+    evaluates the energy change, phase-invariant state change, and normalized
+    eigenstate residual.
     """
 
-    _INTEGRATORS = {"crank-nicolson", "sil", "sia"}
+    _INTEGRATORS = {
+        "crank-nicolson",
+        "sil",
+        "sia",
+        "exponential-euler",
+    }
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
 
     def __init__(
@@ -162,7 +177,12 @@ class ImaginaryTimeGroundStateSolver:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
-        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
+        integrator: Literal[
+            "crank-nicolson",
+            "sil",
+            "sia",
+            "exponential-euler",
+        ] = "crank-nicolson",
         linear_solver: str = "gmres",
         linear_rtol: float = 1.0e-10,
         linear_atol: float = 0.0,
@@ -257,11 +277,12 @@ class ImaginaryTimeGroundStateSolver:
         inner_products
             Optional batched physical inner product. It receives a sequence
             of left states and one right state and is forwarded to SIL or SIA
-            to reduce orthogonalization synchronization.
+            to reduce orthogonalization synchronization. It is also forwarded
+            to the exponential-Euler phi-function action.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
-            :class:`integrator_lib.CrankNicolson`. It is rejected for SIL and
-            SIA.
+            :class:`integrator_lib.CrankNicolson`. It is rejected for SIL,
+            SIA, and exponential Euler.
         iteration_observer
             Optional callback receiving a read-only normalized state and its
             diagnostics at iteration zero, every ``observer_interval`` steps,
@@ -319,18 +340,33 @@ class ImaginaryTimeGroundStateSolver:
             del time
             return -_hamiltonian_action(hamiltonian, values, shape)
 
+        def stationary_residual(values, time):
+            del time
+            action = _hamiltonian_action(hamiltonian, values, shape)
+            energy = self._energy(values, action, inner_product)
+            return -(action - energy * values)
+
         history = []
         converged = False
         for iteration in range(1, self.max_iterations + 1):
             step_started = perf_counter()
             imaginary_time = iteration * self.time_step
             previous_state = state
-            state = integrator(
-                state,
-                imaginary_time - self.time_step,
-                self.time_step,
-                imaginary_time_rhs,
-            )
+            if self.integrator == "exponential-euler":
+                state = integrator(
+                    state,
+                    imaginary_time - self.time_step,
+                    self.time_step,
+                    stationary_residual,
+                    imaginary_time_rhs,
+                )
+            else:
+                state = integrator(
+                    state,
+                    imaginary_time - self.time_step,
+                    self.time_step,
+                    imaginary_time_rhs,
+                )
             state = self._normalize(state, inner_product)
             state_change = self._state_change(previous_state, state, inner_product)
             action = _hamiltonian_action(hamiltonian, state, shape)
@@ -419,13 +455,42 @@ class ImaginaryTimeGroundStateSolver:
         }
         if self.integrator == "sil":
             return ShortIterativeLanczos(generator_factor=-1.0, **common)
-        return ArnoldiExponential(**common)
+        if self.integrator == "sia":
+            return ArnoldiExponential(**common)
+        phi1_options = dict(common)
+        phi1_options.pop("max_refinements")
+        return ExponentialEuler(
+            LanczosPhi1(generator_factor=-1.0, **phi1_options)
+        )
 
     def _step_diagnostics(self, integrator) -> dict[str, int | float]:
         if self.integrator == "crank-nicolson":
             return {
                 "linear_iterations": int(integrator.last_iterations),
                 "linear_residual_norm": float(integrator.last_residual_norm),
+            }
+        if self.integrator == "exponential-euler":
+            attempts = integrator.last_phi1_attempts
+            error_estimate = integrator.last_phi1_error_estimate
+            return {
+                "krylov_operator_calls": int(
+                    integrator.last_phi1_operator_calls
+                ),
+                "krylov_accepted_substeps": sum(
+                    attempt.converged for attempt in attempts
+                ),
+                "krylov_rejected_substeps": sum(
+                    not attempt.converged for attempt in attempts
+                ),
+                "krylov_refinement_depth": 0,
+                "krylov_dimension": int(
+                    integrator.last_phi1_krylov_dimension
+                ),
+                "krylov_error_estimate": (
+                    0.0
+                    if error_estimate is None
+                    else float(error_estimate)
+                ),
             }
         return {
             "krylov_operator_calls": int(integrator.last_operator_calls),

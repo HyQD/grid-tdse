@@ -114,7 +114,77 @@ def test_one_iteration_matches_normalized_imaginary_time_exponential(integrator)
     assert result.history[0].krylov_error_estimate == 0.0
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_one_exponential_euler_iteration_uses_energy_shifted_residual():
+    hamiltonian = np.array([[0.8, 0.2], [0.2, 1.4]])
+    initial = np.array([1.0, -0.3])
+    time_step = 0.2
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator="exponential-euler",
+        time_step=time_step,
+        max_iterations=1,
+        energy_tolerance=1.0e-30,
+        state_tolerance=1.0e-30,
+        residual_tolerance=1.0e-30,
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+    )
+
+    result = solver.solve(initial, lambda state: hamiltonian @ state, np.vdot)
+
+    normalized = initial / np.linalg.norm(initial)
+    energy = np.vdot(normalized, hamiltonian @ normalized).real
+    residual = -(hamiltonian @ normalized - energy * normalized)
+    augmented = np.zeros((3, 3))
+    augmented[:2, :2] = -time_step * hamiltonian
+    augmented[:2, 2] = residual
+    correction = time_step * (expm(augmented)[:2, 2])
+    expected = normalized + correction
+    expected /= np.linalg.norm(expected)
+
+    np.testing.assert_allclose(result.state, expected, atol=2.0e-13)
+    assert result.integrator == "exponential-euler"
+    assert result.history[0].linear_iterations == 0
+    assert result.history[0].krylov_operator_calls == 2
+    assert result.history[0].krylov_accepted_substeps == 1
+    assert result.history[0].krylov_rejected_substeps == 0
+    assert result.history[0].krylov_refinement_depth == 0
+    assert result.history[0].krylov_dimension == 2
+    assert result.history[0].krylov_error_estimate == 0.0
+
+
+def test_exponential_euler_leaves_an_eigenstate_fixed_without_phi_calls():
+    hamiltonian = np.diag([0.5, 1.5, 3.0])
+    initial = np.array([1.0, 0.0, 0.0])
+    calls = 0
+
+    def action(state):
+        nonlocal calls
+        calls += 1
+        return hamiltonian @ state
+
+    solver = ImaginaryTimeGroundStateSolver(
+        integrator="exponential-euler",
+        time_step=1.0,
+        max_iterations=1,
+        energy_tolerance=1.0e-14,
+        state_tolerance=1.0e-14,
+        residual_tolerance=1.0e-14,
+    )
+
+    result = solver.solve(initial, action, np.vdot)
+
+    assert result.converged
+    np.testing.assert_array_equal(result.state, initial)
+    assert result.history[0].krylov_operator_calls == 0
+    assert result.history[0].krylov_dimension == 0
+    assert calls == 3
+
+
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "exponential-euler"],
+)
 def test_krylov_itp_forwards_batched_inner_products(integrator):
     hamiltonian = np.array([[0.8, 0.2], [0.2, 1.4]])
     batches = []
@@ -158,7 +228,10 @@ def test_itp_rejects_noncallable_batched_inner_products():
         )
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "exponential-euler"],
+)
 def test_krylov_itp_converges_to_lowest_represented_eigenstate(integrator):
     eigenvalues = np.array([0.5, 1.5, 3.0])
     solver = ImaginaryTimeGroundStateSolver(
@@ -186,7 +259,10 @@ def test_krylov_itp_converges_to_lowest_represented_eigenstate(integrator):
     assert np.all(result.krylov_dimensions > 0)
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "exponential-euler"],
+)
 def test_krylov_itp_rejects_a_preconditioner(integrator):
     solver = ImaginaryTimeGroundStateSolver(
         integrator=integrator,

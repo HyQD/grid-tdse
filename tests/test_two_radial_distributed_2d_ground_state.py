@@ -207,6 +207,8 @@ def _distributed_results(
         ("sil", (2, 2)),
         ("sia", (1, 1)),
         ("sia", (2, 2)),
+        ("exponential-euler", (1, 1)),
+        ("exponential-euler", (2, 2)),
     ],
 )
 def test_cartesian_krylov_itp_matches_serial_iterations(
@@ -388,7 +390,7 @@ def test_cartesian_solver_rejects_cn_and_wrong_local_rank():
     )
     group = _ThreadCommunicatorGroup(2)
 
-    with pytest.raises(ValueError, match="sil.*sia"):
+    with pytest.raises(ValueError, match="sil.*sia.*exponential-euler"):
         TwoRadialDistributed2DGroundStateSolver(
             layout,
             group.communicator(0),
