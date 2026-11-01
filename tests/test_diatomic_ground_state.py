@@ -38,6 +38,11 @@ def _calculation(
     sample_interval=10,
     log_path=None,
     log_overwrite=False,
+    solver="itp",
+    l_max=2,
+    maximum_subspace_dimension=30,
+    retained_ritz_vectors=4,
+    davidson_preconditioner="one-body-spectral",
 ):
     electronic, internuclear = _grids()
     return NonBornOppenheimerDiatomicIonGroundState(
@@ -47,15 +52,16 @@ def _calculation(
         inversion_parity=inversion_parity,
         pair_exchange_parity=pair_exchange_parity,
         symmetry_adapted_basis=symmetry_adapted_basis,
-        l_max=2,
-        m_max=2,
-        lambda_max=4,
-        mu_max=4,
+        l_max=l_max,
+        m_max=l_max,
+        lambda_max=2 * l_max,
+        mu_max=2 * l_max,
         M_tot=M_tot,
         radial_coulomb_method=radial_coulomb_method,
         radial_operator_mode=radial_operator_mode,
         codata_set="2022",
         initial_state=initial_state,
+        solver=solver,
         time_step=0.05,
         max_iterations=max_iterations,
         energy_tolerance=1.0e-8,
@@ -68,10 +74,132 @@ def _calculation(
         max_krylov_dimension=12,
         krylov_rtol=1.0e-10,
         krylov_atol=1.0e-12,
+        maximum_subspace_dimension=maximum_subspace_dimension,
+        retained_ritz_vectors=retained_ritz_vectors,
+        davidson_preconditioner=davidson_preconditioner,
         sample_interval=sample_interval,
         log_path=log_path,
         log_overwrite=log_overwrite,
         use_preconditioner=use_preconditioner,
+    )
+
+
+@pytest.mark.parametrize("solver", ["itp", "lanczos", "davidson"])
+@pytest.mark.parametrize(
+    ("system", "pair_exchange_parity", "symmetry_adapted_basis"),
+    [
+        ("H2+", 1, True),
+        ("D2+", 1, True),
+        ("HD+", None, False),
+    ],
+)
+def test_serial_solver_selection_supports_all_diatomic_ions(
+    solver,
+    system,
+    pair_exchange_parity,
+    symmetry_adapted_basis,
+):
+    calculation = _calculation(
+        system,
+        pair_exchange_parity=pair_exchange_parity,
+        symmetry_adapted_basis=symmetry_adapted_basis,
+        solver=solver,
+        M_tot=0,
+        max_iterations=2,
+        sample_interval=1,
+    )
+
+    result = calculation.solve()
+
+    assert result.solver_name == solver
+    assert result.state.shape == calculation.representation.psi_shape
+    assert result.norm == pytest.approx(1.0, abs=2.0e-12)
+    assert result.samples[0].iteration == (0 if solver == "itp" else 1)
+    assert result.samples[-1].iteration == result.iterations
+    assert result.inversion_expectation == pytest.approx(1.0, abs=2.0e-12)
+    if pair_exchange_parity is None:
+        assert result.pair_exchange_expectation is None
+    else:
+        assert result.pair_exchange_expectation == pytest.approx(
+            1.0,
+            abs=2.0e-12,
+        )
+
+
+@pytest.mark.parametrize(
+    "preconditioner",
+    ["identity", "diagonal", "one-body-spectral"],
+)
+def test_high_level_davidson_selects_physical_preconditioners(preconditioner):
+    calculation = _calculation(
+        solver="davidson",
+        davidson_preconditioner=preconditioner,
+        M_tot=0,
+        max_iterations=2,
+    )
+
+    result = calculation.solve()
+
+    assert result.solver_name == "davidson"
+    assert result.solver_options["preconditioner"] == preconditioner
+    if preconditioner == "identity":
+        assert calculation.preconditioner is None
+    else:
+        assert calculation.preconditioner.name == preconditioner
+
+
+def test_lower_lmax_archive_is_embedded_as_serial_initial_state(tmp_path):
+    source = _calculation(l_max=0, M_tot=0).solve()
+    path = tmp_path / "lmax0.npz"
+    source.save(path)
+
+    calculation = _calculation(
+        l_max=2,
+        M_tot=0,
+        initial_state=path,
+        solver="lanczos",
+        max_iterations=1,
+    )
+
+    archived = load_two_radial_state(path)
+    expected = archived.embed_into(calculation.representation)
+    expected /= np.sqrt(
+        calculation.representation.inner_product(expected, expected).real
+    )
+    np.testing.assert_allclose(calculation.initial_state, expected)
+    assert calculation.initial_state_kind == "archive"
+    assert calculation.initial_state_provenance["path"] == str(path)
+    assert calculation.initial_state_provenance["state_data_id"] == (
+        archived.state_data_id
+    )
+
+
+def test_direct_eigensolver_archive_records_solver_provenance(tmp_path):
+    result = _calculation(
+        solver="davidson",
+        davidson_preconditioner="diagonal",
+        M_tot=0,
+        max_iterations=2,
+        maximum_subspace_dimension=8,
+        retained_ritz_vectors=2,
+    ).solve()
+    path = tmp_path / "davidson-state.npz"
+
+    result.save(path)
+    stored = load_two_radial_state(path)
+
+    assert stored.calculation["method"] == "direct_eigensolver"
+    assert stored.calculation["solver"] == "davidson"
+    assert stored.calculation["integrator"] is None
+    assert stored.calculation["imaginary_time"] is None
+    assert stored.calculation["solver_options"]["preconditioner"] == (
+        "diagonal"
+    )
+    assert stored.calculation["solver_options"][
+        "maximum_subspace_dimension"
+    ] == 8
+    assert stored.calculation["hamiltonian_actions"] == (
+        result.ground_state.hamiltonian_actions
     )
 
 
