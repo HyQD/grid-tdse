@@ -17,6 +17,7 @@ Options:
   --repetitions N       repetitions per configuration (default: 3)
   --run-name NAME       run-directory name (default: stage plus timestamp)
   --perf                collect per-rank perf stat counters
+  --concurrent          submit jobs without dependency serialization
   -h, --help            show this message
 
 Site overrides are available through GRID_TDSE_COULOMB_{PARTITION,QOS,
@@ -30,6 +31,7 @@ tile_size=256
 repetitions=3
 run_name=
 collect_perf=0
+concurrent=0
 
 while (( $# > 0 )); do
     case $1 in
@@ -55,6 +57,10 @@ while (( $# > 0 )); do
             ;;
         --perf)
             collect_perf=1
+            shift
+            ;;
+        --concurrent)
+            concurrent=1
             shift
             ;;
         -h|--help)
@@ -128,7 +134,7 @@ cp "${repository_root}/benchmarks/summarize_non_bo_diatomic_coulomb_execution.py
 chmod +x "${job_script}"
 
 manifest="${run_root}/coulomb_jobs.csv"
-echo "job_id,stage,repetition,system,l_max,state_dtype,tile_size,total_cores,mpi_ranks,numba_threads,process_grid,actions,output_pattern" > "${manifest}"
+echo "job_id,stage,repetition,system,l_max,state_dtype,tile_size,total_cores,mpi_ranks,numba_threads,process_grid,actions,dependency,output_pattern" > "${manifest}"
 
 walltime=${GRID_TDSE_COULOMB_WALLTIME:-02:00:00}
 mem_per_cpu=${GRID_TDSE_COULOMB_MEM_PER_CPU:-2G}
@@ -160,6 +166,12 @@ else
     unset GRID_TDSE_PERF_EVENTS || true
 fi
 
+previous_job_id=
+submission_mode=sequential
+if (( concurrent )); then
+    submission_mode=concurrent
+fi
+
 submit_case() {
     local l_max=$1
     local state_dtype=$2
@@ -170,7 +182,8 @@ submit_case() {
     local process_grid=$7
     local actions=$8
     local label=$9
-    local repetition job_name output_pattern job_id
+    local repetition job_name output_pattern job_id dependency_record
+    local -a dependency_options
 
     if (( total_cores != ranks * numba_threads )); then
         echo "Invalid fixed-core configuration: ${ranks} x ${numba_threads}" >&2
@@ -179,6 +192,14 @@ submit_case() {
     for (( repetition = 1; repetition <= repetitions; repetition++ )); do
         job_name="ck_${stage}_${label}_r${repetition}"
         output_pattern="${output_dir}/${job_name}-%j.out"
+        dependency_options=()
+        dependency_record=none
+        if (( ! concurrent )) && [[ -n ${previous_job_id} ]]; then
+            dependency_options=(
+                --dependency="afterany:${previous_job_id}"
+            )
+            dependency_record="afterany:${previous_job_id}"
+        fi
         job_id=$(
             sbatch \
                 --parsable \
@@ -192,6 +213,7 @@ submit_case() {
                 --time="${walltime}" \
                 --output="${output_pattern}" \
                 --export="ALL,GRID_TDSE_TOTAL_CORES=${total_cores},GRID_TDSE_NUMBA_THREADS=${numba_threads}" \
+                "${dependency_options[@]}" \
                 "${extra_sbatch[@]}" \
                 "${job_script}" \
                 "${benchmark_script}" \
@@ -205,8 +227,9 @@ submit_case() {
                 --result-directory "${result_dir}"
         )
         job_id=${job_id%%;*}
-        echo "${job_id},${stage},${repetition},${system},${l_max},${state_dtype},${case_tile_size},${total_cores},${ranks},${numba_threads},${process_grid},${actions},${output_pattern}" >> "${manifest}"
-        echo "Submitted ${job_name}: ${job_id}"
+        echo "${job_id},${stage},${repetition},${system},${l_max},${state_dtype},${case_tile_size},${total_cores},${ranks},${numba_threads},${process_grid},${actions},${dependency_record},${output_pattern}" >> "${manifest}"
+        echo "Submitted ${job_name}: ${job_id} (${dependency_record})"
+        previous_job_id=${job_id}
     done
 }
 
@@ -246,6 +269,7 @@ esac
     echo "date=$(date --iso-8601=seconds)"
     echo "stage=${stage}"
     echo "system=${system}"
+    echo "submission_mode=${submission_mode}"
     echo "grid_tdse_commit=$(git -C "${repository_root}" rev-parse HEAD)"
     echo "mpi_module=${GRID_TDSE_MPI_MODULE:-not-loaded-in-submission-shell}"
     echo "python=$(command -v python)"
@@ -260,3 +284,7 @@ echo "Run root:  ${run_root}"
 echo "Manifest:  ${manifest}"
 echo "Results:   ${result_dir}"
 echo "Latest:    ${latest_file}"
+echo "Mode:      ${submission_mode}"
+if [[ -n ${previous_job_id} ]]; then
+    echo "Final job: ${previous_job_id}"
+fi
