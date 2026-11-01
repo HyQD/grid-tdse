@@ -21,14 +21,16 @@ Imaginary-time evolution obeys
 \frac{\partial}{\partial\tau}\Psi(\tau)=-H\Psi(\tau).
 ```
 
-The solver supports three matrix-free integrators from `integrator-lib`:
+The solver supports four matrix-free integrators from `integrator-lib`:
 
 - `integrator="crank-nicolson"` applies the Cayley step below and remains the
   default;
 - `integrator="sil"` uses a Hermitian Lanczos projection to approximate the
   imaginary-time exponential;
 - `integrator="sia"` uses a general Arnoldi projection as a validation and
-  fallback path.
+  fallback path;
+- `integrator="exponential-euler"` applies a Hermitian Lanczos `phi_1`
+  action to the energy-shifted stationary residual.
 
 The Crank--Nicolson step is
 
@@ -44,6 +46,26 @@ SIL and SIA instead approximate `exp(-Delta tau H) Psi_n`. For SIL,
 preferred exponential method for the ordinary Hermitian ground-state problem
 because its projected matrix is tridiagonal and it requires less storage than
 Arnoldi.
+
+Exponential Euler uses
+
+```math
+\Psi_{n+1}
+=
+\Psi_n
++
+\Delta\tau\,\varphi_1(-\Delta\tau H)
+\left[-(H-E_n)\Psi_n\right],
+\qquad
+\varphi_1(z)=\frac{e^z-1}{z}.
+```
+
+The energy shift makes every normalized eigenstate an exact fixed point of
+the discrete iteration: its stationary residual is zero independently of the
+chosen time step. This update is not an SIL or SIA exponential step. It uses
+the same Hermitian Lanczos machinery for the matrix-free `phi_1` action, but
+applies that action to the full stationary residual rather than directly to
+the state.
 
 The updated state is normalized after every step using the supplied physical
 inner product. No Euclidean coefficient norm is assumed.
@@ -146,6 +168,9 @@ state as converged.
 Failure of the inner Crank--Nicolson solve raises
 `integrator_lib.LinearSolveError`. Failure of an SIL or SIA exponential after
 the configured refinements raises `integrator_lib.KrylovConvergenceError`.
+Failure of an exponential-Euler `phi_1` action to meet its tolerance raises
+the same exception. The current `phi_1` implementation does not subdivide a
+step, so `max_krylov_refinements` does not affect exponential Euler.
 
 Crank--Nicolson is not strongly damping for arbitrarily large imaginary-time
 steps. The time step should therefore be included in numerical convergence
@@ -183,7 +208,7 @@ result = solver.solve(
 
 The construction of `psi0` belongs to the atomic and molecular high-level
 interfaces. A two-radial preconditioner may be supplied only when
-`integrator="crank-nicolson"`; SIL and SIA reject it.
+`integrator="crank-nicolson"`; SIL, SIA, and exponential Euler reject it.
 
 ## Diagnostics
 
@@ -197,9 +222,9 @@ interfaces. A two-radial preconditioner may be supplied only when
 
 Each iteration record includes the energy, energy change, phase-invariant
 state change, eigenstate residual, and normalized state norm. CN records its
-linear iteration count and final residual. SIL and SIA record Hamiltonian
-calls, accepted and rejected substeps, refinement depth, Krylov dimension,
-and the exponential residual estimate.
+linear iteration count and final residual. SIL, SIA, and exponential Euler
+record Hamiltonian calls, Krylov attempts, refinement depth, Krylov dimension,
+and the exponential or `phi_1` residual estimate.
 
 ## Progress reporting
 

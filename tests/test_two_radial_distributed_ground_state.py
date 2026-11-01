@@ -150,9 +150,9 @@ class _ThreadCommunicator:
             return self.group.gather_results[gather_round]
 
 
-def _serial_result(calculation, options):
+def _serial_result(calculation, options, integrator="sil"):
     solver = ImaginaryTimeGroundStateSolver(
-        integrator="sil",
+        integrator=integrator,
         **options,
     )
     return solver.solve(
@@ -167,6 +167,7 @@ def _distributed_results(
     n_ranks,
     options,
     *,
+    integrator="sil",
     partitioned_coordinate=2,
     observable_evaluator=None,
     sample_interval=10,
@@ -184,6 +185,7 @@ def _distributed_results(
         TwoRadialDistributedGroundStateSolver(
             layout,
             group.communicator(rank),
+            integrator=integrator,
             observable_evaluator=observable_evaluator,
             sample_interval=sample_interval,
             log_path=log_path,
@@ -200,21 +202,35 @@ def _distributed_results(
     return layout, results
 
 
-@pytest.mark.parametrize("n_ranks", [1, 2, 3])
-def test_distributed_lanczos_itp_matches_serial_iterations(n_ranks):
+@pytest.mark.parametrize(
+    ("integrator", "n_ranks"),
+    [
+        ("sil", 1),
+        ("sil", 2),
+        ("sil", 3),
+        ("exponential-euler", 1),
+        ("exponential-euler", 2),
+    ],
+)
+def test_distributed_krylov_itp_matches_serial_iterations(
+    integrator,
+    n_ranks,
+):
     calculation = _calculation()
     calculation.initial_state = (1.0 + 0.2j) * calculation.initial_state
     options = _solver_options()
-    serial = _serial_result(calculation, options)
+    serial = _serial_result(calculation, options, integrator)
     layout, distributed = _distributed_results(
         calculation,
         n_ranks,
         options,
+        integrator=integrator,
     )
     state = layout.assemble([result.state for result in distributed])
 
     np.testing.assert_allclose(state, serial.state, atol=2.0e-11, rtol=2.0e-11)
     for result in distributed:
+        assert result.integrator == integrator
         assert result.energy == pytest.approx(serial.energy, abs=2.0e-12)
         assert result.state_change == pytest.approx(
             serial.state_change,

@@ -2,10 +2,11 @@
 
 `TwoRadialDistributedGroundStateSolver` connects the one-coordinate
 distributed state, field-free Hamiltonian, and physical reductions to
-short-iterative Lanczos imaginary-time propagation.
+Krylov imaginary-time propagation.
 `TwoRadialDistributed2DGroundStateSolver` extends the same
 representation-independent iteration to a Cartesian process grid and supports
-both short-iterative Lanczos (SIL) and short-iterative Arnoldi (SIA).
+short-iterative Lanczos (SIL), short-iterative Arnoldi (SIA), and
+exponential Euler.
 
 The implementation targets the first complete MPI calculation for
 non-Born--Oppenheimer diatomic ions. It supports FEM-DVR, element-aligned
@@ -15,14 +16,16 @@ angular storage. `R` remains the default distributed coordinate.
 The Cartesian solver partitions both `r` and `R`, retaining all angular
 channels on every rank. SIL is the production choice for the Hermitian
 field-free ground-state problem. SIA provides an independent general
-exponential-action reference. Neither ground-state solver permits a CAP.
+exponential-action reference. Exponential Euler uses a Hermitian Lanczos
+`phi_1` action on the energy-shifted stationary residual. Neither ground-state
+solver permits a CAP.
 
 ## Algorithm
 
 Every rank holds a `DistributedTwoRadialState` containing all angular
 channels, the complete unpartitioned radial coordinate, and only its
 permanently owned points along the selected radial coordinate. During each
-Lanczos imaginary-time step:
+Krylov imaginary-time step:
 
 1. The generic representation-independent ground-state solver advances each
    rank's local coefficient array.
@@ -38,7 +41,7 @@ Lanczos imaginary-time step:
    evaluated collectively.
 
 All ranks receive the same reduced scalars and therefore make the same
-Lanczos-dimension, refinement, and convergence decisions. The root rank alone
+Krylov-dimension, refinement, and convergence decisions. The root rank alone
 prints iteration progress.
 
 The Hamiltonian overlaps bridge communication with unpartitioned-coordinate,
@@ -49,12 +52,13 @@ subspace construction. These changes affect allocation and synchronization,
 not the represented state or convergence criteria.
 
 The implementation reuses `ImaginaryTimeGroundStateSolver` and
-`integrator-lib`; it does not contain a separate MPI implementation of the
-Lanczos algorithm.
+`integrator-lib`; it does not contain separate MPI implementations of the
+Krylov algorithms.
 
 For the Cartesian path, `TwoRadialDistributed2DReductions` integrates only
 permanently owned radial tiles, so FEM-DVR bridge points are counted exactly
-once. Batched SIL/SIA projections use one collective per projection batch.
+once. Batched SIL/SIA/`phi_1` projections use one collective per projection
+batch.
 The two radial derivative actions independently exchange edge bridge values
 along their Cartesian process-grid directions.
 
@@ -176,14 +180,20 @@ The example:
 
 - builds an H2+ representation with `M_tot=0`;
 - scatters the deterministic product state from rank zero;
-- performs distributed SIL imaginary-time propagation;
+- performs distributed SIL imaginary-time propagation by default;
 - gathers the final state on rank zero;
-- compares its energy and phase-aligned state with a serial SIL calculation.
+- compares its energy and phase-aligned state with a serial calculation using
+  the same integrator.
+
+Pass `--integrator exponential-euler --time-step 0.05` to exercise the
+one-coordinate distributed `phi_1` path. The `phi_1` action does not currently
+subdivide a difficult step; reduce `--time-step` or increase
+`--max-krylov-dimension` if it cannot meet its tolerance.
 
 Pass `--no-serial-comparison` when the additional serial calculation is not
 desired.
 
-### Run the Cartesian SIL/SIA example
+### Run the Cartesian Krylov example
 
 Use a `2 x 2` process grid for a four-rank local correctness run:
 
@@ -198,7 +208,11 @@ python -u examples/mpi_non_bo_diatomic_2d_ground_state.py \
     --max-iterations 20
 ```
 
-Replace `sil` with `sia` to exercise the Arnoldi reference path. Omitting
+Replace `sil` with `sia` to exercise the Arnoldi reference path, or with
+`exponential-euler` to exercise the energy-shifted residual and Hermitian
+`phi_1` path. Because the `phi_1` action does not currently subdivide a
+difficult step, select a smaller `--time-step` or a larger
+`--max-krylov-dimension` when necessary. Omitting
 `--process-grid` requests automatic process-grid selection. The example also
 accepts `--system H2+|HD+|D2+`, `--l-max`, `--sample-interval`, and a
 compatible serial archive through `--initial-state`. The optional

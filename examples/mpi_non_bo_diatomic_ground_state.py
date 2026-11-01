@@ -1,4 +1,4 @@
-"""Distributed Lanczos imaginary-time calculation for a non-BO diatomic ion.
+"""Distributed Krylov imaginary-time calculation for a non-BO diatomic ion.
 
 Install the optional MPI support and launch, for example, with::
 
@@ -32,6 +32,12 @@ parser.add_argument(
     default="H2+",
 )
 parser.add_argument(
+    "--integrator",
+    choices=("sil", "exponential-euler"),
+    default="sil",
+    help="imaginary-time integrator (default: sil)",
+)
+parser.add_argument(
     "--no-serial-comparison",
     action="store_false",
     dest="compare_with_serial",
@@ -42,6 +48,18 @@ parser.add_argument(
     type=int,
     default=4_000,
     help="maximum number of imaginary-time steps (default: 4000)",
+)
+parser.add_argument(
+    "--time-step",
+    type=float,
+    default=0.5,
+    help="imaginary-time step (default: 0.5)",
+)
+parser.add_argument(
+    "--max-krylov-dimension",
+    type=int,
+    default=20,
+    help="maximum Krylov dimension (default: 20)",
 )
 parser.add_argument(
     "--l-max",
@@ -72,6 +90,10 @@ arguments = parser.parse_args()
 
 if arguments.l_max < 0:
     parser.error("--l-max must be nonnegative")
+if arguments.time_step <= 0.0:
+    parser.error("--time-step must be positive")
+if arguments.max_krylov_dimension <= 0:
+    parser.error("--max-krylov-dimension must be positive")
 if arguments.sample_interval <= 0:
     parser.error("--sample-interval must be positive")
 
@@ -89,12 +111,12 @@ IDENTICAL_PAIR = SYSTEM != "HD+"
 PAIR_EXCHANGE_PARITY = +1 if IDENTICAL_PAIR else None
 SYMMETRY_ADAPTED_BASIS = IDENTICAL_PAIR
 
-TIME_STEP = 0.5
+TIME_STEP = arguments.time_step
 MAX_ITERATIONS = arguments.max_iterations
 ENERGY_TOLERANCE = 1.0e-10
 STATE_TOLERANCE = 1.0e-8
 RESIDUAL_TOLERANCE = 1.0e-8
-MAX_KRYLOV_DIMENSION = 20
+MAX_KRYLOV_DIMENSION = arguments.max_krylov_dimension
 KRYLOV_RTOL = 1.0e-10
 KRYLOV_ATOL = 0.0
 MAX_KRYLOV_REFINEMENTS = 8
@@ -129,7 +151,7 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     radial_operator_mode="element-local",
     codata_set=CODATA_SET,
     initial_state="product",
-    integrator="sil",
+    integrator=arguments.integrator,
     use_preconditioner=False,
     time_step=TIME_STEP,
     max_iterations=MAX_ITERATIONS,
@@ -159,6 +181,7 @@ local_initial_state = scatter_two_radial_state(
 solver = TwoRadialDistributedGroundStateSolver(
     layout,
     communicator,
+    integrator=arguments.integrator,
     time_step=TIME_STEP,
     max_iterations=MAX_ITERATIONS,
     energy_tolerance=ENERGY_TOLERANCE,
@@ -258,6 +281,7 @@ if communicator.rank == 0:
     coefficient_bytes = calculation.initial_state.dtype.itemsize
     print(f"MPI ranks:                {communicator.size}")
     print(f"System:                   {SYSTEM}")
+    print(f"Integrator:               {arguments.integrator}")
     print(f"Partitioned coordinate:  {arguments.partition_coordinate}")
     print(f"l_max:                    {l_max}")
     print(f"m_max:                    {m_max}")
@@ -361,7 +385,7 @@ if communicator.rank == 0:
 
     if COMPARE_WITH_SERIAL:
         serial_solver = ImaginaryTimeGroundStateSolver(
-            integrator="sil",
+            integrator=arguments.integrator,
             time_step=TIME_STEP,
             max_iterations=MAX_ITERATIONS,
             energy_tolerance=ENERGY_TOLERANCE,

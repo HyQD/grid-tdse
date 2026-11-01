@@ -1,4 +1,4 @@
-"""SIL/SIA imaginary-time propagation on Cartesian two-radial layouts."""
+"""Krylov imaginary-time propagation on Cartesian two-radial layouts."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ class Distributed2DGroundStateResult:
     converged: bool
     iterations: int
     imaginary_time: float
-    integrator: Literal["sil", "sia"]
+    integrator: Literal["sil", "sia", "exponential-euler"]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
     samples: tuple[DiatomicIonGroundStateSample, ...] = ()
@@ -127,7 +127,7 @@ class Distributed2DGroundStateResult:
 
 
 class TwoRadialDistributed2DGroundStateSolver:
-    """Find a two-radial ground state with Cartesian SIL or SIA ITP.
+    """Find a two-radial ground state with Cartesian Krylov ITP.
 
     Every rank advances only its permanently owned Cartesian radial tile. The
     Hamiltonian exchanges edge bridge values independently along both process
@@ -135,7 +135,7 @@ class TwoRadialDistributed2DGroundStateSolver:
     reductions. Ground-state CAPs are intentionally unsupported.
     """
 
-    _INTEGRATORS = {"sil", "sia"}
+    _INTEGRATORS = {"sil", "sia", "exponential-euler"}
 
     def __init__(
         self,
@@ -148,7 +148,11 @@ class TwoRadialDistributed2DGroundStateSolver:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
-        integrator: Literal["sil", "sia"] = "sil",
+        integrator: Literal[
+            "sil",
+            "sia",
+            "exponential-euler",
+        ] = "sil",
         max_krylov_dimension: int = 20,
         krylov_rtol: float = 1.0e-10,
         krylov_atol: float = 0.0,
@@ -167,7 +171,9 @@ class TwoRadialDistributed2DGroundStateSolver:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
             raise TypeError("layout must be a TwoRadialDistributed2DLayout")
         if integrator not in self._INTEGRATORS:
-            raise ValueError("integrator must be 'sil' or 'sia'")
+            raise ValueError(
+                "integrator must be 'sil', 'sia', or 'exponential-euler'"
+            )
         rank, size = _rank_and_size(layout, communicator)
         root = _validated_root(root, size)
         if observable_evaluator is not None and not isinstance(
