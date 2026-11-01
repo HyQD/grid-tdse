@@ -69,7 +69,25 @@ echo "OMP binding:        ${OMP_PROC_BIND}"
 echo "Perf events:        ${GRID_TDSE_PERF_EVENTS:-disabled}"
 echo "Script:             ${script}"
 module list
-python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
+
+echo "Running serial compute-node import and font-cache preflight"
+python - <<'PY'
+import PIL
+from PIL import ImageColor
+import matplotlib
+from matplotlib import font_manager
+import numba
+import grid_tdse
+from mpi4py import MPI
+
+font_path = font_manager.findfont("DejaVu Sans")
+print("Pillow:", PIL.__version__, ImageColor.__file__)
+print("Matplotlib:", matplotlib.__version__, font_path)
+print("Numba:", numba.__version__)
+print("grid-tdse:", grid_tdse.__file__)
+print(MPI.Get_library_version().rstrip("\x00"))
+print("Preflight imports complete")
+PY
 
 time srun \
     --mpi=pmix \

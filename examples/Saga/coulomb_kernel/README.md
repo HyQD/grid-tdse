@@ -12,7 +12,11 @@ checks, and JSON writing are outside the benchmark's timed interval. The
 timed action is the same compact Coulomb kernel used by the production
 Hamiltonian. Every submitted configuration is repeated three times by
 default and retains an untimed comparison with the public distributed and
-serial Coulomb actions.
+serial Coulomb actions. Jobs are dependency-serialized by default so only one
+configuration performs its Python imports and benchmark work at a time. Each
+job also performs a single-process compute-node import preflight and builds
+its job-local Matplotlib font cache before launching MPI ranks. These measures
+avoid shared-filesystem import storms on Saga.
 
 ## 1. Update and validate the Saga checkout
 
@@ -52,7 +56,7 @@ bash -n examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh
 The submission helper creates a unique directory below
 `${PROJECT_ROOT}/jobs/grid-tdse/coulomb-kernel`, copies the exact job,
 benchmark, and summary scripts used there, and writes provenance and a CSV
-job manifest.
+job manifest. The manifest records the Slurm dependency for every job.
 
 ## 2. Select the kernel tile size
 
@@ -65,7 +69,7 @@ cd "${SRC_ROOT}/grid-tdse"
 examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
     --stage tile \
     --system H2+ \
-    --run-name h2p-coulomb-tile-l8
+    --run-name h2p-coulomb-tile-l8-sequential
 
 run_root=$(cat \
     "${PROJECT_ROOT}/jobs/grid-tdse/coulomb-kernel/latest_tile_run.txt")
@@ -77,8 +81,13 @@ Monitor only this run:
 
 ```bash
 job_ids=$(tail -n +2 "${run_root}/coulomb_jobs.csv" | cut -d, -f1 | paste -sd, -)
-squeue -j "${job_ids}"
+squeue -j "${job_ids}" -o "%.18i %.42j %.2t %.10M %.30R"
 ```
+
+Only one job should be running. Later jobs should be pending with a dependency
+reason. The chain uses `afterany`, so one failed configuration does not prevent
+the remaining independent measurements from running. Every output file must
+contain `Preflight imports complete` before its MPI benchmark output.
 
 When all jobs have left the queue, check their states and scan for failures:
 
@@ -88,9 +97,14 @@ sacct -j "${job_ids}" \
     | tee "${run_root}/sacct.txt"
 
 grep --text -H -E \
-    'Traceback|ImportError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY' \
+    'Traceback|FileNotFoundError|ImportError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY' \
     "${run_root}/output/"*.out || true
+
+grep --text -l 'Result JSON:' "${run_root}/output/"*.out | wc -l
 ```
+
+The tile sweep must produce 21 result files: seven tile sizes times three
+repetitions. Do not select a tile from an incomplete sweep.
 
 Create the summary:
 
@@ -178,7 +192,7 @@ for current_root in "${angular_root}" "${threads_root}"; do
         --format=JobID,JobName%38,State,Elapsed,TotalCPU,AllocCPUS,MaxRSS,NodeList \
         > "${current_root}/sacct.txt"
     grep --text -H -E \
-        'Traceback|ImportError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY' \
+        'Traceback|FileNotFoundError|ImportError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY' \
         "${current_root}/output/"*.out || true
     python "${current_root}/summarize_non_bo_diatomic_coulomb_execution.py" \
         "${current_root}/results" \
@@ -192,6 +206,13 @@ A hybrid configuration is useful only if its repeated median improves while
 correctness and CPU utilization remain sound. Do not infer a benefit from
 requesting extra CPUs per rank unless `NUMBA_NUM_THREADS` is increased too;
 this workflow sets both consistently and keeps BLAS at one thread.
+
+### Concurrent submission override
+
+The `--concurrent` option disables dependency serialization. Use it only after
+the same environment and benchmark have completed reliably on the target
+cluster and only when the additional simultaneous imports and filesystem load
+are intentional. The recommended Saga workflow omits this option.
 
 ## Retrieve completed records
 
