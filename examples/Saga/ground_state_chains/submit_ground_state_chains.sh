@@ -10,6 +10,9 @@ Usage:
 
 Options:
   --electronic-grid 11|21|both  Submit one or both r-grid chains (default: both)
+  --integrator NAME            sil, sia, or exponential-euler (default: sil)
+  --time-step VALUE            Imaginary-time step (default: 0.5)
+  --max-krylov-dimension N     Maximum Krylov dimension (default: 20)
   --extend-21                  Extend the 21-point chain from l_max=6 to 8 and 10
   --run-name NAME              Run-directory name (default: ground-state-<timestamp>)
   -h, --help                   Show this help
@@ -22,6 +25,9 @@ EOF
 
 systems=()
 electronic_grid=both
+integrator=sil
+time_step=0.5
+max_krylov_dimension=20
 extend_21=false
 run_name="ground-state-$(date +%Y%m%d-%H%M%S)"
 
@@ -39,6 +45,21 @@ while (( $# > 0 )); do
         --electronic-grid)
             [[ $# -ge 2 ]] || { echo "--electronic-grid requires a value" >&2; exit 2; }
             electronic_grid=$2
+            shift 2
+            ;;
+        --integrator)
+            [[ $# -ge 2 ]] || { echo "--integrator requires a value" >&2; exit 2; }
+            integrator=$2
+            shift 2
+            ;;
+        --time-step)
+            [[ $# -ge 2 ]] || { echo "--time-step requires a value" >&2; exit 2; }
+            time_step=$2
+            shift 2
+            ;;
+        --max-krylov-dimension)
+            [[ $# -ge 2 ]] || { echo "--max-krylov-dimension requires a value" >&2; exit 2; }
+            max_krylov_dimension=$2
             shift 2
             ;;
         --extend-21)
@@ -69,6 +90,22 @@ case ${electronic_grid} in
     both) electronic_points=(11 21) ;;
     *) echo "--electronic-grid must be 11, 21, or both" >&2; exit 2 ;;
 esac
+case ${integrator} in
+    sil|sia|exponential-euler) ;;
+    *) echo "--integrator must be sil, sia, or exponential-euler" >&2; exit 2 ;;
+esac
+[[ ${time_step} =~ ^[0-9]+([.][0-9]+)?([eE][-+]?[0-9]+)?$ ]] || {
+    echo "--time-step must be a positive number" >&2
+    exit 2
+}
+awk -v value="${time_step}" 'BEGIN { exit !(value > 0) }' || {
+    echo "--time-step must be positive" >&2
+    exit 2
+}
+[[ ${max_krylov_dimension} =~ ^[1-9][0-9]*$ ]] || {
+    echo "--max-krylov-dimension must be a positive integer" >&2
+    exit 2
+}
 for system in "${systems[@]}"; do
     case ${system} in
         H2+|HD+|D2+) ;;
@@ -103,11 +140,11 @@ chmod +x "${run_root}/job_ground_state_chain.sh"
 job_script="${run_root}/job_ground_state_chain.sh"
 worker="${run_root}/mpi_non_bo_diatomic_ground_state_chain.py"
 manifest="${run_root}/jobs.csv"
-integrator=sil
-time_step=${GRID_TDSE_CHAIN_TIME_STEP:-0.5}
+time_step=${GRID_TDSE_CHAIN_TIME_STEP:-${time_step}}
+max_krylov_dimension=${GRID_TDSE_CHAIN_MAX_KRYLOV_DIMENSION:-${max_krylov_dimension}}
 max_iterations=${GRID_TDSE_CHAIN_MAX_ITERATIONS:-15000}
 printf '%s\n' \
-    'job_id,system,electronic_points_per_element,l_max,ranks,process_grid,integrator,time_step,max_iterations,walltime,dependency,input_state,output_state,output_pattern,log_file' \
+    'job_id,system,electronic_points_per_element,l_max,ranks,process_grid,integrator,time_step,max_iterations,max_krylov_dimension,walltime,dependency,input_state,output_state,output_pattern,log_file' \
     > "${manifest}"
 
 {
@@ -232,13 +269,14 @@ submit_chain() {
             --integrator "${integrator}" \
             --time-step "${time_step}" \
             --max-iterations "${max_iterations}" \
+            --max-krylov-dimension "${max_krylov_dimension}" \
             --sample-interval "${GRID_TDSE_CHAIN_SAMPLE_INTERVAL:-10}" \
             "${initial_args[@]}")
         job_id=${job_id%%;*}
-        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+        printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
             "${job_id}" "${system}" "${points}" "${lmax}" "${ranks}" \
             "${grid}" "${integrator}" "${time_step}" "${max_iterations}" \
-            "${walltime}" "${dependency}" "${previous_state}" \
+            "${max_krylov_dimension}" "${walltime}" "${dependency}" "${previous_state}" \
             "${output_state}" "${output_pattern}" "${log_file}" >> "${manifest}"
         echo "Submitted ${stem}: ${job_id}${dependency:+ (${dependency})}"
         previous_job=${job_id}

@@ -122,10 +122,12 @@ sector, rejects a zero projected state, and normalizes the result.
 
 ## Solver and result
 
-The calculation supports matrix-free Crank--Nicolson, SIL, and SIA
+The calculation supports matrix-free Crank--Nicolson, SIL, SIA, and
+exponential-Euler
 imaginary-time steps. Select them with `integrator="crank-nicolson"`,
-`integrator="sil"`, or `integrator="sia"`. Crank--Nicolson remains the
-default and may be preconditioned with the inverse of
+`integrator="sil"`, `integrator="sia"`, or
+`integrator="exponential-euler"`. Crank--Nicolson remains the default and may
+be preconditioned with the inverse of
 
 $$
 I+\frac{\Delta\tau}{2}(h_e+h_R),
@@ -136,10 +138,16 @@ quadrature-weighted Hermitian representations. The two-coordinate Coulomb
 interaction is not included in the preconditioner.
 
 SIL and SIA apply the imaginary-time exponential and do not use a
-preconditioner. Set `use_preconditioner=False` when selecting either method.
-SIL is the primary exponential path for this Hermitian Hamiltonian; SIA is
-retained as a general reference. The high-level interface exposes Krylov
+preconditioner. Exponential Euler applies a Hermitian Lanczos `phi_1` action
+to the energy-shifted residual `-(H-E) psi`; it likewise does not use the
+two-radial preconditioner. Set `use_preconditioner=False` when selecting any
+of these three methods. SIL is the primary exponential path for this
+Hermitian Hamiltonian, SIA is retained as a general reference, and
+exponential Euler provides a residual-driven alternative whose eigenstates
+are exact discrete fixed points. The high-level interface exposes Krylov
 dimension, tolerance, refinement, reorthogonalization, and breakdown options.
+`max_krylov_refinements` is currently unused by the exponential-Euler
+`phi_1` action because that action does not subdivide a step.
 
 The current energy, energy change, phase-invariant state change, and
 eigenstate residual are printed every ten steps by default. Set

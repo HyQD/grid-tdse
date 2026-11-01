@@ -1,4 +1,4 @@
-"""Cartesian MPI SIL/SIA ground state for a non-BO diatomic ion.
+"""Cartesian MPI Krylov ground state for a non-BO diatomic ion.
 
 For example, run a four-rank ``2 x 2`` SIL calculation with::
 
@@ -45,7 +45,11 @@ def _process_grid(value: str) -> tuple[int, int]:
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--system", choices=("H2+", "HD+", "D2+"), default="H2+")
-parser.add_argument("--integrator", choices=("sil", "sia"), default="sil")
+parser.add_argument(
+    "--integrator",
+    choices=("sil", "sia", "exponential-euler"),
+    default="sil",
+)
 parser.add_argument(
     "--process-grid",
     type=_process_grid,

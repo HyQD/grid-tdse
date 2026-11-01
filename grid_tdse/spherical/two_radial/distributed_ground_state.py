@@ -1,4 +1,4 @@
-"""MPI-compatible Lanczos imaginary-time propagation for two-radial states."""
+"""MPI-compatible Krylov imaginary-time propagation for two-radial states."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ class DistributedGroundStateResult:
     converged: bool
     iterations: int
     imaginary_time: float
-    integrator: Literal["sil"]
+    integrator: Literal["sil", "exponential-euler"]
     termination_reason: Literal["converged", "maximum_iterations"]
     history: tuple[GroundStateIteration, ...]
     samples: tuple[DiatomicIonGroundStateSample, ...] = ()
@@ -75,7 +75,7 @@ class DistributedGroundStateResult:
 
     @property
     def krylov_operator_calls(self) -> np.ndarray:
-        """Hamiltonian calls made by Lanczos during every ITP step."""
+        """Hamiltonian calls made by Krylov actions during every ITP step."""
 
         return np.asarray(
             [record.krylov_operator_calls for record in self.history],
@@ -129,18 +129,20 @@ class DistributedGroundStateResult:
 
 
 class TwoRadialDistributedGroundStateSolver:
-    """Find a two-radial ground state with distributed Lanczos ITP.
+    """Find a two-radial ground state with distributed Krylov ITP.
 
     Each MPI rank advances its permanently owned coefficient array. Hamiltonian
     actions exchange only neighboring coordinate-2 bridge data, while every
     physical inner product is a collective reduction. The generic
-    representation-independent imaginary-time solver supplies the Lanczos
+    representation-independent imaginary-time solver supplies the Krylov
     iteration, normalization, convergence measures, and diagnostics.
 
-    The first distributed implementation intentionally supports only SIL. A
-    communicator is optional for a one-rank layout and required otherwise.
-    Progress is printed only by ``root``.
+    SIL and energy-shifted exponential Euler are supported. A communicator is
+    optional for a one-rank layout and required otherwise. Progress is printed
+    only by ``root``.
     """
+
+    _INTEGRATORS = {"sil", "exponential-euler"}
 
     def __init__(
         self,
@@ -153,6 +155,7 @@ class TwoRadialDistributedGroundStateSolver:
         energy_tolerance: float = 1.0e-10,
         state_tolerance: float = 1.0e-8,
         residual_tolerance: float = 1.0e-8,
+        integrator: Literal["sil", "exponential-euler"] = "sil",
         max_krylov_dimension: int = 20,
         krylov_rtol: float = 1.0e-10,
         krylov_atol: float = 0.0,
@@ -170,6 +173,10 @@ class TwoRadialDistributedGroundStateSolver:
     ) -> None:
         if not isinstance(layout, TwoRadialDistributedLayout):
             raise TypeError("layout must be a TwoRadialDistributedLayout")
+        if integrator not in self._INTEGRATORS:
+            raise ValueError(
+                "integrator must be 'sil' or 'exponential-euler'"
+            )
         rank, size = _rank_and_size(layout, communicator)
         root = _validated_root(root, size)
 
@@ -177,6 +184,7 @@ class TwoRadialDistributedGroundStateSolver:
         self.communicator = communicator
         self.rank = rank
         self.root = root
+        self.integrator = integrator
         if observable_evaluator is not None and not isinstance(
             observable_evaluator, DiatomicIonObservableEvaluator
         ):
@@ -216,7 +224,7 @@ class TwoRadialDistributedGroundStateSolver:
             energy_tolerance=energy_tolerance,
             state_tolerance=state_tolerance,
             residual_tolerance=residual_tolerance,
-            integrator="sil",
+            integrator=integrator,
             max_krylov_dimension=max_krylov_dimension,
             krylov_rtol=krylov_rtol,
             krylov_atol=krylov_atol,
@@ -233,7 +241,7 @@ class TwoRadialDistributedGroundStateSolver:
         self,
         initial_state: DistributedTwoRadialState,
     ) -> DistributedGroundStateResult:
-        """Run collective normalized Lanczos imaginary-time propagation."""
+        """Run collective normalized Krylov imaginary-time propagation."""
 
         self._validate_state(initial_state)
         self.hamiltonian.reset_profile()
@@ -305,7 +313,7 @@ class TwoRadialDistributedGroundStateSolver:
             converged=result.converged,
             iterations=result.iterations,
             imaginary_time=result.imaginary_time,
-            integrator="sil",
+            integrator=self.integrator,
             termination_reason=result.termination_reason,
             history=result.history,
             samples=() if reporter is None else tuple(reporter.samples),
