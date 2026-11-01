@@ -15,6 +15,13 @@ from .basis import (
     full_lm_channels,
 )
 from .geometry import CenterGeometry, classify_centers
+from .ground_state import (
+    GeneralizedEigenDiagnostics,
+    GeneralizedEigenResult,
+    solve_becke_eigenproblem,
+    solve_generalized_hermitian,
+)
+from .metric import CanonicalOrthogonalization, canonical_orthogonalization
 from .partition import BeckePartition, BeckePartitionEvaluation
 from .quadrature import BeckeMulticenterQuadrature, BeckeQuadratureShell
 from .specification import FEMDVRQuadratureSpec
@@ -30,11 +37,17 @@ __all__ = [
     "BeckePartitionEvaluation",
     "BeckeQuadratureShell",
     "BeckeSphericalBasis",
+    "CanonicalOrthogonalization",
     "CenterGeometry",
     "FEMDVRQuadratureSpec",
+    "GeneralizedEigenDiagnostics",
+    "GeneralizedEigenResult",
     "MatrixAssemblyDiagnostics",
     "assemble_becke_matrices",
+    "canonical_orthogonalization",
     "classify_centers",
     "fixed_m_channels",
     "full_lm_channels",
+    "solve_becke_eigenproblem",
+    "solve_generalized_hermitian",
 ]
