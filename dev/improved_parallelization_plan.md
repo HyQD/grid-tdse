@@ -872,6 +872,14 @@ checks may be added later when production checkpoint placement is selected.
 
 #### Phase 9f: masks, CAPs, and SIA
 
+**Implementation status:** complete locally. The high-level non-BO TDSE
+interface accepts independent electronic and internuclear masks or CAPs,
+rejects a mask and CAP on the same coordinate, applies masks after each full
+accepted step, and includes CAPs only in the propagated non-Hermitian
+Hamiltonian. CAP calculations require SIA or Crank--Nicolson; SIL is rejected.
+The common sampler continues to evaluate the physical gauge-covariant energy
+without the CAP and records raw norm-bearing radial marginals after absorption.
+
 1. Add separate electronic and internuclear masks first.
 2. Add CAP propagation with SIA after mask behavior is validated.
 3. Reject simultaneous mask and CAP use on the same coordinate.
@@ -885,8 +893,21 @@ checks may be added later when production checkpoint placement is selected.
    verify expected norm loss, raw and conditional observable semantics, and
    restart equivalence.
 
-**Phase 9f gate:** absorbed serial dynamics have internally consistent norm,
-energy, and observable histories.
+**Phase 9f gate:** satisfied locally. The compact H2+ validation applied masks
+to both radial coordinates and obtained a strictly decreasing norm ending at
+`0.868391259744`. A two-coordinate CAP/SIA calculation likewise decreased to
+`0.999022427880`. Both `P_r` and `P_R` integrated to the sampled norm within
+`3.331e-16`; their first moments reproduced the conditional radial
+expectations; and the CAP-free physical-energy check had zero numerical
+difference. Resuming the masked calculation from an intermediate post-mask
+checkpoint reproduced the uninterrupted final state to `9.067e-17`.
+
+The runnable gate is
+`examples/non_bo_diatomic_serial_absorbed_dynamics.py`. It writes the masked
+and CAP radial-density time series as compact NPZ archives plus a JSON summary.
+No Saga deployment is required for this serial acceptance gate; a small
+Cartesian-MPI absorber smoke test remains advisable before the end-to-end
+Phase 9h deployment.
 
 #### Phase 9g: velocity-gauge dynamics
 
