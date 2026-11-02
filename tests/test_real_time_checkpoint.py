@@ -9,7 +9,6 @@ from grid_tdse.real_time import (
 )
 from grid_tdse.real_time.checkpoint import _arrays_id, _canonical_json
 
-
 COMPATIBILITY = {
     "physical_system": {"name": "model"},
     "representation": {"basis": "two-level"},
@@ -89,6 +88,7 @@ def test_periodic_checkpoint_contains_state_observables_and_metadata(tmp_path):
         segment.linear_residual_norms,
         result.linear_residual_norms,
     )
+    np.testing.assert_allclose(segment.step_wall_times, result.step_wall_times)
     np.testing.assert_allclose(segment.samples["sum"], result.samples["sum"])
     assert segment.dynamics == DYNAMICS
     assert segment.integrator["method"] == "crank_nicolson"
@@ -390,7 +390,7 @@ def test_checkpoint_loader_remains_compatible_with_version_one(tmp_path):
     arrays = {
         name: values
         for name, values in arrays.items()
-        if "_krylov_" not in name
+        if "_krylov_" not in name and "_step_wall_times" not in name
     }
     metadata["format_version"] = 1
     metadata["trajectory_data_id"] = _arrays_id(
