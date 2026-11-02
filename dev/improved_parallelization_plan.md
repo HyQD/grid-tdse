@@ -704,6 +704,11 @@ rank zero entered Davidson when computation was requested.
 
 #### Phase 9b: shared dynamics sampling
 
+**Implementation status:** complete. The shared serial and distributed
+sampling schema, numerator-preserving reductions, gauge-covariant energy
+sampling, diagnostics, and sampling policy are implemented and have passed
+both local and Saga MPI validation.
+
 Implement one observable evaluator and time-series schema shared by serial,
 one-dimensional MPI, and Cartesian MPI. Sample at a user-configurable accepted
 step interval and always support initial, final, and checkpoint samples.
@@ -755,10 +760,12 @@ second moments.
 
 **Phase 9b gate:** serial, one-dimensional MPI, and Cartesian-MPI evaluators
 agree for identical test states, including states with norm below one.
-Satisfied locally: the common numerator reduction and dynamics schema agree
-for serial, both one-coordinate decompositions, and a Cartesian `2 x 2`
-decomposition on deliberately subnormalized states. The remaining deployment
-check is to repeat the gate with Saga MPI collectives before phase 9c.
+Satisfied locally and on Saga. The four-rank Saga gate compared serial, both
+one-coordinate decompositions, and a Cartesian `2 x 2` decomposition on a
+deliberately subnormalized state. Every observable and diagnostic agreed to
+within `3.553e-15`, including raw and conditional quantities. Job `20745753`,
+its exact worker, provenance, Slurm output, and result JSON are archived under
+`benchmarks/data/saga_non_bo_diatomic_phase9b/phase9b-20261102-090918`.
 
 #### Phase 9c: serial field-free and length-gauge validation
 

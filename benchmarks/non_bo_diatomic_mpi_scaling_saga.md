@@ -587,6 +587,34 @@ These results satisfy the Phase 9a completion gate: archived and automatically
 generated Davidson ground states produce identical serial and Cartesian-MPI
 initial dynamics states for all three supported diatomic ions.
 
+## Phase 9b shared dynamics sampling
+
+The Phase 9b Saga deployment gate ran on 2026-11-02 at grid-tdse commit
+`76d012b2a54905913c49a6be49b3ae44b15c7353`, with Python 3.14.9 and
+`OpenMPI/5.0.10-GCC-15.2.0`. Job `20745753` used four ranks and completed with
+exit code `0:0` in 38 seconds.
+
+The worker evaluated the same deliberately subnormalized state through the
+serial sampler, both one-dimensional distributed layouts, and a Cartesian
+`2 x 2` layout. The state amplitude was `0.37`, so the expected and measured
+norm was `0.1369`; this explicitly exercised raw expectation numerators and
+separately named conditional values. The velocity-gauge fixture summed two
+vector-potential contributions to `A=0.2`, and the sampling policy selected
+accepted steps 0, 1, and 3.
+
+| layout | maximum difference from serial |
+|:---|---:|
+| one-dimensional `r` | `1.776e-15` |
+| one-dimensional `R` | `1.776e-15` |
+| Cartesian `2 x 2` | `3.553e-15` |
+
+No traceback, assertion failure, MPI abort, cancellation, timeout, or
+out-of-memory marker was present. All comparisons passed the `5e-12`
+tolerance. This satisfies the Phase 9b deployment gate for the shared schema,
+reduction semantics, diagnostics, and sampling policy. The injected operator
+actions are synthetic correctness fixtures, so the recorded energy is not a
+physical H2+ result and the run is not a performance benchmark.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -610,5 +638,8 @@ with runtime, problem, and raw-archive provenance in
 The compact Phase 9a validation archive, including its Slurm output, result
 JSON, worker, manifests, and small reproducibility states, is in
 [`data/saga_non_bo_diatomic_phase9a/phase9a-20261102-004030`](data/saga_non_bo_diatomic_phase9a/phase9a-20261102-004030).
+The compact Phase 9b validation archive, including the exact gate worker,
+provenance, Slurm output, manifest, checksums, and result JSON, is in
+[`data/saga_non_bo_diatomic_phase9b/phase9b-20261102-090918`](data/saga_non_bo_diatomic_phase9b/phase9b-20261102-090918).
 Raw Slurm output from the larger Phase 1--7 scaling series is intentionally
 not tracked.

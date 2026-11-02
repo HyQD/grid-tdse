@@ -1,0 +1,8 @@
+date=2026-11-02T09:09:59+01:00
+grid_tdse_commit=76d012b2a54905913c49a6be49b3ae44b15c7353
+grid_lib_commit=8950c3ae01425488a6d78ba054a3b394dd851727
+integrator_lib_commit=ab5332f0c3c20e7c19d9efee1d66ca28474c48ac
+mpi_module=OpenMPI/5.0.10-GCC-15.2.0
+python=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+python_version=Python 3.14.9
+mpi_library=Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026

@@ -1,0 +1,85 @@
+Starting job 20745753 on c1-12 on Saga at Mon Nov 2 09:10:15 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Starting job 20745753 on c1-12 at Mon Nov  2 09:10:31 AM CET 2026
+Python:       /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module:   OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:    4
+Worker:       /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9b/phase9b-20261102-090918/phase9b_gate.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Running serial compute-node import and font-cache preflight
+NumPy: 2.5.2 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/__init__.py
+SciPy: 1.18.0 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/scipy/__init__.py
+Pillow: 13.0.0 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/PIL/ImageColor.py
+Matplotlib: 3.11.2 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf
+Numba: 0.67.0
+grid-tdse: /cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/__init__.py
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Preflight imports complete
+Phase 9b gate: PASS
+MPI ranks: 4
+Norm: 0.136900000000
+Field: A=0.200000000000
+Sample steps: 0,1,3
+1d-r max difference: 1.776e-15
+1d-R max difference: 1.776e-15
+2d-2x2 max difference: 3.553e-15
+Result JSON: /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9b/phase9b-20261102-090918/results/phase9b-20745753.json
+
+real	0m9.132s
+user	0m0.013s
+sys	0m0.019s
+
+Job 20745753 consumed 0.0 billing hours from project nn4654k.
+
+Submitted 2026-11-02T09:10:14; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 15.0 minutes
+Elapsed wallclock time:   38.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20745753           4            0.0 %  2026-11-02T09:10:15   38.0 s  0
+20745753.batch     4      1     9.2 %  2026-11-02T09:10:15   38.0 s  0
+20745753.bash      4      4    33.3 %  2026-11-02T09:10:44    9.0 s  0
+
+Used CPU time:   26.0 CPU seconds
+Unused CPU time: 2.1 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20745753           8.0        
+20745753.batch     8.0     0.4
+20745753.bash      8.0     0.9
+
+Job 20745753 completed at Mon Nov 2 09:10:53 CET 2026
