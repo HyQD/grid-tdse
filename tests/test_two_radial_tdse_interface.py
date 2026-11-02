@@ -280,6 +280,38 @@ def test_diatomic_run_collects_common_dynamics_time_series(tmp_path):
     assert series.samples[-1].snapshot.field_symbol == "E"
     assert series.samples[-1].propagation.krylov_operator_calls > 0
     assert series.samples[-1].propagation.wall_time > 0.0
+    density_arrays = series.radial_density_arrays()
+    assert density_arrays["P_r"].shape == (
+        3,
+        calculation.representation.grid1.n_points,
+    )
+    assert density_arrays["P_R"].shape == (
+        3,
+        calculation.representation.grid2.n_points,
+    )
+    for index, norm in enumerate(density_arrays["norms"]):
+        assert np.dot(
+            density_arrays["radial_weights_r"],
+            density_arrays["P_r"][index],
+        ) == pytest.approx(norm)
+        assert np.dot(
+            density_arrays["radial_weights_R"],
+            density_arrays["P_R"][index],
+        ) == pytest.approx(norm)
+    density_path = series.save_radial_densities(
+        tmp_path / "radial_densities.npz"
+    )
+    with np.load(density_path) as archive:
+        assert str(archive["format"]) == "grid-tdse-diatomic-radial-densities"
+        assert int(archive["format_version"]) == 1
+        np.testing.assert_array_equal(
+            archive["accepted_steps"],
+            density_arrays["accepted_steps"],
+        )
+        np.testing.assert_allclose(archive["P_r"], density_arrays["P_r"])
+        np.testing.assert_allclose(archive["P_R"], density_arrays["P_R"])
+    with pytest.raises(FileExistsError, match="already exists"):
+        series.save_radial_densities(density_path)
     assert calculation.dynamics_metadata["sampling_policy"] == {
         "interval": 2,
         "sample_initial": True,

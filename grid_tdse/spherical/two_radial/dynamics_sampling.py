@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, replace
 from numbers import Integral, Real
+import os
+from pathlib import Path
+import tempfile
 from typing import Literal
 
 import numpy as np
@@ -44,6 +47,23 @@ class DiatomicIonConditionalObservables:
 
 
 @dataclass(frozen=True)
+class DiatomicIonRadialDensities:
+    r"""Raw electronic and internuclear marginal radial distributions.
+
+    ``P_r`` and ``P_R`` include the probability remaining in the finite grid.
+    Their quadrature integrals therefore equal the state norm rather than one
+    when a mask or complex absorbing potential has removed amplitude.
+    """
+
+    P_r: tuple[float, ...]
+    P_R: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "P_r", _density_tuple(self.P_r, "P_r"))
+        object.__setattr__(self, "P_R", _density_tuple(self.P_R, "P_R"))
+
+
+@dataclass(frozen=True)
 class DiatomicIonElectronCenterDistances:
     r"""Electron--center distance diagnostics in Jacobi coordinates.
 
@@ -78,6 +98,7 @@ class DiatomicIonDynamicsSnapshot:
     conditional_energy: float
     numerators: DiatomicIonObservableNumerators
     conditional: DiatomicIonConditionalObservables
+    radial_densities: DiatomicIonRadialDensities
     electron_center_distances: DiatomicIonElectronCenterDistances
 
     @property
@@ -149,6 +170,7 @@ class DiatomicIonDynamicsSample:
         """Return a JSON-compatible, recursively flattened record."""
 
         nested = asdict(self)
+        nested["snapshot"].pop("radial_densities")
         record = _flatten_mapping(nested)
         record["snapshot.numerators.z_e"] = (
             self.snapshot.numerators.coordinate_r[2]
@@ -170,6 +192,10 @@ class DiatomicIonDynamicsTimeSeries:
     """Immutable shared serial/MPI dynamics time series."""
 
     samples: tuple[DiatomicIonDynamicsSample, ...]
+    radial_points_r: tuple[float, ...] = ()
+    radial_weights_r: tuple[float, ...] = ()
+    radial_points_R: tuple[float, ...] = ()
+    radial_weights_R: tuple[float, ...] = ()
 
     @property
     def accepted_steps(self) -> np.ndarray:
@@ -183,6 +209,79 @@ class DiatomicIonDynamicsTimeSeries:
         """Return flattened records suitable for JSONL or tabular output."""
 
         return tuple(sample.as_dict() for sample in self.samples)
+
+    def radial_density_arrays(self) -> dict[str, np.ndarray]:
+        """Return compact array data for the sampled raw radial marginals."""
+
+        if self.samples and not self.radial_points_r:
+            raise ValueError("radial-grid metadata is unavailable")
+        n_r = len(self.radial_points_r)
+        n_R = len(self.radial_points_R)
+        P_r = np.asarray(
+            [sample.snapshot.radial_densities.P_r for sample in self.samples],
+            dtype=float,
+        ).reshape(len(self.samples), n_r)
+        P_R = np.asarray(
+            [sample.snapshot.radial_densities.P_R for sample in self.samples],
+            dtype=float,
+        ).reshape(len(self.samples), n_R)
+        return {
+            "accepted_steps": self.accepted_steps,
+            "times": self.times,
+            "norms": np.asarray(
+                [sample.snapshot.norm for sample in self.samples],
+                dtype=float,
+            ),
+            "radial_points_r": np.asarray(self.radial_points_r),
+            "radial_weights_r": np.asarray(self.radial_weights_r),
+            "radial_points_R": np.asarray(self.radial_points_R),
+            "radial_weights_R": np.asarray(self.radial_weights_R),
+            "P_r": P_r,
+            "P_R": P_R,
+        }
+
+    def save_radial_densities(
+        self,
+        path: str | os.PathLike[str],
+        *,
+        overwrite: bool = False,
+    ) -> Path:
+        """Atomically save grids, norms, and raw marginals as compressed NPZ."""
+
+        destination = Path(path)
+        if destination.exists() and not overwrite:
+            raise FileExistsError(
+                f"radial-density archive already exists: {destination}"
+            )
+        if not destination.parent.is_dir():
+            raise FileNotFoundError(
+                f"radial-density directory does not exist: {destination.parent}"
+            )
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                prefix=f".{destination.name}.",
+                dir=destination.parent,
+                delete=False,
+            ) as stream:
+                temporary_path = Path(stream.name)
+                np.savez_compressed(
+                    stream,
+                    format=np.asarray("grid-tdse-diatomic-radial-densities"),
+                    format_version=np.asarray(1, dtype=np.int64),
+                    **self.radial_density_arrays(),
+                )
+            if overwrite:
+                os.replace(temporary_path, destination)
+            else:
+                os.link(temporary_path, destination)
+                temporary_path.unlink()
+            temporary_path = None
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+        return destination
 
 
 @dataclass(frozen=True)
@@ -307,6 +406,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             time,
             numerators,
             self.system.inner_product,
+            _serial_radial_densities(self.system, state),
         )
 
     def distributed(
@@ -315,7 +415,13 @@ class DiatomicIonDynamicsObservableEvaluator:
         """Collectively return a one-coordinate MPI dynamics snapshot."""
 
         numerators = self.observable_evaluator.distributed_numerators(state, reductions)
-        return self._snapshot(state, time, numerators, reductions.expectation)
+        return self._snapshot(
+            state,
+            time,
+            numerators,
+            reductions.expectation,
+            _distributed_radial_densities(state, reductions),
+        )
 
     def distributed_2d(
         self, state, reductions, time: float
@@ -325,7 +431,13 @@ class DiatomicIonDynamicsObservableEvaluator:
         numerators = self.observable_evaluator.distributed_2d_numerators(
             state, reductions
         )
-        return self._snapshot(state, time, numerators, reductions.expectation)
+        return self._snapshot(
+            state,
+            time,
+            numerators,
+            reductions.expectation,
+            _distributed_radial_densities(state, reductions),
+        )
 
     def field_amplitude(self, time: float) -> float:
         """Return the sum of all electric fields or vector potentials."""
@@ -344,7 +456,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             amplitude += float(value)
         return amplitude
 
-    def _snapshot(self, state, time, numerators, inner_product):
+    def _snapshot(self, state, time, numerators, inner_product, radial_densities):
         time = _finite_real(time, "time")
         amplitude = self.field_amplitude(time)
         field_free_state = self.field_free_action(state)
@@ -370,6 +482,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             conditional_energy=energy / numerators.norm,
             numerators=numerators,
             conditional=conditional,
+            radial_densities=radial_densities,
             electron_center_distances=_electron_center_distances(
                 numerators,
                 conditional,
@@ -459,7 +572,14 @@ class DiatomicIonDynamicsSampler:
 
     @property
     def time_series(self) -> DiatomicIonDynamicsTimeSeries:
-        return DiatomicIonDynamicsTimeSeries(tuple(self._samples))
+        system = self.evaluator.system
+        return DiatomicIonDynamicsTimeSeries(
+            tuple(self._samples),
+            radial_points_r=tuple(float(value) for value in system.grid1.r),
+            radial_weights_r=tuple(float(value) for value in system.grid1.weights),
+            radial_points_R=tuple(float(value) for value in system.grid2.r),
+            radial_weights_R=tuple(float(value) for value in system.grid2.weights),
+        )
 
     def sample(
         self,
@@ -617,6 +737,73 @@ def _conditional_observables(numerators):
     )
 
 
+def _serial_radial_densities(system, state):
+    values = np.asarray(state)
+    if values.shape != system.psi_shape:
+        raise ValueError(
+            f"state shape {values.shape} does not match {system.psi_shape}"
+        )
+    return _radial_densities_from_owned_values(
+        values,
+        system.grid1.weights,
+        system.grid2.weights,
+    )
+
+
+def _distributed_radial_densities(state, reductions):
+    representation = state.layout.representation
+    partition = state.partition
+    if hasattr(partition, "owned_indices1"):
+        indices_r = partition.owned_indices1
+        indices_R = partition.owned_indices2
+    elif state.layout.partitioned_coordinate == 1:
+        indices_r = partition.owned_indices
+        indices_R = np.arange(representation.grid2.n_points)
+    else:
+        indices_r = np.arange(representation.grid1.n_points)
+        indices_R = partition.owned_indices
+
+    local = _radial_densities_from_owned_values(
+        state.coefficients,
+        representation.grid1.weights[indices_r],
+        representation.grid2.weights[indices_R],
+    )
+    local_P_r = np.zeros(representation.grid1.n_points)
+    local_P_R = np.zeros(representation.grid2.n_points)
+    local_P_r[indices_r] = local.P_r
+    local_P_R[indices_R] = local.P_R
+    combined = reductions.global_sum(
+        np.concatenate((local_P_r, local_P_R)),
+        rank=state.rank,
+    )
+    split = representation.grid1.n_points
+    return DiatomicIonRadialDensities(
+        P_r=combined[:split],
+        P_R=combined[split:],
+    )
+
+
+def _radial_densities_from_owned_values(
+    values,
+    radial_weights_r,
+    radial_weights_R,
+):
+    values = np.asarray(values)
+    if values.ndim < 2:
+        raise ValueError("state coefficients must have two radial axes")
+    weights_r = np.asarray(radial_weights_r)
+    weights_R = np.asarray(radial_weights_R)
+    if values.shape[-2:] != (weights_r.size, weights_R.size):
+        raise ValueError(
+            "state radial shape does not match the supplied quadrature weights"
+        )
+    angular_axes = tuple(range(values.ndim - 2))
+    population = np.sum(np.abs(values) ** 2, axis=angular_axes)
+    P_r = np.einsum("ab,b->a", population, weights_R, optimize=True)
+    P_R = np.einsum("ab,a->b", population, weights_r, optimize=True)
+    return DiatomicIonRadialDensities(P_r=P_r, P_R=P_R)
+
+
 def _electron_center_distances(
     numerators,
     conditional,
@@ -742,6 +929,20 @@ def _sqrt_nonnegative(value, name):
     if value < -tolerance:
         raise ValueError(f"{name} squared is negative: {value}")
     return float(np.sqrt(max(0.0, value)))
+
+
+def _density_tuple(values, name):
+    array = np.asarray(values)
+    if array.ndim != 1 or not np.issubdtype(array.dtype, np.number):
+        raise TypeError(f"{name} must be a one-dimensional numeric sequence")
+    if np.iscomplexobj(array):
+        raise TypeError(f"{name} must be real")
+    result = np.asarray(array, dtype=float)
+    if not np.all(np.isfinite(result)):
+        raise ValueError(f"{name} must contain only finite values")
+    if np.any(result < 0.0):
+        raise ValueError(f"{name} must be nonnegative")
+    return tuple(float(value) for value in result)
 
 
 def _finite_real(value, name):
