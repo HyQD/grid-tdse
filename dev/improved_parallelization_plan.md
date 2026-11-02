@@ -146,10 +146,10 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 8 and Phase 9a--9d. Serial
+The non-BO roadmap is complete through Phase 8 and Phase 9a--9e. Serial
 Davidson has removed ground-state preparation from the critical path, so
-distributed Davidson and further ITP optimization are deferred. Phase 9e,
-serial snapshots, checkpoints, and restart, is next.
+distributed Davidson and further ITP optimization are deferred. Phase 9f,
+serial masks, CAPs, and SIA, is next.
 
 ## Saga findings to date
 
@@ -846,8 +846,29 @@ Preserve checkpoint history, field metadata, integrator diagnostics, and
 restart time. Permit a restarted state to encounter a different subsequent
 field while strictly validating all representation and physical metadata.
 
-**Phase 9e gate:** uninterrupted and checkpoint/restart serial calculations
-produce equivalent states and time series.
+**Phase 9e gate:** satisfied locally. The serial TDSE interface now exposes
+new, exact-resume, and compatible-continuation execution modes. Lightweight
+full-state snapshots have independent accepted-step, initial-state, and
+final-state controls; retain representation, physical/CODATA, field/gauge,
+integrator, norm, parent-state, checksum, and user-provenance metadata; and
+reuse coincident checkpoints through hard links rather than duplicate state
+data. Checkpoints preserve segment history plus the observable reference
+values needed to continue norm and energy changes and global accepted-step
+indices across stages. Compatible continuation permits a changed subsequent
+field while retaining strict representation and physical validation.
+
+The compact serial gate compared an uninterrupted four-step length-gauge SIL
+calculation with two two-step stages joined through a checkpoint. The final
+phase-aligned state difference was `1.386e-16`, the maximum physical time-
+series difference was `0.000e+00`, both stage norms were
+`1.000000000000`, and the final checkpoint contained two ordered propagation
+segments. Unit tests additionally cover snapshot checksum validation,
+manifest output, retained intermediate checkpoints, no-copy checkpoint reuse,
+global snapshot numbering, restart metadata, and continuation under a changed
+field. The runnable gate is
+`examples/non_bo_diatomic_serial_restart.py`. No Saga deployment is required
+for this serial storage and restart phase; filesystem-specific deployment
+checks may be added later when production checkpoint placement is selected.
 
 #### Phase 9f: masks, CAPs, and SIA
 

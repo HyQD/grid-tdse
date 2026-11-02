@@ -7,11 +7,20 @@ from dataclasses import asdict, dataclass
 import json
 from numbers import Integral
 from os import PathLike
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
 
-from grid_tdse.real_time import RealTimePropagationResult, RealTimePropagator
+from grid_tdse.real_time import (
+    RealTimeCheckpoint,
+    RealTimePropagationResult,
+    RealTimePropagator,
+    RealTimeSnapshotRecord,
+    RealTimeSnapshotWriter,
+    load_real_time_checkpoint,
+    real_time_state_data_id,
+)
 
 from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .angular import AngularBasisSpec, CoulombMultipoleSpec, Parity
@@ -111,6 +120,13 @@ class _TwoRadialTDSE:
         checkpoint_interval: int | None,
         checkpoint_overwrite: bool,
         checkpoint_metadata: Mapping[str, Any] | None,
+        wavefunction_snapshot_directory: str | PathLike[str] | None,
+        wavefunction_snapshot_interval: int | None,
+        wavefunction_snapshot_initial: bool,
+        wavefunction_snapshot_final: bool,
+        wavefunction_snapshot_prefix: str,
+        wavefunction_snapshot_overwrite: bool,
+        wavefunction_snapshot_metadata: Mapping[str, Any] | None,
         progress_interval: int | None,
         radial_operator_mode: RadialOperatorMode,
         tile_size: int,
@@ -201,6 +217,39 @@ class _TwoRadialTDSE:
         self.checkpoint_metadata = (
             None if checkpoint_metadata is None else dict(checkpoint_metadata)
         )
+        if (
+            wavefunction_snapshot_directory is None
+            and wavefunction_snapshot_interval is not None
+        ):
+            raise ValueError(
+                "wavefunction_snapshot_interval requires "
+                "wavefunction_snapshot_directory"
+            )
+        self.wavefunction_snapshot_directory = (
+            None
+            if wavefunction_snapshot_directory is None
+            else Path(wavefunction_snapshot_directory)
+        )
+        self.wavefunction_snapshot_interval = wavefunction_snapshot_interval
+        self.wavefunction_snapshot_initial = wavefunction_snapshot_initial
+        self.wavefunction_snapshot_final = wavefunction_snapshot_final
+        self.wavefunction_snapshot_prefix = wavefunction_snapshot_prefix
+        self.wavefunction_snapshot_overwrite = wavefunction_snapshot_overwrite
+        self.wavefunction_snapshot_metadata = (
+            None
+            if wavefunction_snapshot_metadata is None
+            else dict(wavefunction_snapshot_metadata)
+        )
+        self.wavefunction_snapshots: tuple[RealTimeSnapshotRecord, ...] = ()
+        self.wavefunction_snapshot_manifest: Path | None = None
+        self._snapshot_writer: RealTimeSnapshotWriter | None = None
+        self._active_checkpoint_path: Path | None = None
+        self._active_restart_checkpoint: RealTimeCheckpoint | None = None
+        self._active_execution_mode = "new"
+        self._active_checkpoint_metadata = self.checkpoint_metadata
+        self._active_parent_state_data_id = real_time_state_data_id(
+            self.initial_state
+        )
         self.compatibility_metadata = two_radial_compatibility_metadata(
             self.representation,
             physical_state=self._physical_state_metadata(),
@@ -220,17 +269,68 @@ class _TwoRadialTDSE:
     def run(self, *, progress: bool = True) -> RealTimePropagationResult:
         """Propagate a copy of the configured initial state."""
 
+        return self._run_real_time(None, mode="new", progress=progress)
+
+    def resume(
+        self,
+        checkpoint: RealTimeCheckpoint | str | PathLike[str],
+        *,
+        progress: bool = True,
+    ) -> RealTimePropagationResult:
+        """Exactly resume an interrupted propagation segment."""
+
+        return self._run_real_time(checkpoint, mode="resume", progress=progress)
+
+    def continue_from(
+        self,
+        checkpoint: RealTimeCheckpoint | str | PathLike[str],
+        *,
+        progress: bool = True,
+    ) -> RealTimePropagationResult:
+        """Start a compatible propagation stage from a checkpoint."""
+
+        return self._run_real_time(checkpoint, mode="continue", progress=progress)
+
+    def _run_real_time(self, checkpoint, *, mode, progress):
+        """Run a new, exactly resumed, or compatible continuation stage."""
+
         if not isinstance(progress, (bool, np.bool_)):
             raise TypeError("progress must be boolean")
+        if mode not in {"new", "resume", "continue"}:
+            raise ValueError("invalid real-time execution mode")
+        stored = None
+        if mode != "new":
+            stored = (
+                checkpoint
+                if isinstance(checkpoint, RealTimeCheckpoint)
+                else load_real_time_checkpoint(checkpoint)
+            )
+            self._active_parent_state_data_id = stored.state_data_id
+            self._active_checkpoint_path = (
+                Path(self.checkpoint_path)
+                if self.checkpoint_path is not None
+                else stored.source_path
+            )
+        else:
+            self._active_parent_state_data_id = real_time_state_data_id(
+                self.initial_state
+            )
+            self._active_checkpoint_path = (
+                None if self.checkpoint_path is None else Path(self.checkpoint_path)
+            )
+        self._active_restart_checkpoint = stored
+        self._active_execution_mode = mode
+        self._active_checkpoint_metadata = (
+            {} if stored is None else dict(stored.metadata)
+        )
+        if self.checkpoint_metadata is not None:
+            self._active_checkpoint_metadata.update(self.checkpoint_metadata)
         configured_interval = self.propagator.progress_interval
         self.propagator.progress_interval = (
             self.progress_interval if progress else None
         )
         try:
-            result = self.propagator.propagate(
-                self.initial_state,
-                self.hamiltonian,
-                self.representation.inner_product,
+            propagation_arguments = dict(
                 preconditioner=self.preconditioner,
                 samplers=self.samplers,
                 state_observer=self._build_state_observer(),
@@ -243,9 +343,30 @@ class _TwoRadialTDSE:
                 checkpoint_interval=self.checkpoint_interval,
                 compatibility_metadata=self.compatibility_metadata,
                 dynamics_metadata=self.dynamics_metadata,
-                checkpoint_metadata=self.checkpoint_metadata,
+                checkpoint_metadata=self._active_checkpoint_metadata,
                 checkpoint_overwrite=self.checkpoint_overwrite,
             )
+            if mode == "new":
+                result = self.propagator.propagate(
+                    self.initial_state,
+                    self.hamiltonian,
+                    self.representation.inner_product,
+                    **propagation_arguments,
+                )
+            elif mode == "resume":
+                result = self.propagator.resume(
+                    stored,
+                    self.hamiltonian,
+                    self.representation.inner_product,
+                    **propagation_arguments,
+                )
+            else:
+                result = self.propagator.continue_from(
+                    stored,
+                    self.hamiltonian,
+                    self.representation.inner_product,
+                    **propagation_arguments,
+                )
             self._finish_state_observer()
             return result
         finally:
@@ -343,10 +464,43 @@ class _TwoRadialTDSE:
         return self._build_dipole_interaction((lambda time: 1.0,), gauge="length")
 
     def _build_state_observer(self):
-        return None
+        if self.wavefunction_snapshot_directory is None:
+            self._snapshot_writer = None
+            return None
+        writer = RealTimeSnapshotWriter(
+            self.wavefunction_snapshot_directory,
+            interval=self.wavefunction_snapshot_interval,
+            include_initial=self.wavefunction_snapshot_initial,
+            include_final=self.wavefunction_snapshot_final,
+            prefix=self.wavefunction_snapshot_prefix,
+            overwrite=self.wavefunction_snapshot_overwrite,
+            compatibility_metadata=self.compatibility_metadata,
+            dynamics_metadata=self.dynamics_metadata,
+            integrator_metadata=self.propagator.integrator_metadata,
+            metadata=self.wavefunction_snapshot_metadata,
+            parent_state_data_id=self._active_parent_state_data_id,
+            accepted_step_offset=self._accepted_step_offset(),
+            inner_product=self.representation.inner_product,
+            checkpoint_path=self._active_checkpoint_path,
+        )
+        self._snapshot_writer = writer
+        return writer
 
     def _finish_state_observer(self) -> None:
-        return None
+        if self._snapshot_writer is None:
+            self.wavefunction_snapshots = ()
+            self.wavefunction_snapshot_manifest = None
+            return
+        self.wavefunction_snapshot_manifest = self._snapshot_writer.finish()
+        self.wavefunction_snapshots = self._snapshot_writer.records
+
+    def _accepted_step_offset(self) -> int:
+        checkpoint = self._active_restart_checkpoint
+        if checkpoint is None:
+            return 0
+        if self._active_execution_mode == "resume":
+            return checkpoint.total_steps - checkpoint.current_step
+        return checkpoint.total_steps
 
     def _build_dipole_interaction(self, fields, gauge=None):
         raise NotImplementedError
@@ -385,6 +539,13 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         checkpoint_interval: int | None = None,
         checkpoint_overwrite: bool = False,
         checkpoint_metadata: Mapping[str, Any] | None = None,
+        wavefunction_snapshot_directory: str | PathLike[str] | None = None,
+        wavefunction_snapshot_interval: int | None = None,
+        wavefunction_snapshot_initial: bool = True,
+        wavefunction_snapshot_final: bool = True,
+        wavefunction_snapshot_prefix: str = "wavefunction",
+        wavefunction_snapshot_overwrite: bool = False,
+        wavefunction_snapshot_metadata: Mapping[str, Any] | None = None,
         progress_interval: int | None = 10,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
@@ -448,6 +609,13 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             checkpoint_interval=checkpoint_interval,
             checkpoint_overwrite=checkpoint_overwrite,
             checkpoint_metadata=checkpoint_metadata,
+            wavefunction_snapshot_directory=wavefunction_snapshot_directory,
+            wavefunction_snapshot_interval=wavefunction_snapshot_interval,
+            wavefunction_snapshot_initial=wavefunction_snapshot_initial,
+            wavefunction_snapshot_final=wavefunction_snapshot_final,
+            wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
+            wavefunction_snapshot_overwrite=wavefunction_snapshot_overwrite,
+            wavefunction_snapshot_metadata=wavefunction_snapshot_metadata,
             progress_interval=progress_interval,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
@@ -515,6 +683,13 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         checkpoint_interval: int | None = None,
         checkpoint_overwrite: bool = False,
         checkpoint_metadata: Mapping[str, Any] | None = None,
+        wavefunction_snapshot_directory: str | PathLike[str] | None = None,
+        wavefunction_snapshot_interval: int | None = None,
+        wavefunction_snapshot_initial: bool = True,
+        wavefunction_snapshot_final: bool = True,
+        wavefunction_snapshot_prefix: str = "wavefunction",
+        wavefunction_snapshot_overwrite: bool = False,
+        wavefunction_snapshot_metadata: Mapping[str, Any] | None = None,
         progress_interval: int | None = 10,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
@@ -661,6 +836,13 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             checkpoint_interval=checkpoint_interval,
             checkpoint_overwrite=checkpoint_overwrite,
             checkpoint_metadata=checkpoint_metadata,
+            wavefunction_snapshot_directory=wavefunction_snapshot_directory,
+            wavefunction_snapshot_interval=wavefunction_snapshot_interval,
+            wavefunction_snapshot_initial=wavefunction_snapshot_initial,
+            wavefunction_snapshot_final=wavefunction_snapshot_final,
+            wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
+            wavefunction_snapshot_overwrite=wavefunction_snapshot_overwrite,
+            wavefunction_snapshot_metadata=wavefunction_snapshot_metadata,
             progress_interval=progress_interval,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
@@ -700,9 +882,40 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         )
 
     def _build_state_observer(self):
+        snapshot_observer = super()._build_state_observer()
+        accepted_step_offset = self._accepted_step_offset()
+        context = self._active_checkpoint_metadata.setdefault(
+            "dynamics_sampling_context",
+            {},
+        )
+        references = context.get("reference_values")
+        if references is None:
+            state = (
+                self.initial_state
+                if self._active_restart_checkpoint is None
+                else self._active_restart_checkpoint.state
+            )
+            snapshot = self.dynamics_observable_evaluator(
+                state,
+                self.propagator.initial_time,
+            )
+            references = {
+                "norm": snapshot.norm,
+                "energy_numerator": snapshot.energy_numerator,
+                "conditional_energy": snapshot.conditional_energy,
+            }
+            context["reference_values"] = references
         sampler = DiatomicIonDynamicsSampler(
             self.dynamics_observable_evaluator,
             policy=self.dynamics_sampling_policy,
+            accepted_step_offset=accepted_step_offset,
+            reference_norm=(None if references is None else references["norm"]),
+            reference_energy_numerator=(
+                None if references is None else references["energy_numerator"]
+            ),
+            reference_conditional_energy=(
+                None if references is None else references["conditional_energy"]
+            ),
         )
         self._dynamics_sampler = sampler
 
@@ -715,6 +928,17 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
                 final=final,
                 checkpoint=checkpoint,
             )
+            if "reference_values" not in context:
+                context["reference_values"] = sampler.reference_values
+            if snapshot_observer is not None:
+                snapshot_observer(
+                    state,
+                    accepted_step,
+                    time,
+                    diagnostics,
+                    final,
+                    checkpoint,
+                )
 
         return observe
 
@@ -722,6 +946,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         if self._dynamics_sampler is None:
             raise RuntimeError("dynamics sampler was not initialized")
         self.dynamics_time_series = self._dynamics_sampler.time_series
+        super()._finish_state_observer()
 
     def _physical_state_metadata(self):
         return {
