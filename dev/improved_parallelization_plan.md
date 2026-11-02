@@ -769,6 +769,13 @@ its exact worker, provenance, Slurm output, and result JSON are archived under
 
 #### Phase 9c: serial field-free and length-gauge validation
 
+**Implementation status:** complete locally. The serial non-BO TDSE now drives
+the common Phase 9b sampler directly from accepted propagation states and
+retains the resulting structured time series on the calculation. A
+configurable validation example covers automatic or archived Davidson
+initialization, field-free SIL stationarity, a finite z-polarized length-gauge
+pulse, time-step refinement, and SIL/SIA agreement.
+
 1. Start from an archived or automatically generated Davidson state.
 2. Propagate field-free with SIL and verify norm conservation and stationarity
    up to a global phase.
@@ -778,7 +785,12 @@ its exact worker, provenance, Slurm output, and result JSON are archived under
 5. Compare SIL and SIA for the Hermitian calculation.
 
 **Phase 9c gate:** a serial H2+ pulse calculation produces reproducible state
-and observable time series from a Davidson initial state.
+and observable time series from a Davidson initial state. Satisfied locally on
+a compact H2+ problem: field-free SIL preserved the phase-aligned state to
+`2.669e-16`, the maximum norm drift was `1.443e-15`, halving the pulse time
+step reduced the final-state error by more than an order of magnitude, and
+fine-step SIL and SIA differed by `1.386e-16`. The regression also verifies
+that every field action is evaluated at its temporal midpoint.
 
 #### Phase 9d: Cartesian-MPI length-gauge dynamics
 
