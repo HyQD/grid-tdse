@@ -810,6 +810,34 @@ def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
     assert snapshot.electron_center_distances.reference_rms == pytest.approx(
         normalized_snapshot.electron_center_distances.reference_rms
     )
+    P_r = np.asarray(snapshot.radial_densities.P_r)
+    P_R = np.asarray(snapshot.radial_densities.P_R)
+    assert P_r.shape == (calculation.representation.grid1.n_points,)
+    assert P_R.shape == (calculation.representation.grid2.n_points,)
+    assert np.dot(calculation.representation.grid1.weights, P_r) == pytest.approx(
+        snapshot.norm
+    )
+    assert np.dot(calculation.representation.grid2.weights, P_R) == pytest.approx(
+        snapshot.norm
+    )
+    assert np.dot(
+        calculation.representation.grid1.weights
+        * calculation.representation.grid1.r,
+        P_r,
+    ) == pytest.approx(snapshot.numerators.r)
+    assert np.dot(
+        calculation.representation.grid2.weights
+        * calculation.representation.grid2.r,
+        P_R,
+    ) == pytest.approx(snapshot.numerators.R)
+    np.testing.assert_allclose(
+        P_r,
+        snapshot.norm * np.asarray(normalized_snapshot.radial_densities.P_r),
+    )
+    np.testing.assert_allclose(
+        P_R,
+        snapshot.norm * np.asarray(normalized_snapshot.radial_densities.P_R),
+    )
 
     sampler = DiatomicIonDynamicsSampler(
         evaluator,
@@ -837,6 +865,10 @@ def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
     assert final.is_final
     assert sampler.time_series.accepted_steps.tolist() == [0, 1, 3]
     assert sampler.time_series.records()[0]["snapshot.gauge"] == "velocity"
+    assert not any(
+        "radial_densities" in name
+        for name in sampler.time_series.records()[0]
+    )
 
 
 @pytest.mark.parametrize("M_tot", [None, 0])
