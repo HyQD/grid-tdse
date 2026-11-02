@@ -47,6 +47,40 @@ class DiatomicIonObservables:
     pair_exchange: float | None
 
 
+@dataclass(frozen=True)
+class DiatomicIonObservableNumerators:
+    r"""Unnormalized non-BO observable numerators in atomic units.
+
+    Every scalar or vector component is an expectation numerator
+    ``<psi|O|psi>``.  In particular, none of the values are divided by
+    :attr:`norm`.  This makes norm loss from masks or complex absorbing
+    potentials explicit and lets callers form separately named conditional
+    expectations when desired.
+    """
+
+    norm: float
+    r: float
+    R: float
+    r_squared: float
+    R_squared: float
+    r_dot_R: float
+    total_l_squared: float
+    total_l_z: float
+    l_r_squared: float
+    l_R_squared: float
+    l_r_z: float
+    l_R_z: float
+    cos_theta_R: float
+    cos2_theta_R: float
+    coordinate_r: tuple[float, float, float]
+    coordinate_R: tuple[float, float, float]
+    dipole_r: tuple[float, float, float]
+    dipole_R: tuple[float, float, float]
+    dipole_total: tuple[float, float, float]
+    inversion: float
+    pair_exchange: float | None
+
+
 class DiatomicIonObservableEvaluator:
     """Evaluate serial or distributed non-BO diatomic observables."""
 
@@ -54,6 +88,9 @@ class DiatomicIonObservableEvaluator:
         "norm",
         "r",
         "R",
+        "r_squared",
+        "R_squared",
+        "r_dot_R",
         "total_l_squared",
         "total_l_z",
         "l_r_squared",
@@ -101,6 +138,19 @@ class DiatomicIonObservableEvaluator:
         )
         return self._normalized(local)
 
+    def numerators(self, state: np.ndarray) -> DiatomicIonObservableNumerators:
+        """Return unnormalized observable numerators for a serial state."""
+
+        values = validated_state(self.system, state)
+        local = self._local_values(
+            values,
+            self.system.grid1.r,
+            self.system.grid1.weights,
+            self.system.grid2.r,
+            self.system.grid2.weights,
+        )
+        return self._numerators(local)
+
     def distributed(self, state, reductions) -> DiatomicIonObservables:
         """Collectively return observables for a one-coordinate MPI state."""
 
@@ -123,6 +173,29 @@ class DiatomicIonObservableEvaluator:
         global_values = reductions.global_sum(local, rank=state.rank)
         return self._normalized(global_values)
 
+    def distributed_numerators(
+        self, state, reductions
+    ) -> DiatomicIonObservableNumerators:
+        """Collectively return unnormalized one-coordinate MPI numerators."""
+
+        from .distributed_hamiltonian import TwoRadialDistributedReductions
+        from .distributed_state import DistributedTwoRadialState
+
+        if not isinstance(state, DistributedTwoRadialState):
+            raise TypeError("state must be a DistributedTwoRadialState")
+        if state.layout.representation is not self.system:
+            raise ValueError("state uses a different two-radial representation")
+        if not isinstance(reductions, TwoRadialDistributedReductions):
+            raise TypeError("reductions must be TwoRadialDistributedReductions")
+        local = self._local_values(
+            state.coefficients,
+            state.owned_r,
+            state.owned_r_weights,
+            state.owned_R,
+            state.owned_R_weights,
+        )
+        return self._numerators(reductions.global_sum(local, rank=state.rank))
+
     def distributed_2d(self, state, reductions) -> DiatomicIonObservables:
         """Collectively return observables for a Cartesian MPI state."""
 
@@ -136,9 +209,7 @@ class DiatomicIonObservableEvaluator:
         if state.layout.representation is not self.system:
             raise ValueError("state uses a different two-radial representation")
         if not isinstance(reductions, TwoRadialDistributed2DReductions):
-            raise TypeError(
-                "reductions must be TwoRadialDistributed2DReductions"
-            )
+            raise TypeError("reductions must be TwoRadialDistributed2DReductions")
         local = self._local_values(
             state.coefficients,
             state.owned_r,
@@ -148,6 +219,31 @@ class DiatomicIonObservableEvaluator:
         )
         global_values = reductions.global_sum(local, rank=state.rank)
         return self._normalized(global_values)
+
+    def distributed_2d_numerators(
+        self, state, reductions
+    ) -> DiatomicIonObservableNumerators:
+        """Collectively return unnormalized Cartesian-MPI numerators."""
+
+        from .distributed_2d_reductions import (
+            TwoRadialDistributed2DReductions,
+        )
+        from .distributed_2d_state import DistributedTwoRadial2DState
+
+        if not isinstance(state, DistributedTwoRadial2DState):
+            raise TypeError("state must be a DistributedTwoRadial2DState")
+        if state.layout.representation is not self.system:
+            raise ValueError("state uses a different two-radial representation")
+        if not isinstance(reductions, TwoRadialDistributed2DReductions):
+            raise TypeError("reductions must be TwoRadialDistributed2DReductions")
+        local = self._local_values(
+            state.coefficients,
+            state.owned_r,
+            state.owned_r_weights,
+            state.owned_R,
+            state.owned_R_weights,
+        )
+        return self._numerators(reductions.global_sum(local, rank=state.rank))
 
     def _local_values(self, state, r, w_r, R, w_R) -> np.ndarray:
         values = np.asarray(state)
@@ -179,6 +275,9 @@ class DiatomicIonObservableEvaluator:
             norm,
             _radial_local_expectation(values, r, 1, w_r, w_R),
             _radial_local_expectation(values, R, 2, w_r, w_R),
+            _radial_local_expectation(values, r**2, 1, w_r, w_R),
+            _radial_local_expectation(values, R**2, 2, w_r, w_R),
+            self._local_r_dot_R(values, r, R, w_r, w_R),
             _local_inner_product(
                 values,
                 _total_l_squared_action(self.system, values),
@@ -228,9 +327,7 @@ class DiatomicIonObservableEvaluator:
                     action *= radial.reshape((1,) * (action.ndim - 2) + (-1, 1))
                 else:
                     action *= radial.reshape((1,) * (action.ndim - 1) + (-1,))
-                results.append(
-                    _local_inner_product(values, action, w_r, w_R)
-                )
+                results.append(_local_inner_product(values, action, w_r, w_R))
         results.extend(
             (
                 np.sum(population * pair_values["inversion"]),
@@ -239,43 +336,90 @@ class DiatomicIonObservableEvaluator:
         )
         return np.asarray(results, dtype=complex)
 
-    def _normalized(self, values) -> DiatomicIonObservables:
+    def _local_r_dot_R(self, state, r, R, w_r, w_R):
+        result = np.zeros_like(state, dtype=np.result_type(state.dtype, complex))
+        for direction1, direction2 in zip(self._directions1, self._directions2):
+            action = _coordinate_angular_action(
+                self.system,
+                state,
+                2,
+                direction2,
+            )
+            action = _coordinate_angular_action(
+                self.system,
+                action,
+                1,
+                direction1,
+            )
+            result += action
+        radial_shape = (1,) * (state.ndim - 2) + (r.size, R.size)
+        result *= np.multiply.outer(r, R).reshape(radial_shape)
+        return _local_inner_product(state, result, w_r, w_R)
+
+    def _numerators(self, values) -> DiatomicIonObservableNumerators:
         values = np.asarray(values)
         if values.shape != (len(self._NAMES),):
             raise ValueError("observable reduction returned an invalid shape")
-        norm = _real_scalar(values[0], "norm")
-        if norm <= 0.0:
-            raise ValueError("state has zero norm")
-        normalized = {
-            name: _real_scalar(value / norm, name)
-            for name, value in zip(self._NAMES[1:], values[1:])
+        scalar = {
+            name: _real_scalar(value, name) for name, value in zip(self._NAMES, values)
         }
+        if scalar["norm"] <= 0.0:
+            raise ValueError("state has zero norm")
+        coordinate_r = tuple(scalar[f"r_{axis}"] for axis in "xyz")
+        coordinate_R = tuple(scalar[f"R_{axis}"] for axis in "xyz")
         xi_r = float(self.parameters.electronic_reduced_charge)
         xi_R = float(self.parameters.internuclear_reduced_charge)
-        dipole_r = tuple(xi_r * normalized[f"r_{axis}"] for axis in "xyz")
-        dipole_R = tuple(xi_R * normalized[f"R_{axis}"] for axis in "xyz")
-        dipole_total = tuple(
-            electronic + internuclear
-            for electronic, internuclear in zip(dipole_r, dipole_R)
-        )
-        return DiatomicIonObservables(
-            r=normalized["r"],
-            R=normalized["R"],
-            total_l_squared=normalized["total_l_squared"],
-            total_l_z=normalized["total_l_z"],
-            l_r_squared=normalized["l_r_squared"],
-            l_R_squared=normalized["l_R_squared"],
-            l_r_z=normalized["l_r_z"],
-            l_R_z=normalized["l_R_z"],
-            cos_theta_R=normalized["cos_theta_R"],
-            cos2_theta_R=normalized["cos2_theta_R"],
+        dipole_r = tuple(xi_r * value for value in coordinate_r)
+        dipole_R = tuple(xi_R * value for value in coordinate_R)
+        return DiatomicIonObservableNumerators(
+            norm=scalar["norm"],
+            r=scalar["r"],
+            R=scalar["R"],
+            r_squared=scalar["r_squared"],
+            R_squared=scalar["R_squared"],
+            r_dot_R=scalar["r_dot_R"],
+            total_l_squared=scalar["total_l_squared"],
+            total_l_z=scalar["total_l_z"],
+            l_r_squared=scalar["l_r_squared"],
+            l_R_squared=scalar["l_R_squared"],
+            l_r_z=scalar["l_r_z"],
+            l_R_z=scalar["l_R_z"],
+            cos_theta_R=scalar["cos_theta_R"],
+            cos2_theta_R=scalar["cos2_theta_R"],
+            coordinate_r=coordinate_r,
+            coordinate_R=coordinate_R,
             dipole_r=dipole_r,
             dipole_R=dipole_R,
-            dipole_total=dipole_total,
-            inversion=normalized["inversion"],
+            dipole_total=tuple(
+                value_r + value_R for value_r, value_R in zip(dipole_r, dipole_R)
+            ),
+            inversion=scalar["inversion"],
             pair_exchange=(
-                normalized["pair_exchange"]
-                if self.parameters.has_identical_pair
+                scalar["pair_exchange"] if self.parameters.has_identical_pair else None
+            ),
+        )
+
+    def _normalized(self, values) -> DiatomicIonObservables:
+        numerators = self._numerators(values)
+        norm = numerators.norm
+        return DiatomicIonObservables(
+            r=numerators.r / norm,
+            R=numerators.R / norm,
+            total_l_squared=numerators.total_l_squared / norm,
+            total_l_z=numerators.total_l_z / norm,
+            l_r_squared=numerators.l_r_squared / norm,
+            l_R_squared=numerators.l_R_squared / norm,
+            l_r_z=numerators.l_r_z / norm,
+            l_R_z=numerators.l_R_z / norm,
+            cos_theta_R=numerators.cos_theta_R / norm,
+            cos2_theta_R=numerators.cos2_theta_R / norm,
+            dipole_r=tuple(value / norm for value in numerators.dipole_r),
+            dipole_R=tuple(value / norm for value in numerators.dipole_R),
+            dipole_total=tuple(value / norm for value in numerators.dipole_total),
+            inversion=numerators.inversion / norm,
+            pair_exchange=(
+                numerators.pair_exchange / norm
+                if numerators.pair_exchange is not None
                 else None
             ),
         )
@@ -297,9 +441,7 @@ def angular_momentum_expectations(
     for pair, (i, j) in enumerate(system.angular_pairs.pairs):
         l1, m1 = basis1.states[i]
         l2, m2 = basis2.states[j]
-        block = (
-            state[pair] if system.uses_compact_angular_storage else state[i, j]
-        )
+        block = state[pair] if system.uses_compact_angular_storage else state[i, j]
         system.add_to_angular_block(
             action,
             i,
@@ -313,9 +455,7 @@ def angular_momentum_expectations(
             coefficient = np.sqrt(l1 * (l1 + 1) - m1 * (m1 + 1)) * np.sqrt(
                 l2 * (l2 + 1) - m2 * (m2 - 1)
             )
-            system.add_to_angular_block(
-                action, out_i, out_j, coefficient * block
-            )
+            system.add_to_angular_block(action, out_i, out_j, coefficient * block)
 
         if m1 > -l1 and m2 < l2:
             out_i = basis1.index(l1, m1 - 1)
@@ -323,9 +463,7 @@ def angular_momentum_expectations(
             coefficient = np.sqrt(l1 * (l1 + 1) - m1 * (m1 - 1)) * np.sqrt(
                 l2 * (l2 + 1) - m2 * (m2 + 1)
             )
-            system.add_to_angular_block(
-                action, out_i, out_j, coefficient * block
-            )
+            system.add_to_angular_block(action, out_i, out_j, coefficient * block)
 
     total_l_squared = system.inner_product(state, action).real / norm_squared
     total_l_z = diagonal_angular_expectation(
@@ -364,9 +502,7 @@ def diagonal_angular_expectation(
         )
         action = angular_values[:, None, None] * state
     else:
-        angular_values = np.empty(
-            (system.basis1.n_channels, system.basis2.n_channels)
-        )
+        angular_values = np.empty((system.basis1.n_channels, system.basis2.n_channels))
         for i, (l1, m1) in enumerate(system.basis1.states):
             for j, (l2, m2) in enumerate(system.basis2.states):
                 angular_values[i, j] = value(l1, l2, m1, m2)
@@ -411,9 +547,11 @@ def _angular_population(system, state, w1, w2):
 def _pair_diagonals(system):
     values = {
         name: np.empty(
-            (system.angular_pairs.n_pairs,)
-            if system.uses_compact_angular_storage
-            else (system.basis1.n_channels, system.basis2.n_channels),
+            (
+                (system.angular_pairs.n_pairs,)
+                if system.uses_compact_angular_storage
+                else (system.basis1.n_channels, system.basis2.n_channels)
+            ),
             dtype=float,
         )
         for name in (
@@ -467,9 +605,7 @@ def _coordinate_angular_action(system, state, coordinate, matrix):
     for input_pair, (i, j) in enumerate(system.angular_pairs.pairs):
         input_channel = i if coordinate == 1 else j
         block = (
-            state[input_pair]
-            if system.uses_compact_angular_storage
-            else state[i, j]
+            state[input_pair] if system.uses_compact_angular_storage else state[i, j]
         )
         for output_channel in np.flatnonzero(matrix[:, input_channel]):
             if coordinate == 1:
@@ -489,12 +625,10 @@ def _coordinate_angular_action(system, state, coordinate, matrix):
 def _total_l_squared_action(system, state):
     result = np.zeros_like(state, dtype=np.result_type(state.dtype, float))
     indices1 = {
-        angular_state: index
-        for index, angular_state in enumerate(system.basis1.states)
+        angular_state: index for index, angular_state in enumerate(system.basis1.states)
     }
     indices2 = {
-        angular_state: index
-        for index, angular_state in enumerate(system.basis2.states)
+        angular_state: index for index, angular_state in enumerate(system.basis2.states)
     }
     for pair, (i, j) in enumerate(system.angular_pairs.pairs):
         l1, m1 = system.basis1.states[i]
@@ -511,9 +645,9 @@ def _total_l_squared_action(system, state):
             output_i = indices1.get((l1, m1 + 1))
             output_j = indices2.get((l2, m2 - 1))
             if output_i is not None and output_j is not None:
-                coefficient = np.sqrt(
-                    l1 * (l1 + 1) - m1 * (m1 + 1)
-                ) * np.sqrt(l2 * (l2 + 1) - m2 * (m2 - 1))
+                coefficient = np.sqrt(l1 * (l1 + 1) - m1 * (m1 + 1)) * np.sqrt(
+                    l2 * (l2 + 1) - m2 * (m2 - 1)
+                )
                 _add_angular_block(
                     system, result, output_i, output_j, coefficient * block
                 )
@@ -521,9 +655,9 @@ def _total_l_squared_action(system, state):
             output_i = indices1.get((l1, m1 - 1))
             output_j = indices2.get((l2, m2 + 1))
             if output_i is not None and output_j is not None:
-                coefficient = np.sqrt(
-                    l1 * (l1 + 1) - m1 * (m1 - 1)
-                ) * np.sqrt(l2 * (l2 + 1) - m2 * (m2 + 1))
+                coefficient = np.sqrt(l1 * (l1 + 1) - m1 * (m1 - 1)) * np.sqrt(
+                    l2 * (l2 + 1) - m2 * (m2 + 1)
+                )
                 _add_angular_block(
                     system, result, output_i, output_j, coefficient * block
                 )
@@ -582,8 +716,7 @@ def _a_lm(l_value, m_value):
     if l_value < 0 or abs(m_value) > l_value:
         return 0.0
     return np.sqrt(
-        ((l_value + 1) ** 2 - m_value**2)
-        / ((2 * l_value + 1) * (2 * l_value + 3))
+        ((l_value + 1) ** 2 - m_value**2) / ((2 * l_value + 1) * (2 * l_value + 3))
     )
 
 

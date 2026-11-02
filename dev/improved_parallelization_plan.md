@@ -755,6 +755,10 @@ second moments.
 
 **Phase 9b gate:** serial, one-dimensional MPI, and Cartesian-MPI evaluators
 agree for identical test states, including states with norm below one.
+Satisfied locally: the common numerator reduction and dynamics schema agree
+for serial, both one-coordinate decompositions, and a Cartesian `2 x 2`
+decomposition on deliberately subnormalized states. The remaining deployment
+check is to repeat the gate with Saga MPI collectives before phase 9c.
 
 #### Phase 9c: serial field-free and length-gauge validation
 

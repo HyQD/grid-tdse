@@ -34,6 +34,17 @@ from .dynamics_initialization import (
     prepare_distributed_non_bo_diatomic_dynamics_initial_state,
     prepare_non_bo_diatomic_dynamics_initial_state,
 )
+from .dynamics_sampling import (
+    DiatomicIonConditionalObservables,
+    DiatomicIonDynamicsObservableEvaluator,
+    DiatomicIonDynamicsSample,
+    DiatomicIonDynamicsSampler,
+    DiatomicIonDynamicsSamplingPolicy,
+    DiatomicIonDynamicsSnapshot,
+    DiatomicIonDynamicsTimeSeries,
+    DiatomicIonElectronCenterDistances,
+    DiatomicIonPropagationDiagnostics,
+)
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadial2DRankLayout,
@@ -85,6 +96,7 @@ from .hamiltonian import TwoRadialHamiltonian
 from .observables import (
     AngularMomentumExpectations,
     DiatomicIonObservableEvaluator,
+    DiatomicIonObservableNumerators,
     DiatomicIonObservables,
 )
 from .preconditioner import (
@@ -138,11 +150,21 @@ __all__ = [
     "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
     "DiatomicIonGroundStateSample",
+    "DiatomicIonConditionalObservables",
     "DiatomicIonParameters",
     "DiatomicDynamicsInitializationResult",
     "DiatomicDynamicsInitialStatePolicy",
     "DiatomicIonObservableEvaluator",
+    "DiatomicIonObservableNumerators",
     "DiatomicIonObservables",
+    "DiatomicIonDynamicsObservableEvaluator",
+    "DiatomicIonDynamicsSample",
+    "DiatomicIonDynamicsSampler",
+    "DiatomicIonDynamicsSamplingPolicy",
+    "DiatomicIonDynamicsSnapshot",
+    "DiatomicIonDynamicsTimeSeries",
+    "DiatomicIonElectronCenterDistances",
+    "DiatomicIonPropagationDiagnostics",
     "DipoleGauge",
     "Distributed2DHamiltonianComponents",
     "Distributed2DHamiltonianProfile",

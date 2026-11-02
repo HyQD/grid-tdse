@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import json
 from os import PathLike
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Literal
 
 import numpy as np
@@ -33,6 +34,7 @@ class RealTimePropagationStep:
     norm: float
     linear_iterations: int
     linear_residual_norm: float
+    step_wall_time: float = 0.0
     krylov_operator_calls: int = 0
     krylov_accepted_substeps: int = 0
     krylov_rejected_substeps: int = 0
@@ -94,9 +96,7 @@ class RealTimePropagationResult:
     def linear_residual_norms(self) -> np.ndarray:
         """Linear-system residual norm for every accepted step."""
 
-        return np.asarray(
-            [record.linear_residual_norm for record in self.history]
-        )
+        return np.asarray([record.linear_residual_norm for record in self.history])
 
     @property
     def krylov_operator_calls(self) -> np.ndarray:
@@ -145,9 +145,13 @@ class RealTimePropagationResult:
     def krylov_error_estimates(self) -> np.ndarray:
         """Accumulated accepted-substep error estimate for every step."""
 
-        return np.asarray(
-            [record.krylov_error_estimate for record in self.history]
-        )
+        return np.asarray([record.krylov_error_estimate for record in self.history])
+
+    @property
+    def step_wall_times(self) -> np.ndarray:
+        """Wall time spent in every accepted propagation step."""
+
+        return np.asarray([record.step_wall_time for record in self.history])
 
 
 class RealTimePropagator:
@@ -234,9 +238,7 @@ class RealTimePropagator:
         self.linear_max_iterations = _optional_positive_integer(
             linear_max_iterations, "linear_max_iterations"
         )
-        self.gmres_restart = _optional_positive_integer(
-            gmres_restart, "gmres_restart"
-        )
+        self.gmres_restart = _optional_positive_integer(gmres_restart, "gmres_restart")
         self.max_krylov_dimension = _positive_integer(
             max_krylov_dimension, "max_krylov_dimension"
         )
@@ -270,10 +272,10 @@ class RealTimePropagator:
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
-        samplers: Mapping[
-            str, Callable[[np.ndarray, float], np.ndarray | complex | float]
-        ]
-        | None = None,
+        samplers: (
+            Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
+            | None
+        ) = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -352,10 +354,10 @@ class RealTimePropagator:
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
-        samplers: Mapping[
-            str, Callable[[np.ndarray, float], np.ndarray | complex | float]
-        ]
-        | None = None,
+        samplers: (
+            Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
+            | None
+        ) = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -401,10 +403,10 @@ class RealTimePropagator:
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
-        samplers: Mapping[
-            str, Callable[[np.ndarray, float], np.ndarray | complex | float]
-        ]
-        | None = None,
+        samplers: (
+            Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
+            | None
+        ) = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -557,6 +559,7 @@ class RealTimePropagator:
 
         total_segment_steps = previous_steps + self.n_steps
         for local_step, time in enumerate(self.propagation_times[:-1], start=1):
+            step_started = perf_counter()
             state = integrator(
                 state,
                 time,
@@ -571,6 +574,7 @@ class RealTimePropagator:
                 step=step,
                 time=accepted_time,
                 norm=self._norm(state, inner_product),
+                step_wall_time=perf_counter() - step_started,
                 **self._step_diagnostics(integrator),
             )
             history.append(record)
@@ -613,8 +617,7 @@ class RealTimePropagator:
             initial_norm=segment_initial_norm,
             history=tuple(history),
             samples={
-                name: np.asarray(values)
-                for name, values in sample_storage.items()
+                name: np.asarray(values) for name, values in sample_storage.items()
             },
         )
         if destination is not None:
@@ -651,9 +654,7 @@ class RealTimePropagator:
                 f"preconditioner is not supported by integrator {self.integrator!r}"
             )
         integrator_type = (
-            ShortIterativeLanczos
-            if self.integrator == "sil"
-            else ArnoldiExponential
+            ShortIterativeLanczos if self.integrator == "sil" else ArnoldiExponential
         )
         return integrator_type(
             max_krylov_dimension=self.max_krylov_dimension,
@@ -778,25 +779,18 @@ class RealTimePropagator:
                 time=float(segment.times[step]),
                 norm=float(segment.norms[step]),
                 linear_iterations=int(segment.linear_iterations[step - 1]),
-                linear_residual_norm=float(
-                    segment.linear_residual_norms[step - 1]
-                ),
-                krylov_operator_calls=int(
-                    segment.krylov_operator_calls[step - 1]
-                ),
+                linear_residual_norm=float(segment.linear_residual_norms[step - 1]),
+                step_wall_time=float(segment.step_wall_times[step - 1]),
+                krylov_operator_calls=int(segment.krylov_operator_calls[step - 1]),
                 krylov_accepted_substeps=int(
                     segment.krylov_accepted_substeps[step - 1]
                 ),
                 krylov_rejected_substeps=int(
                     segment.krylov_rejected_substeps[step - 1]
                 ),
-                krylov_refinement_depth=int(
-                    segment.krylov_refinement_depths[step - 1]
-                ),
+                krylov_refinement_depth=int(segment.krylov_refinement_depths[step - 1]),
                 krylov_dimension=int(segment.krylov_dimensions[step - 1]),
-                krylov_error_estimate=float(
-                    segment.krylov_error_estimates[step - 1]
-                ),
+                krylov_error_estimate=float(segment.krylov_error_estimates[step - 1]),
             )
             for step in range(1, segment.times.size)
         ]
@@ -829,9 +823,7 @@ class RealTimePropagator:
         archive_metadata,
         checkpoint_interval,
     ) -> None:
-        times = np.asarray(
-            [segment_initial_time, *(record.time for record in history)]
-        )
+        times = np.asarray([segment_initial_time, *(record.time for record in history)])
         segment = RealTimeCheckpointSegment(
             initial_time=segment_initial_time,
             target_final_time=self.final_time,
@@ -850,6 +842,7 @@ class RealTimePropagator:
             linear_residual_norms=np.asarray(
                 [record.linear_residual_norm for record in history]
             ),
+            step_wall_times=np.asarray([record.step_wall_time for record in history]),
             krylov_operator_calls=np.asarray(
                 [record.krylov_operator_calls for record in history],
                 dtype=int,
@@ -893,8 +886,7 @@ class RealTimePropagator:
         scale = max(1.0, abs(norm_squared.real))
         if abs(norm_squared.imag) > self.reality_tolerance * scale:
             raise ValueError(
-                "squared norm has a significant imaginary part: "
-                f"{norm_squared.imag}"
+                "squared norm has a significant imaginary part: " f"{norm_squared.imag}"
             )
         if norm_squared.real < 0.0:
             raise ValueError("inner product produced a negative squared norm")
@@ -952,9 +944,7 @@ def _post_step_state(post_step, state, time, shape) -> np.ndarray:
     read_only_state.flags.writeable = False
     values = np.asarray(post_step(read_only_state, time))
     if values.shape != shape:
-        raise ValueError(
-            f"post_step returned shape {values.shape}; expected {shape}"
-        )
+        raise ValueError(f"post_step returned shape {values.shape}; expected {shape}")
     if not np.issubdtype(values.dtype, np.number):
         raise TypeError("post_step must return numeric values")
     if not np.isfinite(values).all():
@@ -1036,9 +1026,7 @@ def _positive_integer(value, name: str) -> int:
 
 
 def _nonnegative_integer(value, name: str) -> int:
-    if isinstance(value, (bool, np.bool_)) or not isinstance(
-        value, (int, np.integer)
-    ):
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
         raise TypeError(f"{name} must be a non-negative integer")
     result = int(value)
     if result < 0:
@@ -1060,9 +1048,7 @@ def _mapping_or_empty(values, name: str) -> dict[str, Any]:
     try:
         return json.loads(json.dumps(dict(values), default=_metadata_json_value))
     except TypeError as exc:
-        raise TypeError(
-            f"{name} must contain only JSON-serializable values"
-        ) from exc
+        raise TypeError(f"{name} must contain only JSON-serializable values") from exc
 
 
 def _metadata_json_value(value):
@@ -1094,9 +1080,7 @@ def _checkpoint_destination(
 ) -> Path | None:
     if path is None:
         if interval is not None:
-            raise ValueError(
-                "checkpoint_interval requires a checkpoint_path"
-            )
+            raise ValueError("checkpoint_interval requires a checkpoint_path")
         return None
     if not isinstance(path, (str, PathLike)):
         raise TypeError("checkpoint_path must be a path-like value")
