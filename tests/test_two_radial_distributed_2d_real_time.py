@@ -389,3 +389,20 @@ def test_cartesian_short_time_series_and_final_state_match_serial():
             sample.propagation.krylov_operator_calls > 0
             for sample in result.time_series.samples[1:]
         )
+        for actual_sample, reference_sample in zip(
+            result.time_series.samples,
+            serial_series.samples,
+            strict=True,
+        ):
+            np.testing.assert_allclose(
+                actual_sample.snapshot.radial_densities.P_r,
+                reference_sample.snapshot.radial_densities.P_r,
+                atol=8.0e-11,
+                rtol=8.0e-11,
+            )
+            np.testing.assert_allclose(
+                actual_sample.snapshot.radial_densities.P_R,
+                reference_sample.snapshot.radial_densities.P_R,
+                atol=8.0e-11,
+                rtol=8.0e-11,
+            )

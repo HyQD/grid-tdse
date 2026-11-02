@@ -548,6 +548,16 @@ def test_distributed_dynamics_snapshot_matches_serial_below_unit_norm(
             expected.numerators.dipole_total,
             atol=2.0e-13,
         )
+        np.testing.assert_allclose(
+            snapshot.radial_densities.P_r,
+            expected.radial_densities.P_r,
+            atol=2.0e-13,
+        )
+        np.testing.assert_allclose(
+            snapshot.radial_densities.P_R,
+            expected.radial_densities.P_R,
+            atol=2.0e-13,
+        )
         assert snapshot.electron_center_distances.reference_rms == pytest.approx(
             expected.electron_center_distances.reference_rms,
             abs=2.0e-13,

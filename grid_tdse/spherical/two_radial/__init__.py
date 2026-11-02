@@ -44,6 +44,7 @@ from .dynamics_sampling import (
     DiatomicIonDynamicsTimeSeries,
     DiatomicIonElectronCenterDistances,
     DiatomicIonPropagationDiagnostics,
+    DiatomicIonRadialDensities,
 )
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
@@ -175,6 +176,7 @@ __all__ = [
     "DiatomicIonDynamicsTimeSeries",
     "DiatomicIonElectronCenterDistances",
     "DiatomicIonPropagationDiagnostics",
+    "DiatomicIonRadialDensities",
     "DipoleGauge",
     "Distributed2DHamiltonianComponents",
     "Distributed2DHamiltonianProfile",

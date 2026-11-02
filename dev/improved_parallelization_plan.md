@@ -875,7 +875,14 @@ checks may be added later when production checkpoint placement is selected.
 1. Add separate electronic and internuclear masks first.
 2. Add CAP propagation with SIA after mask behavior is validated.
 3. Reject simultaneous mask and CAP use on the same coordinate.
-4. Verify expected norm loss, raw and conditional observable semantics, and
+4. Sample the raw one-body radial marginals
+   `P_r(r,t)` and `P_R(R,t)` on the existing observable cadence, together
+   with the norm. Store the two radial grids and quadrature weights once per
+   compact array archive rather than repeating them in scalar JSON records.
+   Conditional radial distributions and their moments remain post-processing
+   quantities obtained by dividing by the sampled norm.
+5. Verify that both quadrature integrals reproduce the sampled norm, then
+   verify expected norm loss, raw and conditional observable semantics, and
    restart equivalence.
 
 **Phase 9f gate:** absorbed serial dynamics have internally consistent norm,
