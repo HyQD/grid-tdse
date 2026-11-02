@@ -10,6 +10,7 @@ from .propagation import (
     RealTimePropagationResult,
     RealTimePropagationStep,
     RealTimePropagator,
+    StateObserver,
 )
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "RealTimePropagationResult",
     "RealTimePropagationStep",
     "RealTimePropagator",
+    "StateObserver",
     "load_real_time_checkpoint",
     "save_real_time_checkpoint",
 ]
