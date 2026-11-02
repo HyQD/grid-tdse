@@ -1,0 +1,44 @@
+colorama @ file:///home/conda/feedstock_root/build_artifacts/colorama_1733218098505/work
+contourpy @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_contourpy_1789746783/work
+coverage @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_coverage_1792144404/work
+cycler @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_cycler_1764466758/work
+exceptiongroup @ file:///home/conda/feedstock_root/build_artifacts/exceptiongroup_1763918002538/work
+fonttools @ file:///home/conda/feedstock_root/build_artifacts/fonttools_1792672271192/work
+gmpy2 @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_gmpy2_1791166954/work
+-e git+https://github.com/HyQD/electromagnetic-fields.git@282848660fb84d1a04bd047906b1aeda7c2981ee#egg=HyQD_electromagnetic_fields
+-e git+https://github.com/HyQD/grid-lib.git@8950c3ae01425488a6d78ba054a3b394dd851727#egg=HyQD_grid_lib
+-e git+ssh://git@github.com/HyQD/grid-tdse.git@14354f8fec0a74ae32f377c9fa4410329d1c8163#egg=HyQD_grid_tdse
+-e git+https://github.com/HyQD/integrator-lib.git@ab5332f0c3c20e7c19d9efee1d66ca28474c48ac#egg=HyQD_integrator_lib
+-e git+https://github.com/HyQD/matter_field_params.git@49fb824a4f12addf88735a2745251fc733720c8a#egg=HyQD_matter_field_params
+iniconfig @ file:///home/conda/feedstock_root/build_artifacts/iniconfig_1791588459171/work
+kiwisolver @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_kiwisolver_1790082003/work
+llvmlite @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_llvmlite_1790358104/work
+matplotlib==3.11.2
+mpi4py==4.1.2
+mpmath @ file:///home/conda/feedstock_root/build_artifacts/mpmath_1773661943568/work
+munkres==1.1.4
+numba @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_numba_1787145510/work
+numpy @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1788129259/work/dist/numpy-2.5.2-cp314-cp314-linux_x86_64.whl#sha256=0699991f9601bf9ce0e65c92da1559cd7c5e734d26b999d9964abc066eaa7b2e
+opt_einsum @ file:///home/conda/feedstock_root/build_artifacts/opt_einsum_1733687912731/work
+packaging @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_packaging_1785888127/work
+periodictable @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_periodictable_1792585637/work
+pillow @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pillow_1792416406/work
+pluggy @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pluggy_1792063298/work
+Pygments @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pygments_1786995678/work
+pyparsing @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pyparsing_1790063282/work
+PySide6==6.11.2
+pytest @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pytest_1782127176/work
+pytest-cov @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_pytest-cov_1774139250/work
+python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_python-dateutil_1792674886/work
+scipy @ file:///home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work/dist/scipy-1.18.0-cp314-cp314-linux_x86_64.whl#sha256=f22db7d5dc8b3a21355b234552c334b6e92a6cb4f468f1ff37172b05adadd4f1
+setuptools==84.2.1
+shiboken6==6.11.2
+six @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_six_1753199211/work
+sympy @ file:///home/conda/feedstock_root/build_artifacts/sympy_1771952240620/work
+threadpoolctl==3.7.0
+tomli @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_tomli_1791394576/work
+tornado @ file:///home/conda/feedstock_root/build_artifacts/tornado_1789910955786/work
+tqdm @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_tqdm_1789187326/work
+typing_extensions @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_typing_extensions_1783002732/work
+tzdata @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_python-tzdata_1791025923/work
+wheel==0.48.0

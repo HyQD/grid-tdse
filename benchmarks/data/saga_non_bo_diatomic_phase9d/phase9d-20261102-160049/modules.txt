@@ -1,0 +1,27 @@
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
