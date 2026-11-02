@@ -154,6 +154,12 @@ class RealTimePropagationResult:
         return np.asarray([record.step_wall_time for record in self.history])
 
 
+StateObserver = Callable[
+    [np.ndarray, int, float, RealTimePropagationStep | None, bool, bool],
+    None,
+]
+
+
 class RealTimePropagator:
     r"""Advance a linear time-dependent Schrödinger equation.
 
@@ -276,6 +282,7 @@ class RealTimePropagator:
             Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
             | None
         ) = None,
+        state_observer: StateObserver | None = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -304,6 +311,13 @@ class RealTimePropagator:
             callables. Each sampler is evaluated at the initial time and after
             every accepted step. Samplers must not modify the read-only state
             view they receive.
+        state_observer
+            Optional callback evaluated for the initial state and every
+            accepted state. It receives a read-only state view, accepted-step
+            index, physical time, the accepted-step diagnostics (``None`` for
+            a new initial state), and ``final`` and ``checkpoint`` flags. It
+            is intended for structured observers whose output is retained by
+            the callback rather than in ``result.samples``.
         post_step
             Optional ``post_step(state, time)`` transformation applied after
             each accepted step and before norms, samples, and checkpoints are
@@ -334,6 +348,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            state_observer=state_observer,
             post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
@@ -358,6 +373,7 @@ class RealTimePropagator:
             Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
             | None
         ) = None,
+        state_observer: StateObserver | None = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -383,6 +399,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            state_observer=state_observer,
             post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
@@ -407,6 +424,7 @@ class RealTimePropagator:
             Mapping[str, Callable[[np.ndarray, float], np.ndarray | complex | float]]
             | None
         ) = None,
+        state_observer: StateObserver | None = None,
         post_step: Callable[[np.ndarray, float], np.ndarray] | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
@@ -431,6 +449,7 @@ class RealTimePropagator:
             inner_product,
             preconditioner=preconditioner,
             samplers=samplers,
+            state_observer=state_observer,
             post_step=post_step,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=checkpoint_interval,
@@ -450,6 +469,7 @@ class RealTimePropagator:
         *,
         preconditioner,
         samplers,
+        state_observer,
         post_step,
         checkpoint_path,
         checkpoint_interval,
@@ -468,6 +488,8 @@ class RealTimePropagator:
             raise TypeError("inner_product must be callable")
         if post_step is not None and not callable(post_step):
             raise TypeError("post_step must be callable or None")
+        if state_observer is not None and not callable(state_observer):
+            raise TypeError("state_observer must be callable or None")
 
         interval = _optional_positive_integer(
             checkpoint_interval,
@@ -551,6 +573,24 @@ class RealTimePropagator:
                         **archive_metadata,
                     }
 
+        if previous_checkpoint is not None and continuation_mode == "exact":
+            observed_step = previous_steps
+            observed_time = history[-1].time if history else segment_initial_time
+            observed_diagnostics = history[-1] if history else None
+        else:
+            observed_step = 0
+            observed_time = self.initial_time
+            observed_diagnostics = None
+        _observe_state(
+            state_observer,
+            state,
+            observed_step,
+            observed_time,
+            observed_diagnostics,
+            final=False,
+            checkpoint=False,
+        )
+
         integrator = self._build_integrator(inner_product, preconditioner)
 
         def schrodinger_rhs(values, time):
@@ -583,6 +623,19 @@ class RealTimePropagator:
                 record.time,
                 sampler_functions,
                 sample_storage,
+            )
+            final = local_step == self.n_steps
+            checkpoint = destination is not None and (
+                final or (interval is not None and step % interval == 0)
+            )
+            _observe_state(
+                state_observer,
+                state,
+                step,
+                record.time,
+                record,
+                final=final,
+                checkpoint=checkpoint,
             )
             if (
                 destination is not None
@@ -950,6 +1003,30 @@ def _post_step_state(post_step, state, time, shape) -> np.ndarray:
     if not np.isfinite(values).all():
         raise ValueError("post_step returned non-finite values")
     return values.copy()
+
+
+def _observe_state(
+    observer,
+    state,
+    accepted_step,
+    time,
+    diagnostics,
+    *,
+    final,
+    checkpoint,
+) -> None:
+    if observer is None:
+        return
+    read_only_state = state.view()
+    read_only_state.flags.writeable = False
+    observer(
+        read_only_state,
+        int(accepted_step),
+        float(time),
+        diagnostics,
+        bool(final),
+        bool(checkpoint),
+    )
 
 
 def _inner_product_value(inner_product, left, right) -> complex:

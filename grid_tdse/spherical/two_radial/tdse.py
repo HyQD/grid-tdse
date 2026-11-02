@@ -26,7 +26,12 @@ from .dynamics_initialization import (
     DiatomicDynamicsInitialStatePolicy,
     prepare_non_bo_diatomic_dynamics_initial_state,
 )
-from .dynamics_sampling import DiatomicIonDynamicsObservableEvaluator
+from .dynamics_sampling import (
+    DiatomicIonDynamicsObservableEvaluator,
+    DiatomicIonDynamicsSampler,
+    DiatomicIonDynamicsSamplingPolicy,
+    DiatomicIonDynamicsTimeSeries,
+)
 from .grids import FEMDVRGridSpec
 from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
@@ -222,12 +227,13 @@ class _TwoRadialTDSE:
             self.progress_interval if progress else None
         )
         try:
-            return self.propagator.propagate(
+            result = self.propagator.propagate(
                 self.initial_state,
                 self.hamiltonian,
                 self.representation.inner_product,
                 preconditioner=self.preconditioner,
                 samplers=self.samplers,
+                state_observer=self._build_state_observer(),
                 post_step=(
                     self.absorbing_boundaries.apply_mask
                     if self.absorbing_boundaries.has_mask
@@ -240,6 +246,8 @@ class _TwoRadialTDSE:
                 checkpoint_metadata=self.checkpoint_metadata,
                 checkpoint_overwrite=self.checkpoint_overwrite,
             )
+            self._finish_state_observer()
+            return result
         finally:
             self.propagator.progress_interval = configured_interval
 
@@ -333,6 +341,12 @@ class _TwoRadialTDSE:
 
     def _build_position_operator(self):
         return self._build_dipole_interaction((lambda time: 1.0,), gauge="length")
+
+    def _build_state_observer(self):
+        return None
+
+    def _finish_state_observer(self) -> None:
+        return None
 
     def _build_dipole_interaction(self, fields, gauge=None):
         raise NotImplementedError
@@ -496,6 +510,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         cap_R=None,
         observables: Iterable[str] | None = ("expec_z",),
         samplers: Mapping[str, Sampler] | None = None,
+        dynamics_sampling_policy: DiatomicIonDynamicsSamplingPolicy | None = None,
         checkpoint_path: str | PathLike[str] | None = None,
         checkpoint_interval: int | None = None,
         checkpoint_overwrite: bool = False,
@@ -521,6 +536,16 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         )
         self.M_tot = M_tot
         self.radial_coulomb_method = radial_coulomb_method
+        if dynamics_sampling_policy is None:
+            dynamics_sampling_policy = DiatomicIonDynamicsSamplingPolicy()
+        if not isinstance(
+            dynamics_sampling_policy, DiatomicIonDynamicsSamplingPolicy
+        ):
+            raise TypeError(
+                "dynamics_sampling_policy must be a "
+                "DiatomicIonDynamicsSamplingPolicy or None"
+            )
+        self.dynamics_sampling_policy = dynamics_sampling_policy
 
         # A z-polarized field changes electronic l by one, so both electronic
         # parities are retained. Pair exchange remains a symmetry for an
@@ -645,6 +670,9 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             if self.initialization is None
             else self.initialization.metadata
         )
+        self.dynamics_metadata["sampling_policy"] = asdict(
+            self.dynamics_sampling_policy
+        )
         self.dynamics_observable_evaluator = (
             DiatomicIonDynamicsObservableEvaluator(
                 self.representation,
@@ -655,6 +683,8 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
                 radial_operator_mode=self.radial_operator_mode,
             )
         )
+        self.dynamics_time_series = DiatomicIonDynamicsTimeSeries(())
+        self._dynamics_sampler: DiatomicIonDynamicsSampler | None = None
 
     @property
     def system_name(self) -> str:
@@ -668,6 +698,30 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             fields=fields,
             radial_operator_mode=self.radial_operator_mode,
         )
+
+    def _build_state_observer(self):
+        sampler = DiatomicIonDynamicsSampler(
+            self.dynamics_observable_evaluator,
+            policy=self.dynamics_sampling_policy,
+        )
+        self._dynamics_sampler = sampler
+
+        def observe(state, accepted_step, time, diagnostics, final, checkpoint):
+            sampler.sample(
+                state,
+                accepted_step,
+                time,
+                diagnostics=diagnostics,
+                final=final,
+                checkpoint=checkpoint,
+            )
+
+        return observe
+
+    def _finish_state_observer(self) -> None:
+        if self._dynamics_sampler is None:
+            raise RuntimeError("dynamics sampler was not initialized")
+        self.dynamics_time_series = self._dynamics_sampler.time_series
 
     def _physical_state_metadata(self):
         return {
