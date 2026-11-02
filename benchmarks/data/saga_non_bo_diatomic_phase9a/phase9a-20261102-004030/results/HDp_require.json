@@ -1,0 +1,28 @@
+{
+  "M_tot": 0,
+  "archive": "/cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/states/HDp_seed.npz",
+  "electronic_coordinate_parity": null,
+  "ground_state_wall_time": null,
+  "internuclear_coordinate_parity": null,
+  "local_coefficients": [
+    96,
+    72,
+    72,
+    54
+  ],
+  "maximum_coefficient_error": 0.0,
+  "mode": "mpi",
+  "norm": 1.0000000000000002,
+  "policy": "require",
+  "process_grid": [
+    2,
+    2
+  ],
+  "ranks": 4,
+  "representation_id": "52571fe81ca9884bc97f1004f6eee66aa2ee0ddf939c80253370452aaa97b648",
+  "serial_state_difference": 0.0,
+  "setup_wall_time": 0.005511071532964706,
+  "source": "archive",
+  "state_data_id": "e0296d32c52df658f1746ebe3b6eb2215ffaaeedff51e8fe190b2bae1910b23c",
+  "system": "HD+"
+}

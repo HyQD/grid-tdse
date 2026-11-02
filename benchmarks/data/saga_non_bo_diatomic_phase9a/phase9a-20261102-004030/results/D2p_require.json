@@ -1,0 +1,28 @@
+{
+  "M_tot": 0,
+  "archive": "/cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/states/D2p_seed.npz",
+  "electronic_coordinate_parity": null,
+  "ground_state_wall_time": null,
+  "internuclear_coordinate_parity": 1,
+  "local_coefficients": [
+    32,
+    24,
+    24,
+    18
+  ],
+  "maximum_coefficient_error": 0.0,
+  "mode": "mpi",
+  "norm": 1.0000000000000002,
+  "policy": "require",
+  "process_grid": [
+    2,
+    2
+  ],
+  "ranks": 4,
+  "representation_id": "a1ae73cf9fb0dd39672f19a7f471db04b79c39c4fbbce9bc7ea92ef30dbc4061",
+  "serial_state_difference": 0.0,
+  "setup_wall_time": 0.005239689722657204,
+  "source": "archive",
+  "state_data_id": "9b9a7e28d34c6d8648fce923d7cc31195a5876682ba92e91c0eb55d96f015c69",
+  "system": "D2+"
+}

@@ -1,0 +1,21 @@
+{
+  "M_tot": 0,
+  "archive": "/cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/states/HDp_seed.npz",
+  "electronic_coordinate_parity": null,
+  "ground_state_wall_time": 5.483348347246647,
+  "internuclear_coordinate_parity": null,
+  "mode": "seed",
+  "norm": 1.0000000000000002,
+  "policy": "recompute",
+  "representation_id": "52571fe81ca9884bc97f1004f6eee66aa2ee0ddf939c80253370452aaa97b648",
+  "setup_wall_time": 5.500416375696659,
+  "source": "computed",
+  "state_data_id": "e0296d32c52df658f1746ebe3b6eb2215ffaaeedff51e8fe190b2bae1910b23c",
+  "state_shape": [
+    6,
+    7,
+    7
+  ],
+  "system": "HD+",
+  "velocity_initial_condition_guard": true
+}

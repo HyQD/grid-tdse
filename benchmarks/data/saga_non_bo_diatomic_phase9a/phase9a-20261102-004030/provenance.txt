@@ -1,0 +1,4 @@
+
+worker_patch_date=2026-11-02T00:56:43+01:00
+worker_patch=convert_seed_norm_to_float_and_enable_seed_recompute
+389d862d508619ff7603781c21875d991dff2f6697df4223882d880213651dfa  /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/phase9a_worker.py

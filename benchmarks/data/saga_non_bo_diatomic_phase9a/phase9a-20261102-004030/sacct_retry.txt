@@ -1,0 +1,34 @@
+JobID                               JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     MaxRSS        NodeList
+------------ ------------------------------ ---------- -------- ---------- ---------- ---------- ---------- ---------------
+20744797                    p9a_seed_h2p_r1  COMPLETED      0:0   00:00:50  00:21.045          1                      c5-60
+20744797.ba+                          batch  COMPLETED      0:0   00:00:50  00:14.790          1    332560K           c5-60
+20744797.ex+                         extern  COMPLETED      0:0   00:00:50   00:00:00          1                      c5-60
+20744797.0                             bash  COMPLETED      0:0   00:00:14  00:06.255          1    382264K           c5-60
+20744798                    p9a_seed_hdp_r1  COMPLETED      0:0   00:00:50  00:22.375          1                      c5-60
+20744798.ba+                          batch  COMPLETED      0:0   00:00:50  00:14.560          1    348436K           c5-60
+20744798.ex+                         extern  COMPLETED      0:0   00:00:50   00:00:00          1                      c5-60
+20744798.0                             bash  COMPLETED      0:0   00:00:15  00:07.814          1    379824K           c5-60
+20744799                    p9a_seed_d2p_r1  COMPLETED      0:0   00:00:42  00:20.383          1                      c5-60
+20744799.ba+                          batch  COMPLETED      0:0   00:00:42  00:14.249          1    416116K           c5-60
+20744799.ex+                         extern  COMPLETED      0:0   00:00:42   00:00:00          1                      c5-60
+20744799.0                             bash  COMPLETED      0:0   00:00:12  00:06.134          1    455484K           c5-60
+20744800                 p9a_h2p_compute_r1  COMPLETED      0:0   00:00:45  00:38.428          4                      c5-23
+20744800.ba+                          batch  COMPLETED      0:0   00:00:45  00:13.117          4    418560K           c5-23
+20744800.ex+                         extern  COMPLETED      0:0   00:00:45   00:00:00          4                      c5-23
+20744800.0                             bash  COMPLETED      0:0   00:00:14  00:25.311          4    309076K           c5-23
+20744801                 p9a_h2p_require_r1  COMPLETED      0:0   00:00:40  00:24.899          4                      c5-23
+20744801.ba+                          batch  COMPLETED      0:0   00:00:40  00:13.165          4    376704K           c5-23
+20744801.ex+                         extern  COMPLETED      0:0   00:00:40   00:00:00          4                      c5-23
+20744801.0                             bash  COMPLETED      0:0   00:00:09  00:11.733          4    232872K           c5-23
+20744802               p9a_h2p_recompute_r1  COMPLETED      0:0   00:00:45  00:38.439          4                      c5-23
+20744802.ba+                          batch  COMPLETED      0:0   00:00:45  00:13.233          4    370064K           c5-23
+20744802.ex+                         extern  COMPLETED      0:0   00:00:45   00:00:00          4                      c5-23
+20744802.0                             bash  COMPLETED      0:0   00:00:13  00:25.205          4    315328K           c5-23
+20744803                 p9a_hdp_require_r1  COMPLETED      0:0   00:00:43  00:25.198          4                      c5-23
+20744803.ba+                          batch  COMPLETED      0:0   00:00:43  00:13.304          4    315448K           c5-23
+20744803.ex+                         extern  COMPLETED      0:0   00:00:43   00:00:00          4                      c5-23
+20744803.0                             bash  COMPLETED      0:0   00:00:10  00:11.893          4    222272K           c5-23
+20744804                 p9a_d2p_require_r1  COMPLETED      0:0   00:00:41  00:25.037          4                      c5-23
+20744804.ba+                          batch  COMPLETED      0:0   00:00:41  00:13.126          4    315968K           c5-23
+20744804.ex+                         extern  COMPLETED      0:0   00:00:41   00:00:00          4                      c5-23
+20744804.0                             bash  COMPLETED      0:0   00:00:10  00:11.911          4    220848K           c5-23
