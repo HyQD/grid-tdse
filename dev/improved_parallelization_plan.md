@@ -127,6 +127,8 @@ The following foundations are complete:
 - serial and one-dimensional distributed ground-state sampling, including
   expectation values, dipoles, symmetry diagnostics, iteration timing, and
   interval-based terminal and logfile output;
+- Cartesian distributed SIL/SIA real-time propagation with a tile-local
+  z-polarized length-gauge interaction and shared dynamics sampling;
 - distributed-compatible CN preconditioner prototypes.
 
 The following limitations remain:
@@ -139,15 +141,15 @@ The following limitations remain:
   remains useful;
 - Krylov orthogonalization batches basis projections, but norms and iteration
   diagnostics still require latency-sensitive scalar reductions;
-- distributed real-time field interactions and absorbers are not complete;
+- distributed velocity-gauge interactions and absorbers are not complete;
 - distributed checkpoint output gathers the complete state to rank zero;
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 8. Serial Davidson has removed
-ground-state preparation from the critical path, so distributed Davidson and
-further ITP optimization are deferred. Phase 9, the complete distributed
-SIL/SIA real-time dynamics path, is next.
+The non-BO roadmap is complete through Phase 8 and Phase 9a--9d. Serial
+Davidson has removed ground-state preparation from the critical path, so
+distributed Davidson and further ITP optimization are deferred. Phase 9e,
+serial snapshots, checkpoints, and restart, is next.
 
 ## Saga findings to date
 
@@ -794,15 +796,15 @@ that every field action is evaluated at its temporal midpoint.
 
 #### Phase 9d: Cartesian-MPI length-gauge dynamics
 
-**Implementation status:** complete locally. Cartesian SIL/SIA propagation
-now combines the existing two-dimensional Hamiltonian and batched physical
-reductions with a communication-free z-polarized length-gauge action on each
-owned radial tile. The distributed solver drives the common Phase 9b sampler
-from accepted MPI states and exposes rank-local final states, global
-propagation diagnostics, observable time series, and Hamiltonian/reduction
-profiles. A configurable MPI example performs root-only Davidson archive
-preparation, scatter, pulse propagation, gather, and optional serial
-comparison.
+**Implementation status:** complete locally and validated on Saga. Cartesian
+SIL/SIA propagation now combines the existing two-dimensional Hamiltonian and
+batched physical reductions with a communication-free z-polarized length-gauge
+action on each owned radial tile. The distributed solver drives the common
+Phase 9b sampler from accepted MPI states and exposes rank-local final states,
+global propagation diagnostics, observable time series, and
+Hamiltonian/reduction profiles. A configurable MPI example performs root-only
+Davidson archive preparation, scatter, pulse propagation, gather, and optional
+serial comparison.
 
 1. Add the distributed z-polarized length-gauge action.
 2. Keep its radial multiplication tile-local and reuse the Cartesian
@@ -811,14 +813,20 @@ comparison.
    series, and the final phase-aligned state with serial results.
 4. Validate `(1,2)`, `(2,1)`, and `(2,2)` process grids before multi-node use.
 
-**Phase 9d gate:** satisfied locally. Threaded communicator regressions cover
-one field action, one accepted SIL/SIA step, a short pulse time series, and
-the final state for `(1,2)`, `(2,1)`, and `(2,2)` grids. Native local MPI
-validation also passed: the `(1,2)` and `(2,1)` one-step calculations agreed
-with serial to `4.156e-16` in the phase-aligned state and `8.882e-16` in the
-observable series. A three-step `(2,2)` calculation agreed to `6.060e-16` in
-the final state and `1.221e-15` in the series, with maximum norm drift
-`2.220e-16`. Saga deployment validation remains before Phase 9e.
+**Phase 9d gate:** satisfied locally and on Saga. Threaded communicator
+regressions cover one field action, one accepted SIL/SIA step, a short pulse
+time series, and the final state for `(1,2)`, `(2,1)`, and `(2,2)` grids. Native
+local MPI validation also passed: the `(1,2)` and `(2,1)` one-step calculations
+agreed with serial to `4.156e-16` in the phase-aligned state and `8.882e-16` in
+the observable series. A three-step `(2,2)` calculation agreed to `6.060e-16`
+in the final state and `1.221e-15` in the series, with maximum norm drift
+`2.220e-16`. The Saga deployment used SIL on `(1,2)`, `(2,1)`, and `(2,2)`
+process grids and SIA on `(2,2)`. All four jobs completed successfully,
+retained unit norm with maximum drift `2.220e-16`, and agreed with serial to at
+most `5.810e-16` in the final state and `1.998e-15` across the sampled
+observable series. The exact jobs, environment, outputs, machine-readable time
+series, and shared Davidson state are archived under
+`benchmarks/data/saga_non_bo_diatomic_phase9d/phase9d-20261102-160049`.
 
 #### Phase 9e: serial snapshots, checkpoints, and restart
 
