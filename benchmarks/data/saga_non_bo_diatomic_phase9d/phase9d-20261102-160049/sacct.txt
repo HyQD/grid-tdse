@@ -1,0 +1,18 @@
+JobID                             JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     MaxRSS        NodeList 
+------------ ---------------------------- ---------- -------- ---------- ---------- ---------- ---------- --------------- 
+20762810                  p9d_h2p_sil_1x2  COMPLETED      0:0   00:01:04  00:34.970          2                       c3-1 
+20762810.ba+                        batch  COMPLETED      0:0   00:01:04  00:12.232          2    194516K            c3-1 
+20762810.ex+                       extern  COMPLETED      0:0   00:01:04   00:00:00          2                       c3-1 
+20762810.0                           bash  COMPLETED      0:0   00:00:35  00:22.737          2    417692K            c3-1 
+20762813                  p9d_h2p_sil_2x1  COMPLETED      0:0   00:00:29  00:28.547          2                       c3-1 
+20762813.ba+                        batch  COMPLETED      0:0   00:00:29  00:13.007          2    194024K            c3-1 
+20762813.ex+                       extern  COMPLETED      0:0   00:00:29   00:00:00          2                       c3-1 
+20762813.0                           bash  COMPLETED      0:0   00:00:13  00:15.540          2    394768K            c3-1 
+20762814                  p9d_h2p_sil_2x2  COMPLETED      0:0   00:00:29  00:41.043          4                       c3-4 
+20762814.ba+                        batch  COMPLETED      0:0   00:00:29  00:12.547          4    194704K            c3-4 
+20762814.ex+                       extern  COMPLETED      0:0   00:00:29   00:00:00          4                       c3-4 
+20762814.0                           bash  COMPLETED      0:0   00:00:12  00:28.495          4    317364K            c3-4 
+20762815                  p9d_h2p_sia_2x2  COMPLETED      0:0   00:00:29  00:44.548          4                       c3-4 
+20762815.ba+                        batch  COMPLETED      0:0   00:00:29  00:11.563          4    194788K            c3-4 
+20762815.ex+                       extern  COMPLETED      0:0   00:00:29   00:00:00          4                       c3-4 
+20762815.0                           bash  COMPLETED      0:0   00:00:13  00:32.985          4    320684K            c3-4 

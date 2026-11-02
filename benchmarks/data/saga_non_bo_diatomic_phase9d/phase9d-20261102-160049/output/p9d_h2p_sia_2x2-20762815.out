@@ -1,0 +1,81 @@
+Starting job 20762815 on c3-4 on Saga at Mon Nov 2 16:03:58 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Python:     /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  4
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+TDSE      4/4: t=0.04000000  norm=1.000000000000  operator_calls=4  krylov_dimension=4  krylov_error=5.674e-13
+
+Phase 9d Cartesian-MPI length-gauge validation
+Status:                         PASS
+MPI ranks:                      4
+Process grid:                   (2, 2)
+Integrator:                     sia
+Accepted steps:                 4
+Norm:                           1.000000000000
+Maximum norm drift:             2.220e-16
+Serial state difference:        5.810e-16
+Time-series maximum difference: 1.998e-15
+Distributed wall time:          2.742409 s
+Result JSON:                    /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9d/runs/phase9d-20261102-160049/results/p9d_h2p_sia_2x2.json
+
+real	0m12.999s
+user	0m0.012s
+sys	0m0.021s
+
+Job 20762815 consumed 0.0 billing hours from project nn4654k.
+
+Submitted 2026-11-02T16:03:24; waited 34.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   29.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20762815           4            0.0 %  2026-11-02T16:03:58   29.0 s  0
+20762815.batch     4      1    10.0 %  2026-11-02T16:03:58   29.0 s  0
+20762815.bash      4      4    63.4 %  2026-11-02T16:04:14   13.0 s  0
+
+Used CPU time:   44.5 CPU seconds
+Unused CPU time: 1.2 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20762815           8.0        
+20762815.batch     8.0     0.2
+20762815.bash      8.0     1.1
+
+Job 20762815 completed at Mon Nov 2 16:04:27 CET 2026
