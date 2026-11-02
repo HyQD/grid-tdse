@@ -269,6 +269,12 @@ class RealTimePropagator:
             progress_interval, "progress_interval"
         )
 
+    @property
+    def integrator_metadata(self) -> dict[str, Any]:
+        """Return a JSON-serializable description of the configured integrator."""
+
+        return self._integrator_metadata().copy()
+
     def propagate(
         self,
         initial_state: np.ndarray,
@@ -628,20 +634,7 @@ class RealTimePropagator:
             checkpoint = destination is not None and (
                 final or (interval is not None and step % interval == 0)
             )
-            _observe_state(
-                state_observer,
-                state,
-                step,
-                record.time,
-                record,
-                final=final,
-                checkpoint=checkpoint,
-            )
-            if (
-                destination is not None
-                and interval is not None
-                and step % interval == 0
-            ):
+            if checkpoint:
                 self._write_checkpoint(
                     destination,
                     state,
@@ -656,6 +649,15 @@ class RealTimePropagator:
                     archive_metadata,
                     interval,
                 )
+            _observe_state(
+                state_observer,
+                state,
+                step,
+                record.time,
+                record,
+                final=final,
+                checkpoint=checkpoint,
+            )
             if self.progress_interval is not None and (
                 step % self.progress_interval == 0 or step == total_segment_steps
             ):
@@ -673,21 +675,6 @@ class RealTimePropagator:
                 name: np.asarray(values) for name, values in sample_storage.items()
             },
         )
-        if destination is not None:
-            self._write_checkpoint(
-                destination,
-                state,
-                history,
-                sample_storage,
-                segment_initial_time,
-                segment_initial_norm,
-                segment_prefix,
-                compatibility,
-                dynamics,
-                integrator_metadata,
-                archive_metadata,
-                interval,
-            )
         return result
 
     __call__ = propagate

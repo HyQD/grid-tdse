@@ -1,7 +1,10 @@
+import os
 from pathlib import Path
 
 import numpy as np
+import pytest
 
+from grid_tdse.real_time import load_real_time_checkpoint, load_real_time_snapshot
 from grid_tdse.spherical.two_radial import (
     DiatomicIonDynamicsSamplingPolicy,
     FEMDVRGridSpec,
@@ -42,6 +45,13 @@ def _calculation(
     fields=(),
     integrator="sil",
     time_step=0.01,
+    initial_time=0.0,
+    final_time=0.04,
+    checkpoint_path=None,
+    checkpoint_interval=None,
+    checkpoint_overwrite=False,
+    wavefunction_snapshot_directory=None,
+    wavefunction_snapshot_prefix="wavefunction",
 ):
     return NonBornOppenheimerDiatomicIonTDSE(
         "H2+",
@@ -70,10 +80,21 @@ def _calculation(
             "atol": 1.0e-13,
             "max_refinements": 8,
         },
-        final_time=0.04,
+        initial_time=initial_time,
+        final_time=final_time,
         time_step=time_step,
         observables=None,
         dynamics_sampling_policy=DiatomicIonDynamicsSamplingPolicy(interval=1),
+        checkpoint_path=checkpoint_path,
+        checkpoint_interval=checkpoint_interval,
+        checkpoint_overwrite=checkpoint_overwrite,
+        checkpoint_metadata={"test": "phase9e"},
+        wavefunction_snapshot_directory=wavefunction_snapshot_directory,
+        wavefunction_snapshot_interval=(
+            2 if wavefunction_snapshot_directory is not None else None
+        ),
+        wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
+        wavefunction_snapshot_metadata={"code_provenance": {"source": "test"}},
         progress_interval=None,
         radial_operator_mode="element-local",
     )
@@ -166,3 +187,166 @@ def test_phase9c_serial_field_free_and_length_gauge_validation(tmp_path):
         atol=1.0e-11,
         rtol=1.0e-11,
     )
+
+
+def test_phase9e_serial_snapshots_checkpoint_and_continuation(tmp_path):
+    seed = _calculation(archive_path=tmp_path / "ground.npz", final_time=0.01)
+    archive = seed.initialization.archive
+    pulse = _SineSquaredPulse(duration=0.04)
+
+    uninterrupted = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        fields=pulse,
+    )
+    uninterrupted_result = uninterrupted.run(progress=False)
+
+    exact_snapshots = tmp_path / "exact-snapshots"
+    exact_snapshots.mkdir()
+    exact_source = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        fields=_SineSquaredPulse(duration=0.04),
+        checkpoint_path=tmp_path / "exact-source.chkpt",
+        checkpoint_interval=2,
+        wavefunction_snapshot_directory=exact_snapshots,
+        wavefunction_snapshot_prefix="exact",
+    )
+    exact_source.run(progress=False)
+    interrupted = load_real_time_checkpoint(exact_source.wavefunction_snapshots[1].path)
+    assert interrupted.current_step == 2
+    assert not interrupted.latest_segment.complete
+
+    resumed = _calculation(
+        archive_path=None,
+        initial_state=interrupted.state_copy(),
+        fields=_SineSquaredPulse(duration=0.04),
+        initial_time=0.02,
+        checkpoint_path=tmp_path / "exact-resumed.chkpt",
+        checkpoint_interval=2,
+    )
+    resumed_result = resumed.resume(interrupted, progress=False)
+    assert (
+        _state_difference(
+            uninterrupted_result.state,
+            resumed_result.state,
+            uninterrupted,
+        )
+        < 1.0e-12
+    )
+    assert [
+        sample.accepted_step for sample in resumed.dynamics_time_series.samples
+    ] == [2, 3, 4]
+
+    checkpoint_path = tmp_path / "restart.chkpt"
+    first_snapshots = tmp_path / "first-snapshots"
+    first_snapshots.mkdir()
+    first = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        fields=_SineSquaredPulse(duration=0.04),
+        final_time=0.02,
+        checkpoint_path=checkpoint_path,
+        checkpoint_interval=2,
+        wavefunction_snapshot_directory=first_snapshots,
+        wavefunction_snapshot_prefix="first",
+    )
+    first_result = first.run(progress=False)
+    checkpoint = load_real_time_checkpoint(checkpoint_path)
+
+    assert checkpoint.current_time == 0.02
+    assert checkpoint.latest_segment.complete
+    assert checkpoint.latest_segment.integrator["method"] == ("short_iterative_lanczos")
+    assert checkpoint.latest_segment.dynamics["field_gauge"] == "length"
+    assert checkpoint.metadata["test"] == "phase9e"
+    assert set(
+        checkpoint.metadata["dynamics_sampling_context"]["reference_values"]
+    ) == {"norm", "energy_numerator", "conditional_energy"}
+    assert [record.accepted_step for record in first.wavefunction_snapshots] == [
+        0,
+        2,
+    ]
+    assert first.wavefunction_snapshots[-1].storage == "checkpoint"
+    assert first.wavefunction_snapshot_manifest.is_file()
+    assert (
+        os.stat(first.wavefunction_snapshots[-1].path).st_ino
+        == os.stat(checkpoint_path).st_ino
+    )
+    initial_snapshot = load_real_time_snapshot(first.wavefunction_snapshots[0].path)
+    assert (
+        initial_snapshot.compatibility["physical_state"]["parameters"]["codata_set"]
+        == "2022"
+    )
+    assert initial_snapshot.dynamics["field_gauge"] == "length"
+    assert initial_snapshot.integrator["method"] == "short_iterative_lanczos"
+    assert initial_snapshot.metadata == {"code_provenance": {"source": "test"}}
+
+    second_snapshots = tmp_path / "second-snapshots"
+    second_snapshots.mkdir()
+    second = _calculation(
+        archive_path=None,
+        initial_state=checkpoint.state_copy(),
+        fields=_SineSquaredPulse(duration=0.04),
+        initial_time=0.02,
+        final_time=0.04,
+        checkpoint_path=checkpoint_path,
+        checkpoint_interval=2,
+        checkpoint_overwrite=True,
+        wavefunction_snapshot_directory=second_snapshots,
+        wavefunction_snapshot_prefix="second",
+    )
+    second_result = second.continue_from(checkpoint, progress=False)
+
+    assert [record.accepted_step for record in second.wavefunction_snapshots] == [
+        2,
+        4,
+    ]
+
+    assert (
+        _state_difference(
+            uninterrupted_result.state,
+            second_result.state,
+            uninterrupted,
+        )
+        < 1.0e-12
+    )
+    combined_samples = (
+        first.dynamics_time_series.samples + second.dynamics_time_series.samples[1:]
+    )
+    reference_records = uninterrupted.dynamics_time_series.records()
+    combined_records = type(uninterrupted.dynamics_time_series)(
+        combined_samples
+    ).records()
+    assert len(combined_records) == len(reference_records)
+    for combined, reference in zip(
+        combined_records,
+        reference_records,
+        strict=True,
+    ):
+        for name in combined:
+            if name.startswith("propagation.") or isinstance(
+                combined[name], (bool, np.bool_)
+            ):
+                continue
+            assert combined[name] == pytest.approx(reference[name], abs=2.0e-12)
+
+    chained = load_real_time_checkpoint(checkpoint_path)
+    assert len(chained.segments) == 2
+    assert chained.total_steps == 4
+    assert chained.current_time == 0.04
+    np.testing.assert_allclose(chained.state, second_result.state)
+
+    changed_field = _SineSquaredPulse(amplitude=0.03, duration=0.05)
+    third = _calculation(
+        archive_path=None,
+        initial_state=chained.state_copy(),
+        fields=changed_field,
+        initial_time=0.04,
+        final_time=0.05,
+        checkpoint_path=checkpoint_path,
+        checkpoint_overwrite=True,
+    )
+    third.continue_from(chained, progress=False)
+    extended = load_real_time_checkpoint(checkpoint_path)
+    assert len(extended.segments) == 3
+    assert extended.segments[-1].dynamics != extended.segments[-2].dynamics
