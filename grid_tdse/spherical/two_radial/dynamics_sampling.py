@@ -394,6 +394,10 @@ class DiatomicIonDynamicsSampler:
         evaluator: DiatomicIonDynamicsObservableEvaluator,
         *,
         policy: DiatomicIonDynamicsSamplingPolicy | None = None,
+        accepted_step_offset: int = 0,
+        reference_norm: float | None = None,
+        reference_energy_numerator: float | None = None,
+        reference_conditional_energy: float | None = None,
     ) -> None:
         if not isinstance(evaluator, DiatomicIonDynamicsObservableEvaluator):
             raise TypeError(
@@ -405,10 +409,53 @@ class DiatomicIonDynamicsSampler:
             raise TypeError("policy must be a DiatomicIonDynamicsSamplingPolicy")
         self.evaluator = evaluator
         self.policy = policy
+        self.accepted_step_offset = _nonnegative_integer(
+            accepted_step_offset,
+            "accepted_step_offset",
+        )
+        references = (
+            reference_norm,
+            reference_energy_numerator,
+            reference_conditional_energy,
+        )
+        if any(value is None for value in references) and not all(
+            value is None for value in references
+        ):
+            raise ValueError("all dynamics reference values must be supplied together")
         self._samples: list[DiatomicIonDynamicsSample] = []
-        self._initial_norm: float | None = None
-        self._initial_energy_numerator: float | None = None
-        self._initial_conditional_energy: float | None = None
+        self._initial_norm = (
+            None
+            if reference_norm is None
+            else _finite_real(reference_norm, "reference_norm")
+        )
+        self._initial_energy_numerator = (
+            None
+            if reference_energy_numerator is None
+            else _finite_real(
+                reference_energy_numerator,
+                "reference_energy_numerator",
+            )
+        )
+        self._initial_conditional_energy = (
+            None
+            if reference_conditional_energy is None
+            else _finite_real(
+                reference_conditional_energy,
+                "reference_conditional_energy",
+            )
+        )
+
+    @property
+    def reference_values(self) -> dict[str, float] | None:
+        """Reference values used for norm and energy changes."""
+
+        if self._initial_norm is None:
+            return None
+        return {
+            "norm": self._initial_norm,
+            "energy_numerator": self._initial_energy_numerator,
+            "conditional_energy": self._initial_conditional_energy,
+        }
 
     @property
     def time_series(self) -> DiatomicIonDynamicsTimeSeries:
@@ -488,14 +535,15 @@ class DiatomicIonDynamicsSampler:
         final,
         checkpoint,
     ):
-        step = _nonnegative_integer(accepted_step, "accepted_step")
+        local_step = _nonnegative_integer(accepted_step, "accepted_step")
+        step = self.accepted_step_offset + local_step
         time = _finite_real(time, "time")
         included = self.policy.includes(
             step,
             final=bool(final),
             checkpoint=bool(checkpoint),
         )
-        if not included and not (step == 0 and self._initial_norm is None):
+        if not included and not (local_step == 0 and self._initial_norm is None):
             return None
         snapshot = evaluate()
         if self._initial_norm is None:
