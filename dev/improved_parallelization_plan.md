@@ -332,7 +332,7 @@ The non-BO path must be completed before atomic parallel development begins.
 | 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
 | 7 | complete distributed SIL/SIA ground-state propagation | complete |
 | 8 | stress-test and archive production ground states | complete |
-| 9 | complete distributed SIL/SIA dynamics | next |
+| 9 | complete distributed SIL/SIA dynamics | in progress; 9a--9d complete |
 | 10 | implement scalable distributed state I/O | pending |
 | 11 | benchmark the complete SIL/SIA path on Saga | pending |
 | 12 | deploy and benchmark on Olivia and Betzy | pending |
@@ -794,6 +794,16 @@ that every field action is evaluated at its temporal midpoint.
 
 #### Phase 9d: Cartesian-MPI length-gauge dynamics
 
+**Implementation status:** complete locally. Cartesian SIL/SIA propagation
+now combines the existing two-dimensional Hamiltonian and batched physical
+reductions with a communication-free z-polarized length-gauge action on each
+owned radial tile. The distributed solver drives the common Phase 9b sampler
+from accepted MPI states and exposes rank-local final states, global
+propagation diagnostics, observable time series, and Hamiltonian/reduction
+profiles. A configurable MPI example performs root-only Davidson archive
+preparation, scatter, pulse propagation, gather, and optional serial
+comparison.
+
 1. Add the distributed z-polarized length-gauge action.
 2. Keep its radial multiplication tile-local and reuse the Cartesian
    Hamiltonian and batched physical reductions.
@@ -801,8 +811,14 @@ that every field action is evaluated at its temporal midpoint.
    series, and the final phase-aligned state with serial results.
 4. Validate `(1,2)`, `(2,1)`, and `(2,2)` process grids before multi-node use.
 
-**Phase 9d gate:** serial and distributed length-gauge pulse calculations
-agree within documented tolerances.
+**Phase 9d gate:** satisfied locally. Threaded communicator regressions cover
+one field action, one accepted SIL/SIA step, a short pulse time series, and
+the final state for `(1,2)`, `(2,1)`, and `(2,2)` grids. Native local MPI
+validation also passed: the `(1,2)` and `(2,1)` one-step calculations agreed
+with serial to `4.156e-16` in the phase-aligned state and `8.882e-16` in the
+observable series. A three-step `(2,2)` calculation agreed to `6.060e-16` in
+the final state and `1.221e-15` in the series, with maximum norm drift
+`2.220e-16`. Saga deployment validation remains before Phase 9e.
 
 #### Phase 9e: serial snapshots, checkpoints, and restart
 
