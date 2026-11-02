@@ -52,6 +52,10 @@ def _calculation(
     checkpoint_overwrite=False,
     wavefunction_snapshot_directory=None,
     wavefunction_snapshot_prefix="wavefunction",
+    mask_r=None,
+    mask_R=None,
+    cap_r=None,
+    cap_R=None,
 ):
     return NonBornOppenheimerDiatomicIonTDSE(
         "H2+",
@@ -83,6 +87,10 @@ def _calculation(
         initial_time=initial_time,
         final_time=final_time,
         time_step=time_step,
+        mask_r=mask_r,
+        mask_R=mask_R,
+        cap_r=cap_r,
+        cap_R=cap_R,
         observables=None,
         dynamics_sampling_policy=DiatomicIonDynamicsSamplingPolicy(interval=1),
         checkpoint_path=checkpoint_path,
@@ -106,6 +114,28 @@ def _state_difference(reference, candidate, calculation):
         candidate,
         calculation.representation.inner_product,
     )
+
+
+def _assert_radial_density_semantics(calculation):
+    system = calculation.representation
+    for sample in calculation.dynamics_time_series.samples:
+        P_r = np.asarray(sample.snapshot.radial_densities.P_r)
+        P_R = np.asarray(sample.snapshot.radial_densities.P_R)
+        norm = sample.snapshot.norm
+        assert np.dot(system.grid1.weights, P_r) == pytest.approx(
+            norm,
+            abs=2.0e-12,
+        )
+        assert np.dot(system.grid2.weights, P_R) == pytest.approx(
+            norm,
+            abs=2.0e-12,
+        )
+        assert np.dot(system.grid1.weights * system.grid1.r, P_r) / norm == (
+            pytest.approx(sample.snapshot.conditional.r, abs=2.0e-12)
+        )
+        assert np.dot(system.grid2.weights * system.grid2.r, P_R) / norm == (
+            pytest.approx(sample.snapshot.conditional.R, abs=2.0e-12)
+        )
 
 
 def test_phase9c_serial_field_free_and_length_gauge_validation(tmp_path):
@@ -350,3 +380,110 @@ def test_phase9e_serial_snapshots_checkpoint_and_continuation(tmp_path):
     extended = load_real_time_checkpoint(checkpoint_path)
     assert len(extended.segments) == 3
     assert extended.segments[-1].dynamics != extended.segments[-2].dynamics
+
+
+def test_phase9f_masks_caps_and_absorbed_restart(tmp_path):
+    seed = _calculation(archive_path=tmp_path / "ground.npz", final_time=0.01)
+    archive = seed.initialization.archive
+    n_r = seed.representation.grid1.n_points
+    n_R = seed.representation.grid2.n_points
+    mask_r = np.linspace(0.99, 0.82, n_r)
+    mask_R = np.linspace(0.98, 0.86, n_R)
+
+    mask_run = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        final_time=0.04,
+        mask_r=mask_r,
+        mask_R=mask_R,
+    )
+    mask_result = mask_run.run(progress=False)
+    assert np.all(np.diff(mask_result.norm_history) < 0.0)
+    assert mask_result.norm < mask_result.initial_norm
+    _assert_radial_density_semantics(mask_run)
+
+    cap_r = -0.04j * np.ones(n_r)
+    cap_R = -0.03j * np.ones(n_R)
+    cap_run = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        integrator="sia",
+        final_time=0.04,
+        cap_r=cap_r,
+        cap_R=cap_R,
+    )
+    cap_result = cap_run.run(progress=False)
+    assert np.all(np.diff(cap_result.norm_history) < 0.0)
+    assert cap_result.norm < cap_result.initial_norm
+    final_sample = cap_run.dynamics_time_series.samples[-1]
+    physical_energy = cap_run.representation.inner_product(
+        cap_result.state,
+        cap_run.field_free_hamiltonian(cap_result.state),
+    ).real
+    assert final_sample.snapshot.energy_numerator == pytest.approx(
+        physical_energy,
+        abs=2.0e-12,
+    )
+    _assert_radial_density_semantics(cap_run)
+
+    snapshot_directory = tmp_path / "absorbed-snapshots"
+    snapshot_directory.mkdir()
+    checkpoint_source = _calculation(
+        archive_path=None,
+        initial_state=archive,
+        final_time=0.04,
+        mask_r=mask_r,
+        mask_R=mask_R,
+        checkpoint_path=tmp_path / "absorbed-source.chkpt",
+        checkpoint_interval=2,
+        wavefunction_snapshot_directory=snapshot_directory,
+        wavefunction_snapshot_prefix="absorbed",
+    )
+    checkpoint_source_result = checkpoint_source.run(progress=False)
+    interrupted = load_real_time_checkpoint(
+        checkpoint_source.wavefunction_snapshots[1].path
+    )
+    assert interrupted.current_step == 2
+
+    resumed = _calculation(
+        archive_path=None,
+        initial_state=interrupted.state_copy(),
+        initial_time=0.02,
+        final_time=0.04,
+        mask_r=mask_r,
+        mask_R=mask_R,
+        checkpoint_path=tmp_path / "absorbed-resumed.chkpt",
+        checkpoint_interval=2,
+    )
+    resumed_result = resumed.resume(interrupted, progress=False)
+    assert (
+        _state_difference(
+            checkpoint_source_result.state,
+            resumed_result.state,
+            checkpoint_source,
+        )
+        < 2.0e-13
+    )
+    reference_samples = checkpoint_source.dynamics_time_series.samples[2:]
+    for actual, reference in zip(
+        resumed.dynamics_time_series.samples,
+        reference_samples,
+        strict=True,
+    ):
+        assert actual.accepted_step == reference.accepted_step
+        assert actual.snapshot.norm == pytest.approx(
+            reference.snapshot.norm,
+            abs=2.0e-13,
+        )
+        np.testing.assert_allclose(
+            actual.snapshot.radial_densities.P_r,
+            reference.snapshot.radial_densities.P_r,
+            atol=2.0e-13,
+            rtol=2.0e-13,
+        )
+        np.testing.assert_allclose(
+            actual.snapshot.radial_densities.P_R,
+            reference.snapshot.radial_densities.P_R,
+            atol=2.0e-13,
+            rtol=2.0e-13,
+        )
