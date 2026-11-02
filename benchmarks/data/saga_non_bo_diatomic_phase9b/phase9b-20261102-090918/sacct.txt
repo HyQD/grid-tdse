@@ -1,0 +1,6 @@
+JobID                               JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     MaxRSS        NodeList 
+------------ ------------------------------ ---------- -------- ---------- ---------- ---------- ---------- --------------- 
+20745753                  p9b_sampling_gate  COMPLETED      0:0   00:00:38  00:26.026          4                      c1-12 
+20745753.ba+                          batch  COMPLETED      0:0   00:00:38  00:14.030          4    430444K           c1-12 
+20745753.ex+                         extern  COMPLETED      0:0   00:00:38   00:00:00          4                      c1-12 
+20745753.0                             bash  COMPLETED      0:0   00:00:09  00:11.995          4    236940K           c1-12 
