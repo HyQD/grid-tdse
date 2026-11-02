@@ -663,11 +663,13 @@ shared state, sampling, and restart contracts are stable.
 
 #### Phase 9a: dynamics representation and initialization
 
-**Implementation status:** complete locally on
-`feature/non-bo-dynamics-initialization`. The serial archive and automatic
-Davidson paths, Cartesian root-only setup and scatter, and a two-rank MPI
-equivalence test are in place. Saga deployment validation remains before the
-subphase is archived as complete.
+**Implementation status:** complete. The serial archive and automatic
+Davidson paths, Cartesian root-only setup and scatter, and local MPI
+equivalence tests are in place. Saga deployment validation completed on
+2026-11-02 for H2+, HD+, and D2+ with the `require`,
+`compute-if-missing`, and `recompute` policies. The accepted validation jobs,
+states, outputs, and machine-readable results are archived under
+`benchmarks/data/saga_non_bo_diatomic_phase9a/phase9a-20261102-004030`.
 
 1. Construct a dynamics representation that retains both even and odd
    electronic angular channels while preserving `M_tot=0` for a linearly
@@ -695,7 +697,10 @@ subphase is archived as complete.
    ground state.
 
 **Phase 9a gate:** archived and automatically generated ground states produce
-the same serial and Cartesian-MPI initial dynamics state.
+the same serial and Cartesian-MPI initial dynamics state. Satisfied on Saga:
+all accepted four-rank `2 x 2` jobs reconstructed the serial state with zero
+phase-aligned and coefficient differences at printed precision, while only
+rank zero entered Davidson when computation was requested.
 
 #### Phase 9b: shared dynamics sampling
 

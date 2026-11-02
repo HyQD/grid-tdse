@@ -2,15 +2,17 @@
 
 ## Scope
 
-This report archives Saga validation and scaling results for Phases 1--7 of
+This report archives Saga validation and scaling results for Phases 1--7 and
+the Phase 9a dynamics-initialization deployment gate of
 the non-Born--Oppenheimer parallelization path in
 [`dev/improved_parallelization_plan.md`](../dev/improved_parallelization_plan.md).
 Phases 1--3 cover the one-dimensional decomposition and its coordinate
 selection. Phase 4 validates two-dimensional process-grid topology and state
 collectives, Phase 5 validates the distributed two-dimensional Hamiltonian,
 Phase 6 compares serial, threaded, pure-MPI, and hybrid Hamiltonian execution
-at fixed allocated core counts, and Phase 7 validates complete Cartesian SIL
-and SIA ground-state propagation.
+at fixed allocated core counts, Phase 7 validates complete Cartesian SIL and
+SIA ground-state propagation, and Phase 9a validates serial Davidson
+initialization and Cartesian distribution of the enlarged dynamics state.
 
 The Phase 1 and Phase 2 layout retains every angular channel and the complete
 electronic coordinate `r` on each rank. Contiguous FEM-DVR elements of the
@@ -530,6 +532,61 @@ to their serial references on multiple Cartesian process grids, SIL and SIA
 agree for H2+, distributed observables and logging are operational, and a
 multi-node correctness calculation passes.
 
+## Phase 9a dynamics initialization
+
+Phase 9a introduced a dynamics representation with both even and odd
+electronic angular channels, metadata-validated Davidson state archives, and
+the `require`, `compute-if-missing`, and `recompute` initialization policies.
+In MPI execution, rank zero alone loads or computes the serial state before a
+barrier and scatter to the Cartesian layout.
+
+The Saga deployment validation ran on 2026-11-02 with Python 3.14.9, NumPy
+2.5.2, SciPy 1.18.0, mpi4py, and `OpenMPI/5.0.10-GCC-15.2.0`. It used a small
+correctness problem with two five-point elements on each radial coordinate,
+`l_max=m_max=1`, `lambda_max=mu_max=2`, `M_tot=0`, and CODATA 2022. The
+four-rank jobs used a `2 x 2` process grid. The implementation was merged to
+`main` by commit `8e000da`, but the run directory did not record the exact
+runtime checkout SHA; it is deliberately not reconstructed here.
+
+The accepted retry set comprised eight jobs:
+
+| job | system | mode | policy | source | Davidson starts | setup time |
+|---:|:---:|:---:|:---|:---:|---:|---:|
+| 20744797 | H2+ | serial seed | `recompute` | computed | 1 | 4.797 s |
+| 20744798 | HD+ | serial seed | `recompute` | computed | 1 | 5.500 s |
+| 20744799 | D2+ | serial seed | `recompute` | computed | 1 | 3.508 s |
+| 20744800 | H2+ | Cartesian MPI | `compute-if-missing` | computed | 1 | 3.334 s |
+| 20744801 | H2+ | Cartesian MPI | `require` | archive | 0 | 0.0050 s |
+| 20744802 | H2+ | Cartesian MPI | `recompute` | computed | 1 | 3.253 s |
+| 20744803 | HD+ | Cartesian MPI | `require` | archive | 0 | 0.0055 s |
+| 20744804 | D2+ | Cartesian MPI | `require` | archive | 0 | 0.0052 s |
+
+All eight jobs completed with exit code `0:0` and generated their expected
+JSON records. Every state had norm `1.0000000000000002`. The four-rank jobs
+had zero phase-aligned serial-state difference and zero maximum coefficient
+error at printed precision. H2+ and D2+ retained internuclear-coordinate
+parity `+1`; HD+ correctly used no pair-exchange restriction. All dynamics
+representations retained `M_tot=0` and unrestricted electronic-coordinate
+parity so both field-coupled parity sectors are present.
+
+The three serial seed jobs also verified that velocity-gauge initialization
+rejects nonzero `A(t0)`. Counting the Davidson progress marker in each output
+confirmed that computation occurred exactly once in each seed,
+`compute-if-missing`, and `recompute` job and never in a `require` job. This
+validates the root-only setup contract rather than merely numerical state
+equivalence.
+
+The first three submitted seed jobs completed Davidson but failed while the
+temporary validation worker serialized a NumPy scalar to JSON. The worker was
+patched to convert the norm to a Python `float` and to honor the requested
+seed policy. The original diagnostic outputs, patched worker, hash, and clean
+retry records are retained in the archive. The incident did not expose a
+grid-tdse library failure.
+
+These results satisfy the Phase 9a completion gate: archived and automatically
+generated Davidson ground states produce identical serial and Cartesian-MPI
+initial dynamics states for all three supported diatomic ions.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -550,4 +607,8 @@ The Phase 7 Cartesian ground-state records are in
 [`data/saga_non_bo_diatomic_mpi_phase7.csv`](data/saga_non_bo_diatomic_mpi_phase7.csv),
 with runtime, problem, and raw-archive provenance in
 [`data/saga_non_bo_diatomic_mpi_phase7_provenance.json`](data/saga_non_bo_diatomic_mpi_phase7_provenance.json).
-Raw Slurm output is intentionally not tracked.
+The compact Phase 9a validation archive, including its Slurm output, result
+JSON, worker, manifests, and small reproducibility states, is in
+[`data/saga_non_bo_diatomic_phase9a/phase9a-20261102-004030`](data/saga_non_bo_diatomic_phase9a/phase9a-20261102-004030).
+Raw Slurm output from the larger Phase 1--7 scaling series is intentionally
+not tracked.
