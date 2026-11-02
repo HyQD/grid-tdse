@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from grid_tdse.spherical.two_radial import (
+    DiatomicIonDynamicsSamplingPolicy,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     NonBornOppenheimerDiatomicIonTDSE,
@@ -244,6 +245,47 @@ def test_diatomic_tdse_exposes_gauge_covariant_velocity_energy_sampler(
     assert snapshot.field_symbol == "A"
     assert snapshot.field_amplitude == pytest.approx(amplitude)
     assert snapshot.conditional_energy == pytest.approx(expected, abs=2.0e-12)
+
+
+def test_diatomic_run_collects_common_dynamics_time_series(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    calculation = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        l_max=1,
+        m_max=1,
+        lambda_max=2,
+        mu_max=2,
+        M_tot=0,
+        integrator="sil",
+        integrator_options={"rtol": 1.0e-11},
+        final_time=0.003,
+        time_step=0.001,
+        dynamics_sampling_policy=DiatomicIonDynamicsSamplingPolicy(interval=2),
+        progress_interval=None,
+    )
+
+    result = calculation.run(progress=False)
+    series = calculation.dynamics_time_series
+
+    assert series.accepted_steps.tolist() == [0, 2, 3]
+    assert series.times.tolist() == pytest.approx([0.0, 0.002, 0.003])
+    assert series.samples[0].is_initial
+    assert series.samples[-1].is_final
+    assert series.samples[-1].snapshot.norm == pytest.approx(result.norm)
+    assert series.samples[-1].snapshot.gauge == "length"
+    assert series.samples[-1].snapshot.field_symbol == "E"
+    assert series.samples[-1].propagation.krylov_operator_calls > 0
+    assert series.samples[-1].propagation.wall_time > 0.0
+    assert calculation.dynamics_metadata["sampling_policy"] == {
+        "interval": 2,
+        "sample_initial": True,
+        "sample_final": True,
+        "sample_checkpoints": True,
+    }
 
 
 def test_diatomic_tdse_exposes_element_local_radial_action(tmp_path):

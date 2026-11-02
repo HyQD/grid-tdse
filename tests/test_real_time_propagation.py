@@ -150,6 +150,48 @@ def test_real_time_samples_initial_state_and_every_accepted_step():
     )
 
 
+def test_state_observer_receives_initial_and_accepted_states(tmp_path):
+    events = []
+
+    def observe(state, step, time, diagnostics, final, checkpoint):
+        assert not state.flags.writeable
+        events.append((step, time, diagnostics, final, checkpoint, state.copy()))
+
+    propagator = RealTimePropagator(
+        final_time=0.2,
+        time_step=0.1,
+        integrator="sil",
+        progress_interval=None,
+    )
+    result = propagator.propagate(
+        np.array([1.0, 0.0]),
+        lambda state, time: np.array([state[0], 2.0 * state[1]]),
+        np.vdot,
+        state_observer=observe,
+        checkpoint_path=tmp_path / "observed.chkpt",
+    )
+
+    assert [event[0] for event in events] == [0, 1, 2]
+    assert [event[1] for event in events] == pytest.approx([0.0, 0.1, 0.2])
+    assert events[0][2] is None
+    assert events[1][2] is result.history[0]
+    assert events[2][2] is result.history[1]
+    assert [event[3] for event in events] == [False, False, True]
+    assert [event[4] for event in events] == [False, False, True]
+
+
+def test_state_observer_must_be_callable():
+    propagator = RealTimePropagator(final_time=0.1, time_step=0.1)
+
+    with pytest.raises(TypeError, match="state_observer must be callable"):
+        propagator.propagate(
+            np.ones(2),
+            lambda state, time: state,
+            np.vdot,
+            state_observer=1.0,
+        )
+
+
 def test_post_step_transformation_precedes_diagnostics_and_sampling():
     propagator = RealTimePropagator(
         final_time=0.2,
