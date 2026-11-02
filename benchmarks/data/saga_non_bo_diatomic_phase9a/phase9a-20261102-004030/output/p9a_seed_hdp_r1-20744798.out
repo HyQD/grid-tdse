@@ -1,0 +1,119 @@
+Starting job 20744798 on c5-60 on Saga at Mon Nov 2 00:57:18 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Starting job 20744798 on c5-60 at Mon Nov  2 12:57:41 AM CET 2026
+Python:       /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module:   OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:    1
+Worker:       /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/phase9a_worker.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+
+
+Running serial compute-node import and font-cache preflight
+NumPy: 2.5.2 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/__init__.py
+SciPy: 1.18.0 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/scipy/__init__.py
+Pillow: 13.0.0 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/PIL/ImageColor.py
+Matplotlib: 3.11.2 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf
+Numba: 0.67.0
+grid-tdse: /cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/__init__.py
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Preflight imports complete
+Direct eigensolver sample 1 (subspace=1):
+E = -0.346544213031 Eh  |dE| = 0.000e+00 Eh
+dPsi = 0.000e+00  residual = 2.460e-01  norm = 1.000000000000
+Solver iteration time = 3.336947 s
+<I> = 1.000000000000  <P> = N/A
+<r> = 2.000000000000  <R> = 3.653934299396
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.000000000000  <l_r,z> = 0.000000000000
+<l_R^2> = 0.000000000000  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.003505 s  logging=0.000074 s  total=3.340526 s
+Direct eigensolver sample 41 (subspace=15):
+E = -0.507712947609 Eh  |dE| = 1.776e-15 Eh
+dPsi = 1.773e-08  residual = 8.045e-09  norm = 1.000000000000
+Solver iteration time = 0.041129 s
+<I> = 1.000000000000  <P> = N/A
+<r> = 1.317307250780  <R> = 1.721221869841
+<L^2> = -0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.018439195088  <l_r,z> = 0.000000000000
+<l_R^2> = 0.018439195088  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.003271 s  logging=0.000066 s  total=0.044466 s
+mode: seed
+system: HD+
+policy: recompute
+source: computed
+archive: /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/states/HDp_seed.npz
+state_data_id: e0296d32c52df658f1746ebe3b6eb2215ffaaeedff51e8fe190b2bae1910b23c
+representation_id: 52571fe81ca9884bc97f1004f6eee66aa2ee0ddf939c80253370452aaa97b648
+setup_wall_time: 5.500416375696659
+ground_state_wall_time: 5.483348347246647
+M_tot: 0
+electronic_coordinate_parity: None
+internuclear_coordinate_parity: None
+state_shape: [6, 7, 7]
+norm: 1.0000000000000002
+velocity_initial_condition_guard: True
+
+real	0m14.749s
+user	0m0.016s
+sys	0m0.017s
+
+Job 20744798 consumed 0.0 billing hours from project nn4654k.
+
+Submitted 2026-11-02T00:57:17; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   50.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20744798           1            0.0 %  2026-11-02T00:57:18   50.0 s  0
+20744798.batch     1      1    29.1 %  2026-11-02T00:57:18   50.0 s  0
+20744798.bash      1      1    52.1 %  2026-11-02T00:57:53   15.0 s  0
+
+Used CPU time:   22.4 CPU seconds
+Unused CPU time: 27.6 CPU seconds
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20744798           2.0
+20744798.batch     2.0     0.3
+20744798.bash      2.0     0.4
+
+Job 20744798 completed at Mon Nov 2 00:58:08 CET 2026

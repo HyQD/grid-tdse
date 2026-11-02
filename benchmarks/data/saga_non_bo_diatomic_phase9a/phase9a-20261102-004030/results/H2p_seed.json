@@ -1,0 +1,21 @@
+{
+  "M_tot": 0,
+  "archive": "/cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9a/phase9a-20261102-004030/states/H2p_seed.npz",
+  "electronic_coordinate_parity": null,
+  "ground_state_wall_time": 4.774952149018645,
+  "internuclear_coordinate_parity": 1,
+  "mode": "seed",
+  "norm": 1.0000000000000002,
+  "policy": "recompute",
+  "representation_id": "a1ae73cf9fb0dd39672f19a7f471db04b79c39c4fbbce9bc7ea92ef30dbc4061",
+  "setup_wall_time": 4.796529859304428,
+  "source": "computed",
+  "state_data_id": "f33aa10fc1d2efeb82514a8b690d73fdad1aa5b857d852ccf8d2f3090cb13e8a",
+  "state_shape": [
+    2,
+    7,
+    7
+  ],
+  "system": "H2+",
+  "velocity_initial_condition_guard": true
+}
