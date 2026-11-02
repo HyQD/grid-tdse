@@ -3,6 +3,10 @@ import pytest
 
 from grid_tdse.spherical.two_radial import (
     AxialCoordinateDipole,
+    DiatomicIonDynamicsObservableEvaluator,
+    DiatomicIonDynamicsSampler,
+    DiatomicIonDynamicsSamplingPolicy,
+    DiatomicIonPropagationDiagnostics,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialAdditiveSchwarzRealTimePreconditioner,
@@ -192,12 +196,8 @@ def test_direct_eigensolver_archive_records_solver_provenance(tmp_path):
     assert stored.calculation["solver"] == "davidson"
     assert stored.calculation["integrator"] is None
     assert stored.calculation["imaginary_time"] is None
-    assert stored.calculation["solver_options"]["preconditioner"] == (
-        "diagonal"
-    )
-    assert stored.calculation["solver_options"][
-        "maximum_subspace_dimension"
-    ] == 8
+    assert stored.calculation["solver_options"]["preconditioner"] == ("diagonal")
+    assert stored.calculation["solver_options"]["maximum_subspace_dimension"] == 8
     assert stored.calculation["hamiltonian_actions"] == (
         result.ground_state.hamiltonian_actions
     )
@@ -241,9 +241,7 @@ def test_krylov_ground_state_integrators_are_exposed(
     if pair_exchange_parity is None:
         assert result.pair_exchange_expectation is None
     else:
-        assert result.pair_exchange_expectation == pytest.approx(
-            1.0, abs=1.0e-12
-        )
+        assert result.pair_exchange_expectation == pytest.approx(1.0, abs=1.0e-12)
 
 
 @pytest.mark.parametrize(
@@ -355,9 +353,7 @@ def test_symmetric_inversion_antisymmetric_pair_guess_is_coupled_total_l_zero():
     assert calculation.pair_exchange_expectation(state) == pytest.approx(-1.0)
 
     result = calculation.solve()
-    assert result.angular_momentum.total_l_squared == pytest.approx(
-        0.0, abs=1.0e-10
-    )
+    assert result.angular_momentum.total_l_squared == pytest.approx(0.0, abs=1.0e-10)
     assert result.pair_exchange_expectation == pytest.approx(-1.0, abs=1.0e-12)
 
 
@@ -385,10 +381,7 @@ def test_femdvr_radial_coulomb_method_is_exposed(method, representation):
 
     assert calculation.radial_coulomb_method == method
     assert calculation.specification.radial_coulomb_method == method
-    assert (
-        calculation.representation.radial_multipoles.representation
-        == representation
-    )
+    assert calculation.representation.radial_multipoles.representation == representation
 
 
 def test_hd_rejects_pair_exchange_parity_and_uses_full_coordinate_bases():
@@ -584,9 +577,7 @@ def test_real_time_preconditioner_matches_direct_complex_block_inverse():
 def test_diagonal_real_time_preconditioner_matches_one_body_diagonal():
     representation = _calculation(M_tot=0).representation
     time_step = 0.07
-    preconditioner = TwoRadialDiagonalRealTimePreconditioner(
-        representation, time_step
-    )
+    preconditioner = TwoRadialDiagonalRealTimePreconditioner(representation, time_step)
     rng = np.random.default_rng(91)
     state = rng.normal(size=representation.psi_shape) + 1j * rng.normal(
         size=representation.psi_shape
@@ -618,18 +609,13 @@ def test_element_real_time_preconditioner_matches_direct_subdomain_solves(
     time_step = 0.07
     options = (
         {"overlap_elements": 1}
-        if preconditioner_class
-        is TwoRadialAdditiveSchwarzRealTimePreconditioner
+        if preconditioner_class is TwoRadialAdditiveSchwarzRealTimePreconditioner
         else {}
     )
-    preconditioner = preconditioner_class(
-        representation, time_step, **options
-    )
+    preconditioner = preconditioner_class(representation, time_step, **options)
     rng = np.random.default_rng(92)
     state = np.zeros(representation.psi_shape, dtype=complex)
-    state[0] = rng.normal(size=state.shape[1:]) + 1j * rng.normal(
-        size=state.shape[1:]
-    )
+    state[0] = rng.normal(size=state.shape[1:]) + 1j * rng.normal(size=state.shape[1:])
 
     actual = preconditioner(state)[0]
     i, j = representation.angular_pairs.pairs[0]
@@ -643,12 +629,11 @@ def test_element_real_time_preconditioner_matches_direct_subdomain_solves(
         dimension1 = h1.shape[0]
         dimension2 = h2.shape[0]
         matrix = np.eye(dimension1 * dimension2) + 0.5j * time_step * (
-            np.kron(h1, np.eye(dimension2))
-            + np.kron(np.eye(dimension1), h2)
+            np.kron(h1, np.eye(dimension2)) + np.kron(np.eye(dimension1), h2)
         )
-        local = np.linalg.solve(
-            matrix, state[0][:, indices].ravel()
-        ).reshape(dimension1, dimension2)
+        local = np.linalg.solve(matrix, state[0][:, indices].ravel()).reshape(
+            dimension1, dimension2
+        )
         expected[:, indices] += local * scatter_weights[None, :]
 
     np.testing.assert_allclose(actual, expected, atol=3.0e-12, rtol=3.0e-12)
@@ -668,9 +653,7 @@ def test_element_preconditioner_subdomains_have_expected_coverage():
         np.sort(owned), np.arange(representation.grid2.n_points)
     )
     partition_of_unity = np.zeros(representation.grid2.n_points)
-    for indices, weights in zip(
-        schwarz.subdomain_indices, schwarz.subdomain_weights
-    ):
+    for indices, weights in zip(schwarz.subdomain_indices, schwarz.subdomain_weights):
         partition_of_unity[indices] += weights
     np.testing.assert_allclose(partition_of_unity, 1.0)
 
@@ -703,10 +686,7 @@ def test_real_time_preconditioner_factory(selector, expected_type):
 def test_real_time_preconditioner_factory_disables_and_validates_options():
     representation = _calculation(M_tot=0).representation
     assert (
-        build_two_radial_real_time_preconditioner(
-            representation, 0.07, False
-        )
-        is None
+        build_two_radial_real_time_preconditioner(representation, 0.07, False) is None
     )
     with pytest.raises(ValueError, match="unknown diagonal"):
         build_two_radial_real_time_preconditioner(
@@ -749,16 +729,14 @@ def test_diatomic_observable_evaluator_samples_requested_quantities():
     )
     population = np.sum(np.abs(state) ** 2, axis=0)
     norm = np.sum(population * weights)
-    expected_r = np.sum(
-        population
-        * calculation.representation.grid1.r[:, None]
-        * weights
-    ) / norm
-    expected_R = np.sum(
-        population
-        * calculation.representation.grid2.r[None, :]
-        * weights
-    ) / norm
+    expected_r = (
+        np.sum(population * calculation.representation.grid1.r[:, None] * weights)
+        / norm
+    )
+    expected_R = (
+        np.sum(population * calculation.representation.grid2.r[None, :] * weights)
+        / norm
+    )
     angular = calculation.angular_momentum_expectations(state)
 
     assert values.r == pytest.approx(expected_r)
@@ -778,6 +756,89 @@ def test_diatomic_observable_evaluator_samples_requested_quantities():
     assert values.pair_exchange == pytest.approx(1.0)
 
 
+def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
+    calculation = _calculation(
+        symmetry_adapted_basis=False,
+        M_tot=0,
+        l_max=1,
+    )
+    rng = np.random.default_rng(382)
+    normalized = rng.normal(
+        size=calculation.representation.psi_shape
+    ) + 1j * rng.normal(size=calculation.representation.psi_shape)
+    normalized /= np.sqrt(
+        calculation.representation.inner_product(normalized, normalized).real
+    )
+    state = 0.4 * normalized
+    amplitude = 0.2
+    evaluator = DiatomicIonDynamicsObservableEvaluator(
+        calculation.representation,
+        calculation.parameters,
+        lambda values: 3.0 * values,
+        gauge="velocity",
+        fields=(lambda time: 0.3, lambda time: -0.1),
+        velocity_action=lambda values: 2.0 * values,
+    )
+
+    snapshot = evaluator(state, 1.25)
+    normalized_snapshot = evaluator(normalized, 1.25)
+    xi_r = calculation.parameters.electronic_reduced_charge
+    xi_R = calculation.parameters.internuclear_reduced_charge
+    mu_r = calculation.parameters.electronic_reduced_mass
+    mu_R = calculation.parameters.internuclear_reduced_mass
+    expected_conditional_energy = (
+        3.0 + 2.0 * amplitude + 0.5 * amplitude**2 * (xi_r**2 / mu_r + xi_R**2 / mu_R)
+    )
+
+    assert snapshot.norm == pytest.approx(0.16)
+    assert snapshot.field_symbol == "A"
+    assert snapshot.field_amplitude == pytest.approx(amplitude)
+    assert snapshot.conditional_energy == pytest.approx(expected_conditional_energy)
+    assert snapshot.energy_numerator == pytest.approx(
+        snapshot.norm * expected_conditional_energy
+    )
+    assert snapshot.numerators.r == pytest.approx(
+        snapshot.norm * normalized_snapshot.numerators.r
+    )
+    assert snapshot.conditional.r == pytest.approx(normalized_snapshot.conditional.r)
+    assert snapshot.conditional.r_squared == pytest.approx(
+        normalized_snapshot.conditional.r_squared
+    )
+    assert snapshot.conditional.r_dot_R == pytest.approx(
+        normalized_snapshot.conditional.r_dot_R
+    )
+    assert snapshot.electron_center_distances.reference_rms == pytest.approx(
+        normalized_snapshot.electron_center_distances.reference_rms
+    )
+
+    sampler = DiatomicIonDynamicsSampler(
+        evaluator,
+        policy=DiatomicIonDynamicsSamplingPolicy(interval=2),
+    )
+    initial = sampler.sample(state, 0, 0.0)
+    assert sampler.sample(state, 1, 0.1) is None
+    checkpoint = sampler.sample(
+        state,
+        1,
+        0.1,
+        checkpoint=True,
+        diagnostics=DiatomicIonPropagationDiagnostics(
+            wall_time=0.25,
+            krylov_dimension=7,
+            krylov_accepted_substeps=2,
+        ),
+    )
+    final = sampler.sample(state, 3, 0.3, final=True)
+
+    assert initial.is_initial
+    assert checkpoint.is_checkpoint
+    assert checkpoint.propagation.wall_time == pytest.approx(0.25)
+    assert checkpoint.propagation.krylov_dimension == 7
+    assert final.is_final
+    assert sampler.time_series.accepted_steps.tolist() == [0, 1, 3]
+    assert sampler.time_series.records()[0]["snapshot.gauge"] == "velocity"
+
+
 @pytest.mark.parametrize("M_tot", [None, 0])
 def test_diatomic_observables_match_existing_angular_and_axial_dipole_actions(
     M_tot,
@@ -790,9 +851,7 @@ def test_diatomic_observables_match_existing_angular_and_axial_dipole_actions(
     state = rng.normal(size=calculation.representation.psi_shape) + 1j * rng.normal(
         size=calculation.representation.psi_shape
     )
-    norm = np.sqrt(
-        calculation.representation.inner_product(state, state).real
-    )
+    norm = np.sqrt(calculation.representation.inner_product(state, state).real)
     state /= norm
 
     values = calculation.observable_evaluator(state)
@@ -896,9 +955,7 @@ def test_heteronuclear_sampling_formats_pair_exchange_as_not_applicable():
     result = calculation.solve()
 
     assert result.observables.pair_exchange is None
-    assert "<P> = N/A" in format_diatomic_ground_state_sample(
-        result.samples[-1]
-    )
+    assert "<P> = N/A" in format_diatomic_ground_state_sample(result.samples[-1])
 
 
 def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
@@ -920,13 +977,9 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.calculation["energy"] == pytest.approx(result.energy)
     assert stored.calculation["integrator"] == "crank-nicolson"
     assert stored.calculation["radial_operator_mode"] == "global"
-    assert stored.calculation["residual_norm"] == pytest.approx(
-        result.residual_norm
-    )
+    assert stored.calculation["residual_norm"] == pytest.approx(result.residual_norm)
     assert stored.calculation["sample_interval"] == 10
-    assert stored.calculation["observables"]["r"] == pytest.approx(
-        result.observables.r
-    )
+    assert stored.calculation["observables"]["r"] == pytest.approx(result.observables.r)
     assert stored.calculation["samples"]["columns"]["iteration"] == [0, 1]
 
 
