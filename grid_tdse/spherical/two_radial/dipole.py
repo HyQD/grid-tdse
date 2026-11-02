@@ -147,6 +147,66 @@ class AxialCoordinateDipole:
         values = _state_array(state, self.representation.psi_shape)
         return self._apply_values(values)
 
+    def apply_length_gauge_radial_tile(
+        self,
+        state: np.ndarray,
+        radial_coordinates: np.ndarray,
+    ) -> np.ndarray:
+        """Apply the length-gauge action to one rectangular radial tile.
+
+        The angular axes must match the parent representation, while either
+        radial axis may be restricted to a locally owned set of FEM-DVR
+        points.  This operation performs no communication and is therefore
+        suitable for permanent Cartesian radial decompositions.
+        """
+
+        if self.gauge != "length":
+            raise ValueError("radial-tile application is available in length gauge")
+        values = np.asarray(state)
+        expected_angular_shape = self.representation.psi_shape[:-2]
+        if values.ndim != len(expected_angular_shape) + 2:
+            raise ValueError(
+                "state must retain the representation angular axes and two "
+                "radial axes"
+            )
+        if values.shape[:-2] != expected_angular_shape:
+            raise ValueError(
+                f"state has angular shape {values.shape[:-2]}; expected "
+                f"{expected_angular_shape}"
+            )
+        if not np.issubdtype(values.dtype, np.number):
+            raise TypeError("state must contain numeric values")
+        radial = np.asarray(radial_coordinates)
+        if radial.ndim != 1 or radial.size != values.shape[-3 + self.coordinate]:
+            axis = values.ndim - 3 + self.coordinate
+            raise ValueError(f"radial_coordinates must match state axis {axis}")
+        if not np.issubdtype(radial.dtype, np.number) or not np.isfinite(radial).all():
+            raise ValueError("radial_coordinates must contain finite numbers")
+
+        if self.representation.uses_compact_angular_storage:
+            result = np.zeros(values.shape, dtype=np.result_type(values.dtype, float))
+            for output, transitions in enumerate(self._compact_transitions):
+                for input_, angular1, _ in transitions:
+                    result[output] += angular1 * values[input_]
+        elif self.coordinate == 1:
+            result = np.einsum(
+                "oa,abij->obij",
+                self.cos_theta,
+                values,
+                optimize=True,
+            )
+        else:
+            result = np.einsum(
+                "ob,abij->aoij",
+                self.cos_theta,
+                values,
+                optimize=True,
+            )
+        shape = [1] * values.ndim
+        shape[-3 + self.coordinate] = radial.size
+        result *= radial.reshape(shape)
+        return -self.coupling * result
+
     def _apply_values(self, values: np.ndarray) -> np.ndarray:
         if self.representation.uses_compact_angular_storage:
             return self._apply_compact(values)
