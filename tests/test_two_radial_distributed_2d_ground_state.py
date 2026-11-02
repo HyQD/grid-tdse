@@ -7,6 +7,7 @@ import pytest
 
 from grid_tdse.ground_state import ImaginaryTimeGroundStateSolver
 from grid_tdse.spherical.two_radial import (
+    DiatomicIonDynamicsObservableEvaluator,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialDistributed2DGroundStateSolver,
@@ -69,9 +70,7 @@ class _ReceiveRequest:
 
     def Wait(self):
         with self.group.condition:
-            self.group.condition.wait_for(
-                lambda: bool(self.group.messages[self.key])
-            )
+            self.group.condition.wait_for(lambda: bool(self.group.messages[self.key]))
             values = self.group.messages[self.key].popleft()
         np.copyto(self.buffer, values)
 
@@ -119,9 +118,7 @@ class _ThreadCommunicator:
             values = self.group.reduction_values[reduction_round]
             values[self.rank] = value
             if len(values) == self.size:
-                self.group.reduction_results[reduction_round] = sum(
-                    values.values()
-                )
+                self.group.reduction_results[reduction_round] = sum(values.values())
                 self.group.condition.notify_all()
             else:
                 self.group.condition.wait_for(
@@ -327,9 +324,7 @@ def test_cartesian_sampling_matches_serial_observables_and_logs_once(
     calculation = _calculation()
     options = _solver_options(max_iterations=2)
     serial = _serial_result(calculation, options)
-    expected_initial = calculation.observable_evaluator(
-        calculation.initial_state
-    )
+    expected_initial = calculation.observable_evaluator(calculation.initial_state)
     expected_final = calculation.observable_evaluator(serial.state)
     log_path = tmp_path / "cartesian-ground-state.log"
 
@@ -353,9 +348,7 @@ def test_cartesian_sampling_matches_serial_observables_and_logs_once(
             abs=3.0e-13,
         )
         assert final.inversion == pytest.approx(expected_final.inversion)
-        assert final.pair_exchange == pytest.approx(
-            expected_final.pair_exchange
-        )
+        assert final.pair_exchange == pytest.approx(expected_final.pair_exchange)
         np.testing.assert_allclose(
             final.dipole_total,
             expected_final.dipole_total,
@@ -367,6 +360,67 @@ def test_cartesian_sampling_matches_serial_observables_and_logs_once(
         marker = f"ITP sample {iteration} "
         assert terminal.count(marker) == 1
         assert logfile.count(marker) == 1
+
+
+def test_cartesian_dynamics_snapshot_matches_serial_below_unit_norm():
+    calculation = _calculation()
+    state = 0.43 * calculation.initial_state
+    layout = TwoRadialDistributed2DLayout(
+        calculation.representation,
+        4,
+        process_grid=(2, 2),
+    )
+    local_states = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(4)
+    reductions = [
+        TwoRadialDistributed2DReductions(layout, group.communicator(rank))
+        for rank in range(4)
+    ]
+
+    def scaled(values):
+        if isinstance(values, np.ndarray):
+            return 1.75 * values
+        return type(values)(
+            values.layout,
+            values.rank,
+            1.75 * values.coefficients,
+        )
+
+    evaluator = DiatomicIonDynamicsObservableEvaluator(
+        calculation.representation,
+        calculation.parameters,
+        scaled,
+        gauge="length",
+    )
+    expected = evaluator(state, 0.5)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        actual = list(
+            executor.map(
+                lambda pair: evaluator.distributed_2d(*pair, 0.5),
+                zip(local_states, reductions, strict=True),
+            )
+        )
+
+    for snapshot in actual:
+        assert snapshot.norm == pytest.approx(expected.norm, abs=3.0e-13)
+        assert snapshot.energy_numerator == pytest.approx(
+            expected.energy_numerator, abs=3.0e-13
+        )
+        assert snapshot.numerators.R_squared == pytest.approx(
+            expected.numerators.R_squared, abs=3.0e-13
+        )
+        assert snapshot.numerators.r_dot_R == pytest.approx(
+            expected.numerators.r_dot_R, abs=3.0e-13
+        )
+        np.testing.assert_allclose(
+            snapshot.conditional.dipole_total,
+            expected.conditional.dipole_total,
+            atol=3.0e-13,
+        )
+        assert snapshot.electron_center_distances.partner_rms == pytest.approx(
+            expected.electron_center_distances.partner_rms,
+            abs=3.0e-13,
+        )
 
 
 def test_cartesian_solver_requires_a_communicator_for_multiple_ranks():

@@ -196,6 +196,56 @@ def test_diatomic_interface_embeds_field_free_symmetry_archive(tmp_path):
     ).real == pytest.approx(1.0)
 
 
+def test_diatomic_tdse_exposes_gauge_covariant_velocity_energy_sampler(
+    tmp_path,
+):
+    archived = _archived_h2p_state(tmp_path)
+
+    class VectorPotential:
+        gauge = "velocity"
+
+        def __call__(self, time):
+            return 0.2 * time
+
+    calculation = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        fields=(VectorPotential(),),
+        field_gauge="velocity",
+        l_max=1,
+        m_max=1,
+        lambda_max=2,
+        mu_max=2,
+        M_tot=0,
+        final_time=0.01,
+        time_step=0.01,
+        integrator_options={"preconditioner": False},
+    )
+    time = 0.5
+    state = calculation.initial_state
+    snapshot = calculation.dynamics_observable_evaluator(state, time)
+    amplitude = 0.2 * time
+    physical_action = calculation.field_free_hamiltonian(state)
+    physical_action += calculation.dipole_interaction(state, time)
+    expected = calculation.representation.inner_product(
+        state, physical_action
+    ).real
+    parameters = calculation.parameters
+    expected += 0.5 * amplitude**2 * (
+        parameters.electronic_reduced_charge**2
+        / parameters.electronic_reduced_mass
+        + parameters.internuclear_reduced_charge**2
+        / parameters.internuclear_reduced_mass
+    )
+
+    assert snapshot.field_symbol == "A"
+    assert snapshot.field_amplitude == pytest.approx(amplitude)
+    assert snapshot.conditional_energy == pytest.approx(expected, abs=2.0e-12)
+
+
 def test_diatomic_tdse_exposes_element_local_radial_action(tmp_path):
     archived = _archived_h2p_state(tmp_path)
     common = dict(

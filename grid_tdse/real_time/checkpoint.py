@@ -13,10 +13,9 @@ from typing import Any, Mapping
 
 import numpy as np
 
-
 _FORMAT_NAME = "grid-tdse-real-time-checkpoint"
-_FORMAT_VERSION = 2
-_SUPPORTED_FORMAT_VERSIONS = {1, 2}
+_FORMAT_VERSION = 3
+_SUPPORTED_FORMAT_VERSIONS = {1, 2, 3}
 
 
 @dataclass(frozen=True)
@@ -51,9 +50,8 @@ class RealTimeCheckpointSegment:
     krylov_dimensions: np.ndarray = field(
         default_factory=lambda: np.empty(0, dtype=int)
     )
-    krylov_error_estimates: np.ndarray = field(
-        default_factory=lambda: np.empty(0)
-    )
+    krylov_error_estimates: np.ndarray = field(default_factory=lambda: np.empty(0))
+    step_wall_times: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     def __post_init__(self) -> None:
         initial_time = _finite_real(self.initial_time, "segment initial time")
@@ -89,23 +87,15 @@ class RealTimeCheckpointSegment:
         )
         integer_diagnostics = {
             "krylov_operator_calls": np.asarray(self.krylov_operator_calls),
-            "krylov_accepted_substeps": np.asarray(
-                self.krylov_accepted_substeps
-            ),
-            "krylov_rejected_substeps": np.asarray(
-                self.krylov_rejected_substeps
-            ),
-            "krylov_refinement_depths": np.asarray(
-                self.krylov_refinement_depths
-            ),
+            "krylov_accepted_substeps": np.asarray(self.krylov_accepted_substeps),
+            "krylov_rejected_substeps": np.asarray(self.krylov_rejected_substeps),
+            "krylov_refinement_depths": np.asarray(self.krylov_refinement_depths),
             "krylov_dimensions": np.asarray(self.krylov_dimensions),
         }
         n_steps = times.size - 1
         integer_diagnostics = {
             name: (
-                np.zeros(n_steps, dtype=int)
-                if values.size == 0 and n_steps
-                else values
+                np.zeros(n_steps, dtype=int) if values.size == 0 and n_steps else values
             )
             for name, values in integer_diagnostics.items()
         }
@@ -115,6 +105,14 @@ class RealTimeCheckpointSegment:
         krylov_errors = _finite_real_array(
             raw_krylov_errors,
             "segment Krylov error estimates",
+            ndim=1,
+        )
+        raw_step_wall_times = np.asarray(self.step_wall_times)
+        if raw_step_wall_times.size == 0 and n_steps:
+            raw_step_wall_times = np.zeros(n_steps)
+        step_wall_times = _finite_real_array(
+            raw_step_wall_times,
+            "segment step wall times",
             ndim=1,
         )
         if times.size == 0:
@@ -151,6 +149,10 @@ class RealTimeCheckpointSegment:
                 "segment Krylov error estimates must contain one value per "
                 "completed step"
             )
+        if step_wall_times.size != times.size - 1:
+            raise ValueError(
+                "segment step wall times must contain one value per completed " "step"
+            )
         if np.any(norms < 0.0):
             raise ValueError("checkpoint segment norms must be non-negative")
         if np.any(residuals < 0.0):
@@ -161,6 +163,8 @@ class RealTimeCheckpointSegment:
             raise ValueError(
                 "checkpoint segment Krylov error estimates must be non-negative"
             )
+        if np.any(step_wall_times < 0.0):
+            raise ValueError("checkpoint step wall times must be non-negative")
         if not np.all(np.diff(times) > 0.0):
             raise ValueError("checkpoint segment times must be strictly increasing")
         if times.size > 1 and not np.allclose(
@@ -202,6 +206,11 @@ class RealTimeCheckpointSegment:
             self,
             "krylov_error_estimates",
             _read_only_copy(krylov_errors),
+        )
+        object.__setattr__(
+            self,
+            "step_wall_times",
+            _read_only_copy(step_wall_times),
         )
         object.__setattr__(self, "samples", checked_samples)
         object.__setattr__(self, "initial_time", initial_time)
@@ -362,25 +371,14 @@ def save_real_time_checkpoint(
         arrays[f"{prefix}_times"] = segment.times
         arrays[f"{prefix}_norms"] = segment.norms
         arrays[f"{prefix}_linear_iterations"] = segment.linear_iterations
-        arrays[f"{prefix}_linear_residual_norms"] = (
-            segment.linear_residual_norms
-        )
-        arrays[f"{prefix}_krylov_operator_calls"] = (
-            segment.krylov_operator_calls
-        )
-        arrays[f"{prefix}_krylov_accepted_substeps"] = (
-            segment.krylov_accepted_substeps
-        )
-        arrays[f"{prefix}_krylov_rejected_substeps"] = (
-            segment.krylov_rejected_substeps
-        )
-        arrays[f"{prefix}_krylov_refinement_depths"] = (
-            segment.krylov_refinement_depths
-        )
+        arrays[f"{prefix}_linear_residual_norms"] = segment.linear_residual_norms
+        arrays[f"{prefix}_krylov_operator_calls"] = segment.krylov_operator_calls
+        arrays[f"{prefix}_krylov_accepted_substeps"] = segment.krylov_accepted_substeps
+        arrays[f"{prefix}_krylov_rejected_substeps"] = segment.krylov_rejected_substeps
+        arrays[f"{prefix}_krylov_refinement_depths"] = segment.krylov_refinement_depths
         arrays[f"{prefix}_krylov_dimensions"] = segment.krylov_dimensions
-        arrays[f"{prefix}_krylov_error_estimates"] = (
-            segment.krylov_error_estimates
-        )
+        arrays[f"{prefix}_krylov_error_estimates"] = segment.krylov_error_estimates
+        arrays[f"{prefix}_step_wall_times"] = segment.step_wall_times
         sample_names = list(segment.samples)
         for sample_index, name in enumerate(sample_names):
             arrays[f"{prefix}_sample_{sample_index:04d}"] = segment.samples[name]
@@ -482,18 +480,16 @@ def load_real_time_checkpoint(
                 "krylov_error_estimates",
             )
             if format_version >= 2:
-                required.update(
-                    f"{prefix}_{name}" for name in krylov_names
-                )
+                required.update(f"{prefix}_{name}" for name in krylov_names)
+            if format_version >= 3:
+                required.add(f"{prefix}_step_wall_times")
             missing = required.difference(archive.files)
             if missing:
                 raise ValueError(
                     "real-time checkpoint is missing segment arrays: "
                     + ", ".join(sorted(missing))
                 )
-            segment_arrays = {
-                name: archive[name].copy() for name in sorted(required)
-            }
+            segment_arrays = {name: archive[name].copy() for name in sorted(required)}
             samples = {}
             for sample_index, name in enumerate(values.get("sample_names", [])):
                 key = f"{prefix}_sample_{sample_index:04d}"
@@ -512,6 +508,11 @@ def load_real_time_checkpoint(
                     return archive[key].copy()
                 return np.zeros(n_steps, dtype=dtype)
 
+            def step_wall_values():
+                if format_version >= 3:
+                    return archive[f"{prefix}_step_wall_times"].copy()
+                return np.zeros(n_steps)
+
             segments.append(
                 RealTimeCheckpointSegment(
                     initial_time=values["initial_time"],
@@ -522,9 +523,7 @@ def load_real_time_checkpoint(
                     initial_norm=values["initial_norm"],
                     times=archive[f"{prefix}_times"].copy(),
                     norms=archive[f"{prefix}_norms"].copy(),
-                    linear_iterations=archive[
-                        f"{prefix}_linear_iterations"
-                    ].copy(),
+                    linear_iterations=archive[f"{prefix}_linear_iterations"].copy(),
                     linear_residual_norms=archive[
                         f"{prefix}_linear_residual_norms"
                     ].copy(),
@@ -540,12 +539,9 @@ def load_real_time_checkpoint(
                     krylov_refinement_depths=krylov_values(
                         "krylov_refinement_depths", dtype=int
                     ),
-                    krylov_dimensions=krylov_values(
-                        "krylov_dimensions", dtype=int
-                    ),
-                    krylov_error_estimates=krylov_values(
-                        "krylov_error_estimates"
-                    ),
+                    krylov_dimensions=krylov_values("krylov_dimensions", dtype=int),
+                    krylov_error_estimates=krylov_values("krylov_error_estimates"),
+                    step_wall_times=step_wall_values(),
                     samples=samples,
                     integrator=values["integrator"],
                     dynamics=values["dynamics"],

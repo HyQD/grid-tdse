@@ -26,6 +26,7 @@ from .dynamics_initialization import (
     DiatomicDynamicsInitialStatePolicy,
     prepare_non_bo_diatomic_dynamics_initial_state,
 )
+from .dynamics_sampling import DiatomicIonDynamicsObservableEvaluator
 from .grids import FEMDVRGridSpec
 from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
@@ -643,6 +644,16 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             {"source": "provided"}
             if self.initialization is None
             else self.initialization.metadata
+        )
+        self.dynamics_observable_evaluator = (
+            DiatomicIonDynamicsObservableEvaluator(
+                self.representation,
+                self.parameters,
+                self.field_free_hamiltonian,
+                gauge=self.field_gauge,
+                fields=self.fields,
+                radial_operator_mode=self.radial_operator_mode,
+            )
         )
 
     @property

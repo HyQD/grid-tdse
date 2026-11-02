@@ -7,10 +7,12 @@ import pytest
 
 from grid_tdse.ground_state import ImaginaryTimeGroundStateSolver
 from grid_tdse.spherical.two_radial import (
+    DiatomicIonDynamicsObservableEvaluator,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
     TwoRadialDistributedGroundStateSolver,
     TwoRadialDistributedLayout,
+    TwoRadialDistributedReductions,
 )
 
 
@@ -69,9 +71,7 @@ class _ReceiveRequest:
 
     def Wait(self):
         with self.group.condition:
-            self.group.condition.wait_for(
-                lambda: bool(self.group.messages[self.key])
-            )
+            self.group.condition.wait_for(lambda: bool(self.group.messages[self.key]))
             values = self.group.messages[self.key].popleft()
         np.copyto(self.buffer, values)
 
@@ -119,9 +119,7 @@ class _ThreadCommunicator:
             values = self.group.reduction_values[reduction_round]
             values[self.rank] = value
             if len(values) == self.size:
-                self.group.reduction_results[reduction_round] = sum(
-                    values.values()
-                )
+                self.group.reduction_results[reduction_round] = sum(values.values())
                 self.group.condition.notify_all()
             else:
                 self.group.condition.wait_for(
@@ -319,11 +317,14 @@ def test_one_rank_distributed_solver_converges_from_an_eigenstate():
     layout = TwoRadialDistributedLayout(representation, 1)
     solver = TwoRadialDistributedGroundStateSolver(
         layout,
-        **(_solver_options(max_iterations=2) | {
-            "energy_tolerance": 1.0e-11,
-            "state_tolerance": 1.0e-10,
-            "residual_tolerance": 1.0e-9,
-        }),
+        **(
+            _solver_options(max_iterations=2)
+            | {
+                "energy_tolerance": 1.0e-11,
+                "state_tolerance": 1.0e-10,
+                "residual_tolerance": 1.0e-9,
+            }
+        ),
     )
 
     result = solver.solve(layout.distribute(initial)[0])
@@ -438,9 +439,7 @@ def test_distributed_sampling_matches_serial_observables_and_logs_once(
     calculation = _calculation()
     options = _solver_options(max_iterations=3)
     serial = _serial_result(calculation, options)
-    expected_initial = calculation.observable_evaluator(
-        calculation.initial_state
-    )
+    expected_initial = calculation.observable_evaluator(calculation.initial_state)
     expected_final = calculation.observable_evaluator(serial.state)
     log_path = tmp_path / f"coordinate-{partitioned_coordinate}.log"
 
@@ -464,9 +463,7 @@ def test_distributed_sampling_matches_serial_observables_and_logs_once(
             abs=2.0e-13,
         )
         assert initial.inversion == pytest.approx(expected_initial.inversion)
-        assert initial.pair_exchange == pytest.approx(
-            expected_initial.pair_exchange
-        )
+        assert initial.pair_exchange == pytest.approx(expected_initial.pair_exchange)
         actual = result.samples[-1].observables
         assert actual.r == pytest.approx(expected_final.r, abs=2.0e-13)
         assert actual.R == pytest.approx(expected_final.R, abs=2.0e-13)
@@ -483,12 +480,75 @@ def test_distributed_sampling_matches_serial_observables_and_logs_once(
             expected_final.dipole_total,
             atol=2.0e-13,
         )
-        assert all(
-            sample.observable_wall_time >= 0.0 for sample in result.samples
-        )
+        assert all(sample.observable_wall_time >= 0.0 for sample in result.samples)
     terminal = capsys.readouterr().out
     logfile = log_path.read_text(encoding="utf-8")
     for iteration in (0, 2, 3):
         marker = f"ITP sample {iteration} "
         assert terminal.count(marker) == 1
         assert logfile.count(marker) == 1
+
+
+@pytest.mark.parametrize("partitioned_coordinate", [1, 2])
+def test_distributed_dynamics_snapshot_matches_serial_below_unit_norm(
+    partitioned_coordinate,
+):
+    calculation = _calculation()
+    state = 0.37 * calculation.initial_state
+    layout = TwoRadialDistributedLayout(
+        calculation.representation,
+        2,
+        partitioned_coordinate=partitioned_coordinate,
+    )
+    local_states = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(2)
+    reductions = [
+        TwoRadialDistributedReductions(layout, group.communicator(rank))
+        for rank in range(2)
+    ]
+
+    def scaled(values):
+        if isinstance(values, np.ndarray):
+            return 2.5 * values
+        return type(values)(
+            values.layout,
+            values.rank,
+            2.5 * values.coefficients,
+        )
+
+    evaluator = DiatomicIonDynamicsObservableEvaluator(
+        calculation.representation,
+        calculation.parameters,
+        scaled,
+        gauge="length",
+        fields=lambda time: 0.4 * time,
+    )
+    expected = evaluator(state, 0.75)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        actual = list(
+            executor.map(
+                lambda pair: evaluator.distributed(*pair, 0.75),
+                zip(local_states, reductions, strict=True),
+            )
+        )
+
+    for snapshot in actual:
+        assert snapshot.norm == pytest.approx(expected.norm, abs=2.0e-13)
+        assert snapshot.energy_numerator == pytest.approx(
+            expected.energy_numerator, abs=2.0e-13
+        )
+        assert snapshot.numerators.r_squared == pytest.approx(
+            expected.numerators.r_squared, abs=2.0e-13
+        )
+        assert snapshot.numerators.r_dot_R == pytest.approx(
+            expected.numerators.r_dot_R, abs=2.0e-13
+        )
+        np.testing.assert_allclose(
+            snapshot.numerators.dipole_total,
+            expected.numerators.dipole_total,
+            atol=2.0e-13,
+        )
+        assert snapshot.electron_center_distances.reference_rms == pytest.approx(
+            expected.electron_center_distances.reference_rms,
+            abs=2.0e-13,
+        )
