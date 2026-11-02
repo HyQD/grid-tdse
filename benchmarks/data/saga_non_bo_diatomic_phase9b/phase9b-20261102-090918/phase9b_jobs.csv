@@ -1,0 +1,2 @@
+job_id,job_name,ranks,process_grid,output_pattern
+20745753,p9b_sampling_gate,4,serial+1d-r+1d-R+2x2,p9b_sampling_gate-%j.out
