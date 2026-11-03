@@ -145,6 +145,14 @@ class TwoRadialDistributed2DHamiltonian:
             1: _coordinate_element_matrices(self.representation.grid1),
             2: _coordinate_element_matrices(self.representation.grid2),
         }
+        self._first_derivative_element_matrices = {
+            1: _coordinate_first_derivative_element_matrices(
+                self.representation.grid1
+            ),
+            2: _coordinate_first_derivative_element_matrices(
+                self.representation.grid2
+            ),
+        }
         self._working_buffers = {}
         self._weak_buffers = {}
         self._owned_weak_buffers = {}
@@ -229,6 +237,81 @@ class TwoRadialDistributed2DHamiltonian:
         """Apply the coordinate-2 derivative and diagonal one-body term."""
 
         return self._apply_coordinate(state, 2)
+
+    def apply_first_derivative(
+        self,
+        state: DistributedTwoRadial2DState,
+        coordinate: int,
+    ) -> DistributedTwoRadial2DState:
+        """Apply the strong element-local first radial derivative.
+
+        The FEM-DVR derivative is assembled from weak element actions.  The
+        bridge value needed by the first local element and the resulting weak
+        bridge contribution are exchanged with the adjacent rank along the
+        selected Cartesian process direction.
+        """
+
+        if coordinate not in (1, 2):
+            raise ValueError("coordinate must be 1 or 2")
+        self._validate_local_state(state)
+        pending_halo = self._start_state_halo_exchange(state, coordinate)
+        partition = _coordinate_partition(state.partition, coordinate)
+        working = self._working_values(
+            state,
+            coordinate,
+            None,
+            require_halo=False,
+        )
+        weak = self._zero_weak_buffer(
+            state.rank,
+            coordinate,
+            state.coefficients.dtype,
+        )
+        interior = range(1, len(partition.element_local_dof_maps))
+        if not partition.n_halo:
+            interior = range(len(partition.element_local_dof_maps))
+        self._accumulate_elements(
+            state.rank,
+            coordinate,
+            working,
+            weak,
+            interior,
+            element_matrices=self._first_derivative_element_matrices,
+        )
+
+        halo = self._finish_exchange(pending_halo, coordinate, "halo")
+        if partition.n_halo:
+            self._set_working_halo(state, coordinate, working, halo)
+            self._accumulate_elements(
+                state.rank,
+                coordinate,
+                working,
+                weak,
+                (0,),
+                element_matrices=self._first_derivative_element_matrices,
+            )
+
+        weak_owned, outgoing = self._owned_weak_values(
+            state.rank,
+            coordinate,
+            weak,
+        )
+        pending_weak = self._start_weak_exchange(
+            state.rank,
+            coordinate,
+            outgoing,
+            state.coefficients.dtype,
+        )
+        result = self._finish_first_derivative(state, coordinate, weak_owned)
+        incoming = self._finish_exchange(pending_weak, coordinate, "weak")
+        if incoming is not None:
+            self._add_first_derivative_incoming(
+                state,
+                coordinate,
+                result,
+                incoming,
+            )
+        return DistributedTwoRadial2DState(self.layout, state.rank, result)
 
     def _apply_coordinate(
         self,
@@ -615,7 +698,11 @@ class TwoRadialDistributed2DHamiltonian:
         working: np.ndarray,
         weak: np.ndarray,
         offsets,
+        *,
+        element_matrices=None,
     ) -> None:
+        if element_matrices is None:
+            element_matrices = self._element_matrices
         axis = _coordinate_axis(coordinate)
         partition = _coordinate_partition(self.layout.partition(rank), coordinate)
         elements = tuple(partition.element_indices)
@@ -626,7 +713,7 @@ class TwoRadialDistributed2DHamiltonian:
             local_values = np.moveaxis(local_values, axis, -1)
             local_action = np.einsum(
                 "ij,...j->...i",
-                self._element_matrices[coordinate][element],
+                element_matrices[coordinate][element],
                 local_values,
                 optimize=True,
             )
@@ -703,6 +790,26 @@ class TwoRadialDistributed2DHamiltonian:
         result += diagonal * state.coefficients
         return result
 
+    def _finish_first_derivative(
+        self,
+        state: DistributedTwoRadial2DState,
+        coordinate: int,
+        weak_owned: np.ndarray,
+    ) -> np.ndarray:
+        axis = _coordinate_axis(coordinate)
+        partition = _coordinate_partition(state.partition, coordinate)
+        grid = (
+            self.representation.grid1
+            if coordinate == 1
+            else self.representation.grid2
+        )
+        weights = grid.weights[partition.owned_indices]
+        return weak_owned / _reshape_for_axis(
+            weights,
+            weak_owned.ndim,
+            axis,
+        )
+
     def _add_incoming(
         self,
         state: DistributedTwoRadial2DState,
@@ -734,6 +841,35 @@ class TwoRadialDistributed2DHamiltonian:
             axis,
             positions,
             values * _reshape_for_axis(prefactor / weights, values.ndim, axis),
+        )
+
+    def _add_first_derivative_incoming(
+        self,
+        state: DistributedTwoRadial2DState,
+        coordinate: int,
+        result: np.ndarray,
+        incoming: tuple[np.ndarray, np.ndarray],
+    ) -> None:
+        axis = _coordinate_axis(coordinate)
+        partition = _coordinate_partition(state.partition, coordinate)
+        indices, values = incoming
+        positions = np.searchsorted(partition.owned_indices, indices)
+        if np.any(positions >= partition.n_owned) or not np.array_equal(
+            partition.owned_indices[positions],
+            indices,
+        ):
+            raise ValueError("received weak contribution for an unowned index")
+        grid = (
+            self.representation.grid1
+            if coordinate == 1
+            else self.representation.grid2
+        )
+        weights = grid.weights[partition.owned_indices[positions]]
+        _add_axis(
+            result,
+            axis,
+            positions,
+            values / _reshape_for_axis(weights, values.ndim, axis),
         )
 
     def _start_state_halo_exchange(
@@ -1006,6 +1142,23 @@ def _coordinate_element_matrices(grid) -> tuple[np.ndarray, ...]:
         retained = (full_map > 0) & (full_map < dvr.r.size - 1)
         matrices.append(
             np.ascontiguousarray(-stiffness[np.ix_(retained, retained)])
+        )
+    return tuple(matrices)
+
+
+def _coordinate_first_derivative_element_matrices(
+    grid,
+) -> tuple[np.ndarray, ...]:
+    dvr = grid.dvr
+    matrices = []
+    for full_map, derivative in zip(
+        dvr.element_dof_maps,
+        dvr.local_first_derivative_matrices,
+        strict=True,
+    ):
+        retained = (full_map > 0) & (full_map < dvr.r.size - 1)
+        matrices.append(
+            np.ascontiguousarray(derivative[np.ix_(retained, retained)])
         )
     return tuple(matrices)
 
