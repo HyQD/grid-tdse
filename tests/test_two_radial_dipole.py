@@ -361,6 +361,37 @@ def test_electromagnetic_fields_profile_is_accepted(gauge):
     assert interaction.field_amplitude(0.4) == pytest.approx(pulse(0.4))
 
 
+def test_paired_sine_square_fields_satisfy_gauge_relation_and_endpoints():
+    parameters = {
+        "E0": 0.02,
+        "omega": 0.7,
+        "ncycles": 2,
+        "phase": 0.0,
+        "t0": 0.0,
+    }
+    electric_field = SineSquareLaser(gauge="length", **parameters)
+    vector_potential = SineSquareLaser(gauge="velocity", **parameters)
+    duration = 2.0 * np.pi * parameters["ncycles"] / parameters["omega"]
+    times = np.linspace(0.1, duration - 0.1, 17)
+    step = 1.0e-5
+    numerical_field = np.asarray(
+        [
+            -(vector_potential(time + step) - vector_potential(time - step))
+            / (2.0 * step)
+            for time in times
+        ]
+    )
+
+    np.testing.assert_allclose(
+        numerical_field,
+        [electric_field(time) for time in times],
+        atol=2.0e-12,
+        rtol=2.0e-8,
+    )
+    assert vector_potential(0.0) == pytest.approx(0.0, abs=1.0e-15)
+    assert vector_potential(duration) == pytest.approx(0.0, abs=1.0e-15)
+
+
 def test_rejects_field_gauge_mismatch_and_invalid_field_values():
     system = _system()
     velocity_field = SineSquareLaser(

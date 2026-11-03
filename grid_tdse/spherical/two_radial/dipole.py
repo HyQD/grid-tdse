@@ -207,6 +207,101 @@ class AxialCoordinateDipole:
         result *= radial.reshape(shape)
         return -self.coupling * result
 
+    def apply_velocity_gauge_radial_tile(
+        self,
+        state: np.ndarray,
+        radial_coordinates: np.ndarray,
+        first_derivative: np.ndarray,
+    ) -> np.ndarray:
+        """Apply the velocity-gauge action to one rectangular radial tile.
+
+        ``first_derivative`` must contain the assembled strong FEM-DVR first
+        derivative of ``state`` along this operator's radial coordinate.  A
+        Cartesian decomposition can therefore supply bridge-correct values
+        without constructing a global wavefunction.
+        """
+
+        if self.gauge != "velocity":
+            raise ValueError("radial-tile application is available in velocity gauge")
+        values = self._validate_radial_tile(state, radial_coordinates)
+        derivative = np.asarray(first_derivative)
+        if derivative.shape != values.shape:
+            raise ValueError(
+                f"first_derivative has shape {derivative.shape}; expected "
+                f"{values.shape}"
+            )
+        if not np.issubdtype(derivative.dtype, np.number):
+            raise TypeError("first_derivative must contain numeric values")
+
+        radial = np.asarray(radial_coordinates)
+        shape = [1] * values.ndim
+        shape[-3 + self.coordinate] = radial.size
+        divided = values / radial.reshape(shape)
+        derivative_tilde = derivative - divided
+        dtype = np.result_type(values.dtype, derivative.dtype, complex)
+        result = np.zeros(values.shape, dtype=dtype)
+        if self.representation.uses_compact_angular_storage:
+            for output, transitions in enumerate(self._compact_transitions):
+                for input_, angular1, angular2 in transitions:
+                    result[output] += (
+                        angular1 * derivative_tilde[input_]
+                        - angular2 * divided[input_]
+                    )
+        elif self.coordinate == 1:
+            result = np.einsum(
+                "oa,abij->obij",
+                self._momentum.pz_lm_1,
+                derivative_tilde,
+                optimize=True,
+            )
+            result -= np.einsum(
+                "oa,abij->obij",
+                self._momentum.pz_lm_2,
+                divided,
+                optimize=True,
+            )
+        else:
+            result = np.einsum(
+                "ob,abij->aoij",
+                self._momentum.pz_lm_1,
+                derivative_tilde,
+                optimize=True,
+            )
+            result -= np.einsum(
+                "ob,abij->aoij",
+                self._momentum.pz_lm_2,
+                divided,
+                optimize=True,
+            )
+        return 1j * self.coupling * result
+
+    def _validate_radial_tile(
+        self,
+        state: np.ndarray,
+        radial_coordinates: np.ndarray,
+    ) -> np.ndarray:
+        values = np.asarray(state)
+        expected_angular_shape = self.representation.psi_shape[:-2]
+        if values.ndim != len(expected_angular_shape) + 2:
+            raise ValueError(
+                "state must retain the representation angular axes and two "
+                "radial axes"
+            )
+        if values.shape[:-2] != expected_angular_shape:
+            raise ValueError(
+                f"state has angular shape {values.shape[:-2]}; expected "
+                f"{expected_angular_shape}"
+            )
+        if not np.issubdtype(values.dtype, np.number):
+            raise TypeError("state must contain numeric values")
+        radial = np.asarray(radial_coordinates)
+        axis = values.ndim - 3 + self.coordinate
+        if radial.ndim != 1 or radial.size != values.shape[axis]:
+            raise ValueError(f"radial_coordinates must match state axis {axis}")
+        if not np.issubdtype(radial.dtype, np.number) or not np.isfinite(radial).all():
+            raise ValueError("radial_coordinates must contain finite numbers")
+        return values
+
     def _apply_values(self, values: np.ndarray) -> np.ndarray:
         if self.representation.uses_compact_angular_storage:
             return self._apply_compact(values)

@@ -1,4 +1,4 @@
-"""Validate Cartesian-MPI length-gauge dynamics against a serial reference.
+"""Validate Cartesian-MPI length- or velocity-gauge dynamics against serial.
 
 The initial Davidson state is loaded or computed on rank zero and scattered
 to the selected Cartesian process grid.  Propagation itself retains only the
@@ -8,20 +8,21 @@ For example::
 
     mpiexec -n 4 python examples/mpi_non_bo_diatomic_2d_dynamics.py \
         --process-grid 2x2 \
-        --ground-state-path phase9d_h2p_ground.npz \
+        --ground-state-path phase9g_h2p_ground.npz \
         --initial-state-policy compute-if-missing \
-        --output-json phase9d_2x2.json
+        --field-gauge velocity \
+        --output-json phase9g_velocity_2x2.json
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 from math import isfinite, pi
 from pathlib import Path
 
 import numpy as np
+from electromagnetic_fields import SineSquareLaser
 from mpi4py import MPI
 
 from grid_tdse.spherical.two_radial import (
@@ -45,24 +46,6 @@ from grid_tdse.spherical.two_radial.diatomic import (
     _diatomic_parameters,
     _pair_exchange_parity,
 )
-
-
-@dataclass(frozen=True)
-class SineSquaredElectricField:
-    """Finite sine-square electric field with a sinusoidal carrier."""
-
-    amplitude: float
-    duration: float
-    carrier_cycles: float = 1.0
-    gauge: str = "length"
-
-    def __call__(self, time: float) -> float:
-        if time < 0.0 or time > self.duration:
-            return 0.0
-        envelope = np.sin(pi * time / self.duration) ** 2
-        carrier = np.sin(2.0 * pi * self.carrier_cycles * time / self.duration)
-        return float(self.amplitude * envelope * carrier)
-
 
 def _process_grid(value: str) -> tuple[int, int]:
     try:
@@ -101,11 +84,16 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--time-step", type=float, default=0.01)
     parser.add_argument("--final-time", type=float, default=0.04)
     parser.add_argument("--field-strength", type=float, default=0.02)
-    parser.add_argument("--carrier-cycles", type=float, default=1.0)
+    parser.add_argument(
+        "--field-gauge",
+        choices=("length", "velocity"),
+        default="length",
+    )
+    parser.add_argument("--carrier-cycles", type=int, default=1)
     parser.add_argument("--sample-interval", type=int, default=1)
     parser.add_argument("--krylov-rtol", type=float, default=1.0e-11)
     parser.add_argument("--krylov-atol", type=float, default=1.0e-13)
-    parser.add_argument("--output-json", type=Path, default=Path("phase9d.json"))
+    parser.add_argument("--output-json", type=Path, default=Path("phase9g.json"))
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument(
         "--no-serial-comparison",
@@ -114,11 +102,13 @@ def _arguments() -> argparse.Namespace:
     )
     arguments = parser.parse_args()
     if arguments.l_max < 1:
-        parser.error("--l-max must be at least 1 for length-gauge dynamics")
+        parser.error("--l-max must be at least 1 for field-driven dynamics")
     if arguments.time_step <= 0.0 or not isfinite(arguments.time_step):
         parser.error("--time-step must be positive")
     if arguments.final_time <= 0.0 or not isfinite(arguments.final_time):
         parser.error("--final-time must be positive")
+    if arguments.carrier_cycles <= 0:
+        parser.error("--carrier-cycles must be a positive integer")
     if arguments.sample_interval <= 0:
         parser.error("--sample-interval must be positive")
     if arguments.krylov_rtol <= 0.0 or arguments.krylov_atol < 0.0:
@@ -259,17 +249,27 @@ initialization = prepare_distributed_non_bo_diatomic_dynamics_initial_state(
         "sample_interval": 10,
     },
 )
-pulse = SineSquaredElectricField(
-    arguments.field_strength,
-    arguments.final_time,
-    arguments.carrier_cycles,
+pulse = SineSquareLaser(
+    E0=arguments.field_strength,
+    omega=2.0 * pi * arguments.carrier_cycles / arguments.final_time,
+    ncycles=arguments.carrier_cycles,
+    gauge=arguments.field_gauge,
+    phase=0.0,
+    t0=0.0,
 )
+if arguments.field_gauge == "velocity":
+    endpoint_scale = max(1.0, abs(arguments.field_strength))
+    if abs(float(pulse(0.0))) > 1.0e-12 * endpoint_scale:
+        raise ValueError("velocity-gauge pulse must satisfy A(0)=0")
+    if abs(float(pulse(arguments.final_time))) > 1.0e-12 * endpoint_scale:
+        raise ValueError("velocity-gauge pulse must satisfy A(final_time)=0")
 sampling_policy = DiatomicIonDynamicsSamplingPolicy(interval=arguments.sample_interval)
 solver = TwoRadialDistributed2DRealTimeSolver(
     layout,
     parameters,
     communicator,
     fields=(pulse,),
+    field_gauge=arguments.field_gauge,
     final_time=arguments.final_time,
     time_step=arguments.time_step,
     integrator=arguments.integrator,
@@ -306,7 +306,7 @@ if communicator.rank == 0 and arguments.serial_comparison:
         initial_state=archive,
         pair_exchange_parity=pair_parity,
         fields=(pulse,),
-        field_gauge="length",
+        field_gauge=arguments.field_gauge,
         l_max=arguments.l_max,
         m_max=arguments.l_max,
         lambda_max=2 * arguments.l_max,
@@ -346,12 +346,13 @@ if communicator.rank == 0 and arguments.serial_comparison:
 passed = communicator.bcast(passed if communicator.rank == 0 else None, root=0)
 if communicator.rank == 0:
     report = {
-        "phase": "9d",
+        "phase": "9g",
         "status": "PASS" if passed else "FAIL",
         "system": arguments.system,
         "mpi_ranks": communicator.size,
         "process_grid": layout.process_grid,
         "integrator": arguments.integrator,
+        "field_gauge": arguments.field_gauge,
         "n_steps": distributed.n_steps,
         "norm": distributed.norm,
         "maximum_norm_drift": float(
@@ -369,11 +370,12 @@ if communicator.rank == 0:
         json.dumps(report, indent=2, allow_nan=False) + "\n",
         encoding="utf-8",
     )
-    print("\nPhase 9d Cartesian-MPI length-gauge validation")
+    print("\nPhase 9g Cartesian-MPI gauge validation")
     print(f"Status:                         {report['status']}")
     print(f"MPI ranks:                      {communicator.size}")
     print(f"Process grid:                   {layout.process_grid}")
     print(f"Integrator:                     {arguments.integrator}")
+    print(f"Field gauge:                    {arguments.field_gauge}")
     print(f"Accepted steps:                 {distributed.n_steps}")
     print(f"Norm:                           {distributed.norm:.12f}")
     print(f"Maximum norm drift:             {report['maximum_norm_drift']:.3e}")

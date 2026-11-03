@@ -17,8 +17,10 @@ from grid_tdse.spherical.two_radial import (
     FEMDVRGridSpec,
     TwoRadialAxialDipoleInteraction,
     TwoRadialDistributed2DLayout,
+    TwoRadialDistributed2DHamiltonian,
     TwoRadialDistributed2DLengthGaugeInteraction,
     TwoRadialDistributed2DRealTimeSolver,
+    TwoRadialDistributed2DVelocityGaugeInteraction,
     TwoRadialSystemSpec,
     radial_potential,
 )
@@ -32,7 +34,14 @@ class _Pulse:
         return 0.03 * np.sin(np.pi * time / 0.04) ** 2
 
 
-def _problem():
+class _VelocityPulse:
+    gauge = "velocity"
+
+    def __call__(self, time):
+        return 0.02 * np.sin(np.pi * time / 0.04) ** 2
+
+
+def _problem(*, M_tot=0):
     parameters = _diatomic_parameters("H2+", "2022")
     grid_r = FEMDVRGridSpec([0.0, 1.0, 3.0], [4, 4])
     grid_R = FEMDVRGridSpec([0.0, 0.8, 2.5], [4, 4])
@@ -67,7 +76,7 @@ def _problem():
                 parameters.electron_charge * parameters.partner_charge,
             ),
         ),
-        M_tot=0,
+        M_tot=M_tot,
         radial_coulomb_method="analytic",
     ).build()
     rng = np.random.default_rng(319)
@@ -160,11 +169,12 @@ def _propagator(final_time, integrator="sil"):
 
 
 def _serial_run(system, parameters, state, pulse, final_time, integrator="sil"):
+    gauge = pulse.gauge
     hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
     dipole = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
         system,
         parameters,
-        gauge="length",
+        gauge=gauge,
         fields=(pulse,),
         radial_operator_mode="element-local",
     )
@@ -172,7 +182,7 @@ def _serial_run(system, parameters, state, pulse, final_time, integrator="sil"):
         system,
         parameters,
         hamiltonian,
-        gauge="length",
+        gauge=gauge,
         fields=(pulse,),
         radial_operator_mode="element-local",
     )
@@ -226,6 +236,7 @@ def _distributed_run(
             parameters,
             group.communicator(rank),
             fields=(pulse,),
+            field_gauge=pulse.gauge,
             final_time=final_time,
             time_step=0.01,
             integrator=integrator,
@@ -280,6 +291,93 @@ def test_cartesian_length_gauge_action_matches_serial(process_grid):
         atol=2.0e-14,
         rtol=2.0e-14,
     )
+
+
+@pytest.mark.parametrize("M_tot", [None, 0])
+@pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
+def test_cartesian_velocity_gauge_action_matches_serial(process_grid, M_tot):
+    system, parameters, state = _problem(M_tot=M_tot)
+    pulse = _VelocityPulse()
+    n_ranks = process_grid[0] * process_grid[1]
+    layout = TwoRadialDistributed2DLayout(
+        system,
+        n_ranks,
+        process_grid=process_grid,
+    )
+    local = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(n_ranks)
+    hamiltonians = [
+        TwoRadialDistributed2DHamiltonian(
+            layout,
+            group.communicator(rank),
+        )
+        for rank in range(n_ranks)
+    ]
+    distributed = [
+        TwoRadialDistributed2DVelocityGaugeInteraction(
+            layout,
+            parameters,
+            hamiltonians[rank],
+            fields=(pulse,),
+        )
+        for rank in range(n_ranks)
+    ]
+    serial = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="velocity",
+        fields=(pulse,),
+        radial_operator_mode="element-local",
+    )
+
+    with ThreadPoolExecutor(max_workers=n_ranks) as executor:
+        actions = tuple(
+            executor.map(
+                lambda pair: pair[0](pair[1], 0.013),
+                zip(distributed, local, strict=True),
+            )
+        )
+
+    np.testing.assert_allclose(
+        layout.assemble(actions),
+        serial(state, 0.013),
+        atol=2.0e-13,
+        rtol=2.0e-13,
+    )
+
+
+@pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
+def test_cartesian_velocity_gauge_one_step_matches_serial(process_grid):
+    system, parameters, state = _problem()
+    pulse = _VelocityPulse()
+    serial, serial_series, _ = _serial_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        0.01,
+    )
+    layout, _, distributed = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        process_grid,
+        0.01,
+    )
+
+    actual = layout.assemble(tuple(result.state for result in distributed))
+    np.testing.assert_allclose(actual, serial.state, atol=4.0e-11, rtol=4.0e-11)
+    expected_energy = serial_series.samples[-1].snapshot.energy_numerator
+    for result in distributed:
+        snapshot = result.time_series.samples[-1].snapshot
+        assert snapshot.gauge == "velocity"
+        assert snapshot.field_symbol == "A"
+        assert snapshot.energy_numerator == pytest.approx(
+            expected_energy,
+            abs=8.0e-11,
+            rel=8.0e-11,
+        )
 
 
 @pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])

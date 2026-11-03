@@ -65,6 +65,7 @@ from .distributed_2d_hamiltonian import (
 )
 from .distributed_2d_dipole import (
     TwoRadialDistributed2DLengthGaugeInteraction,
+    TwoRadialDistributed2DVelocityGaugeInteraction,
 )
 from .distributed_2d_ground_state import (
     Distributed2DGroundStateResult,
@@ -213,6 +214,7 @@ __all__ = [
     "TwoRadialDistributed2DLayout",
     "TwoRadialDistributed2DHamiltonian",
     "TwoRadialDistributed2DLengthGaugeInteraction",
+    "TwoRadialDistributed2DVelocityGaugeInteraction",
     "TwoRadialDistributed2DRealTimeSolver",
     "TwoRadialDistributed2DGroundStateSolver",
     "TwoRadialDistributed2DReductions",

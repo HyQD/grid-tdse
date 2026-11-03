@@ -12,8 +12,10 @@ import numpy as np
 from grid_tdse.real_time import RealTimePropagationResult, RealTimePropagator
 
 from .diatomic import DiatomicIonParameters
+from .dipole import DipoleGauge
 from .distributed_2d_dipole import (
     TwoRadialDistributed2DLengthGaugeInteraction,
+    TwoRadialDistributed2DVelocityGaugeInteraction,
 )
 from .distributed_2d_hamiltonian import (
     Distributed2DHamiltonianProfile,
@@ -92,9 +94,10 @@ class TwoRadialDistributed2DRealTimeSolver:
 
     Every rank retains only its permanently owned radial tile.  The
     field-free Hamiltonian exchanges FEM-DVR bridge values along the two
-    Cartesian process directions; the z-polarized length-gauge interaction
-    is point-local and performs no communication.  Krylov inner products and
-    Phase 9b observable samples use batched physical MPI reductions.
+    Cartesian process directions.  The z-polarized length-gauge interaction
+    is point-local, while the velocity-gauge interaction performs the bridge
+    exchanges required by its first radial derivatives.  Krylov inner
+    products and observable samples use batched physical MPI reductions.
     """
 
     def __init__(
@@ -104,6 +107,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         communicator: CartesianRealTimeCommunicator | None = None,
         *,
         fields: Callable[[float], float] | Iterable[Callable[[float], float]] = (),
+        field_gauge: DipoleGauge = "length",
         initial_time: float = 0.0,
         final_time: float,
         time_step: float,
@@ -140,7 +144,15 @@ class TwoRadialDistributed2DRealTimeSolver:
             )
         self.root = _validated_root(root, size)
         self.integrator = integrator
-        self.fields = _field_profiles(fields)
+        if field_gauge not in ("length", "velocity"):
+            raise ValueError("field_gauge must be 'length' or 'velocity'")
+        self.field_gauge = field_gauge
+        self.fields = _field_profiles(fields, field_gauge)
+        _validate_velocity_gauge_initial_vector_potential(
+            self.fields,
+            gauge=field_gauge,
+            initial_time=initial_time,
+        )
         if sampling_policy is None:
             sampling_policy = DiatomicIonDynamicsSamplingPolicy()
         if not isinstance(sampling_policy, DiatomicIonDynamicsSamplingPolicy):
@@ -159,21 +171,38 @@ class TwoRadialDistributed2DRealTimeSolver:
             communicator,
             profile=profile,
         )
-        self.dipole_interaction = (
-            None
-            if not self.fields
-            else TwoRadialDistributed2DLengthGaugeInteraction(
-                layout,
-                parameters,
-                fields=self.fields,
+        if field_gauge == "length":
+            self.dipole_interaction = (
+                None
+                if not self.fields
+                else TwoRadialDistributed2DLengthGaugeInteraction(
+                    layout,
+                    parameters,
+                    fields=self.fields,
+                )
             )
+        else:
+            interaction_fields = self.fields or (lambda time: 0.0,)
+            self.dipole_interaction = (
+                TwoRadialDistributed2DVelocityGaugeInteraction(
+                    layout,
+                    parameters,
+                    self.hamiltonian,
+                    fields=interaction_fields,
+                )
+            )
+        velocity_action = (
+            self.dipole_interaction.spatial_action
+            if field_gauge == "velocity"
+            else None
         )
         self.observable_evaluator = DiatomicIonDynamicsObservableEvaluator(
             self.representation,
             parameters,
             self.hamiltonian,
-            gauge="length",
+            gauge=field_gauge,
             fields=self.fields,
+            velocity_action=velocity_action,
             radial_operator_mode="element-local",
             reality_tolerance=reality_tolerance,
         )
@@ -197,7 +226,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         state: DistributedTwoRadial2DState,
         time: float,
     ) -> DistributedTwoRadial2DState:
-        """Return only the tile-local length-gauge interaction action."""
+        """Return only the configured gauge interaction action."""
 
         self._validate_state(state)
         if self.dipole_interaction is None:
@@ -213,7 +242,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         state: DistributedTwoRadial2DState,
         time: float,
     ) -> DistributedTwoRadial2DState:
-        """Return the field-free plus length-gauge Hamiltonian action."""
+        """Return the field-free plus configured-gauge Hamiltonian action."""
 
         self._validate_state(state)
         field_free = self.hamiltonian(state)
@@ -302,7 +331,10 @@ class TwoRadialDistributed2DRealTimeSolver:
             )
 
 
-def _field_profiles(fields) -> tuple[Callable[[float], float], ...]:
+def _field_profiles(
+    fields,
+    gauge: DipoleGauge,
+) -> tuple[Callable[[float], float], ...]:
     if callable(fields):
         profiles = (fields,)
     elif isinstance(fields, (str, bytes)):
@@ -312,12 +344,37 @@ def _field_profiles(fields) -> tuple[Callable[[float], float], ...]:
     for field in profiles:
         if not callable(field):
             raise TypeError("every field must be callable")
-        gauge = getattr(field, "gauge", "length")
-        if gauge != "length":
+        field_gauge = getattr(field, "gauge", gauge)
+        if field_gauge != gauge:
             raise ValueError(
-                f"Cartesian Phase 9d dynamics requires length gauge, got {gauge!r}"
+                f"field uses gauge {field_gauge!r}, expected {gauge!r}"
             )
     return profiles
+
+
+def _validate_velocity_gauge_initial_vector_potential(
+    fields,
+    *,
+    gauge: DipoleGauge,
+    initial_time: float,
+) -> None:
+    if gauge != "velocity" or not fields:
+        return
+    values = []
+    for field in fields:
+        value = np.asarray(field(initial_time))
+        if value.shape != () or not np.issubdtype(value.dtype, np.number):
+            raise TypeError("velocity-gauge fields must return scalar numeric values")
+        value = complex(value.item())
+        if not np.isfinite(value.real) or not np.isfinite(value.imag):
+            raise ValueError("velocity-gauge fields must return finite values")
+        values.append(value)
+    if abs(sum(values, 0.0j)) > 1.0e-14:
+        raise ValueError(
+            "velocity-gauge dynamics currently require A(initial_time)=0; "
+            "a nonzero vector potential requires an explicit gauge "
+            "transformation of the field-free ground state"
+        )
 
 
 def _communicator_rank_size(communicator, expected_size):
