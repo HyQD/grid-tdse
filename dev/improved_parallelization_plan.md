@@ -911,15 +911,43 @@ Phase 9h deployment.
 
 #### Phase 9g: velocity-gauge dynamics
 
-1. Validate the serial momentum action and extend Cartesian bridge exchange to
+**Implementation status:** complete locally; the angular/time-step convergence
+deployment gate remains to be run on Saga. The Cartesian Hamiltonian now
+exposes bridge-correct strong first derivatives assembled from FEM-DVR weak
+element actions. The distributed velocity interaction reuses those derivatives
+for both propagation and the gauge-covariant energy sampler, without gathering
+the state. Serial and distributed velocity actions, one-step states, and energy
+samples agree on `1 x 2`, `2 x 1`, and `2 x 2` process grids.
+
+1. Build corresponding fields with `electromagnetic-fields.SineSquareLaser`
+   from identical `E0`, `omega`, integer `ncycles`, `phase=0`, and `t0`:
+   use `gauge="length"` for `E(t)` and `gauge="velocity"` for `A(t)`.
+   Numerically verify `E(t) = -dA(t)/dt` and require
+   `A(t0) = A(t_final) = 0`.
+2. Validate the serial momentum action and extend Cartesian bridge exchange to
    the radial derivatives required by the distributed velocity-gauge action.
-2. Compare serial and distributed velocity actions, accepted steps, time
-   series, and final states.
-3. Compare corresponding length- and velocity-gauge calculations, including
-   their gauge-covariant energies.
+3. Compare serial and distributed velocity actions, accepted steps, time
+   series, gauge-covariant energies, and final states. The Cartesian MPI
+   dynamics example accepts `--field-gauge length` or `velocity` and uses the
+   paired `SineSquareLaser` definition for both.
+4. Run paired length- and velocity-gauge calculations over increasing
+   `l_max`, with at least two time steps at each cutoff. Require each gauge to
+   be independently converged in the time step and Krylov tolerance before
+   interpreting the inter-gauge difference.
+5. Compare gauge-invariant observables and gauge-covariant energy samples.
+   Because the finite angular space is not closed under the gauge
+   transformation, do not require close length/velocity agreement at low
+   `l_max`; require the discrepancy to trend downward as the angular cutoff is
+   raised.
+6. Directly compare phase-aligned wavefunctions only at times where `A(t)=0`,
+   including the pulse endpoints. An intermediate-time state comparison
+   requires an explicit gauge transformation and is not an acceptance metric
+   until that transformation is implemented.
 
 **Phase 9g gate:** paired gauge calculations converge to the same physical
-observables within spatial, angular, and temporal discretization errors.
+observables within spatial, angular, and temporal discretization errors. The
+serial/Cartesian implementation gate is satisfied locally; the production
+angular-convergence evidence is pending Saga deployment.
 
 #### Phase 9h: end-to-end dynamics example
 

@@ -186,6 +186,51 @@ def test_cartesian_mpi_edge_exchanges_match_serial_components():
         assert profile.coordinate2_weak_calls == 1
 
 
+@pytest.mark.parametrize("coordinate", [1, 2])
+@pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
+def test_cartesian_first_derivative_matches_serial(coordinate, process_grid):
+    system = _system()
+    n_ranks = process_grid[0] * process_grid[1]
+    layout = TwoRadialDistributed2DLayout(
+        system,
+        n_ranks,
+        process_grid=process_grid,
+    )
+    state = _complex_state(system, seed=963)
+    local = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(n_ranks)
+    operators = [
+        TwoRadialDistributed2DHamiltonian(
+            layout,
+            group.communicator(rank),
+        )
+        for rank in range(n_ranks)
+    ]
+
+    with ThreadPoolExecutor(max_workers=n_ranks) as executor:
+        actions = tuple(
+            executor.map(
+                lambda pair: pair[0].apply_first_derivative(
+                    pair[1],
+                    coordinate,
+                ),
+                zip(operators, local, strict=True),
+            )
+        )
+
+    grid = system.grid1 if coordinate == 1 else system.grid2
+    expected = grid.apply_local_first_derivative(
+        state,
+        axis=-2 if coordinate == 1 else -1,
+    )
+    np.testing.assert_allclose(
+        layout.assemble(actions),
+        expected,
+        atol=2.0e-12,
+        rtol=2.0e-12,
+    )
+
+
 @pytest.mark.parametrize("name", ["H2+", "HD+", "D2+"])
 @pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
 def test_non_bo_diatomic_ions_match_serial(name, process_grid):
