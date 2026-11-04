@@ -48,6 +48,11 @@ correctness and convergence record, not a controlled performance benchmark.
 In particular, the `l_max=8`, `dt=0.02` calculations triggered costly Krylov
 refinement and should not be used to compare steady-state throughput.
 
+Absolute Saga paths in this published archive use `SAGA_USER` and
+`SAGA_PROJECT` placeholders. `SHA256SUMS` was regenerated after this
+sanitization and authenticates the retained sanitized files rather than the
+original cluster copies.
+
 ## Contents
 
 - `jobs.csv`: submission manifest, including retries and time-step
@@ -64,5 +69,4 @@ refinement and should not be used to compare steady-state throughput.
 - `states/`: the smoke state and reusable Davidson ground states for
   `l_max=2,4,6,8`;
 - `numerical_summary.txt`: concise numerical conclusions; and
-- `artifact_checksums.sha256`: checksums generated at the source run before
-  transfer.
+- `SHA256SUMS`: checksums for every retained sanitized artifact.

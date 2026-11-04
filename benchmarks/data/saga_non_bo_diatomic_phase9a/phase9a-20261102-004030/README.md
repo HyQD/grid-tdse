@@ -39,6 +39,11 @@ to pass the requested seed policy. The patched worker hash and patch date are
 recorded in `provenance.txt`. This was a validation-worker failure, not a
 failure in the grid-tdse initialization implementation.
 
+Absolute Saga paths in this published archive use `SAGA_USER` and
+`SAGA_PROJECT` placeholders. `SHA256SUMS` was regenerated after this
+sanitization and authenticates the retained sanitized files rather than the
+original cluster copies.
+
 ## Contents
 
 - `job_phase9a.sh`: Saga job wrapper and compute-node import preflight;
@@ -47,7 +52,7 @@ failure in the grid-tdse initialization implementation.
 - `jobs_retry.csv`: accepted retry manifest;
 - `sacct_retry.txt`: Slurm accounting for the accepted jobs;
 - `provenance.txt`: worker patch record and SHA-256 hash;
-- `SHA256SUMS`: checksums for the reusable worker, result, and state files;
+- `SHA256SUMS`: checksums for every retained sanitized artifact;
 - `output/`: original and accepted Slurm output;
 - `results/`: accepted machine-readable results; and
 - `states/`: the small serial and MPI initialization archives used by the

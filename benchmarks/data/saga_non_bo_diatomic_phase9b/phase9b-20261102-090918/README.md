@@ -30,6 +30,11 @@ This is a correctness and reduction-semantics gate. The injected linear
 actions and reported conditional energy are synthetic test fixtures, not a
 physical molecular propagation or a performance benchmark.
 
+Absolute Saga paths in this published archive use `SAGA_USER` and
+`SAGA_PROJECT` placeholders. `SHA256SUMS` was regenerated after this
+sanitization and authenticates the retained sanitized files rather than the
+original cluster copies.
+
 ## Contents
 
 - `job_phase9b.sh`: Saga job wrapper and compute-node import preflight;
@@ -39,6 +44,6 @@ physical molecular propagation or a performance benchmark.
 - `sacct.txt`: Slurm accounting for job `20745753`;
 - `output/`: retained Slurm output;
 - `results/`: machine-readable gate result; and
-- `SHA256SUMS`: checksums for every retained run artifact.
+- `SHA256SUMS`: checksums for every retained sanitized artifact.
 
 The generated `__pycache__` directory is intentionally excluded.
