@@ -1,0 +1,110 @@
+JobID                                       JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     MaxRSS        NodeList 
+------------ -------------------------------------- ---------- -------- ---------- ---------- ---------- ---------- --------------- 
+20820714                         p9g_smoke_velocity  COMPLETED      0:0   00:00:52  01:11.810          4                       c3-2 
+20820714.ba+                                  batch  COMPLETED      0:0   00:00:52  00:13.693          4    194892K            c3-2 
+20820714.ex+                                 extern  COMPLETED      0:0   00:00:52   00:00:00          4                       c3-2 
+20820714.0                                     bash  COMPLETED      0:0   00:00:32  00:58.117          4    321716K            c3-2 
+20821876                                p9g_seed_l2  COMPLETED      0:0   00:00:53  02:06.110          4                       c3-1 
+20821876.ba+                                  batch  COMPLETED      0:0   00:00:53  00:10.548          4    172400K            c3-1 
+20821876.ex+                                 extern  COMPLETED      0:0   00:00:53   00:00:00          4                       c3-1 
+20821876.0                                     bash  COMPLETED      0:0   00:00:36  01:55.561          4    275100K            c3-1 
+20821877                       p9g_l2_length_coarse  COMPLETED      0:0   00:00:29  02:10.498         16                       c1-9 
+20821877.ba+                                  batch  COMPLETED      0:0   00:00:29  00:08.432         16    198224K            c1-9 
+20821877.ex+                                 extern  COMPLETED      0:0   00:00:29   00:00:00         16                       c1-9 
+20821877.0                                     bash  COMPLETED      0:0   00:00:14  02:02.065         16    315592K            c1-9 
+20821878                         p9g_l2_length_fine  COMPLETED      0:0   00:00:34  02:59.491         16                      c1-29 
+20821878.ba+                                  batch  COMPLETED      0:0   00:00:34  00:10.547         16    175084K           c1-29 
+20821878.ex+                                 extern  COMPLETED      0:0   00:00:34   00:00:00         16                      c1-29 
+20821878.0                                     bash  COMPLETED      0:0   00:00:17  02:48.943         16    268044K           c1-29 
+20821879                     p9g_l2_velocity_coarse  COMPLETED      0:0   00:00:34  02:43.601         16                      c1-29 
+20821879.ba+                                  batch  COMPLETED      0:0   00:00:34  00:11.850         16    157072K           c1-29 
+20821879.ex+                                 extern  COMPLETED      0:0   00:00:34   00:00:00         16                      c1-29 
+20821879.0                                     bash  COMPLETED      0:0   00:00:16  02:31.750         16    301364K           c1-29 
+20821880                       p9g_l2_velocity_fine  COMPLETED      0:0   00:00:39  04:48.659         16                      c1-39 
+20821880.ba+                                  batch  COMPLETED      0:0   00:00:39  00:08.160         16    197428K           c1-39 
+20821880.ex+                                 extern  COMPLETED      0:0   00:00:39   00:00:00         16                      c1-39 
+20821880.0                                     bash  COMPLETED      0:0   00:00:25  04:40.498         16    330088K           c1-39 
+20821881                                p9g_seed_l4  COMPLETED      0:0   00:01:20  03:59.916          4                       c3-1 
+20821881.ba+                                  batch  COMPLETED      0:0   00:01:20  00:10.826          4    146904K            c3-1 
+20821881.ex+                                 extern  COMPLETED      0:0   00:01:20   00:00:00          4                       c3-1 
+20821881.0                                     bash  COMPLETED      0:0   00:01:02  03:49.090          4    352044K            c3-1 
+20821882                       p9g_l4_length_coarse     FAILED     15:0   00:00:16  00:11.507         16                      c1-39 
+20821882.ba+                                  batch     FAILED     15:0   00:00:16  00:08.412         16    195512K           c1-39 
+20821882.ex+                                 extern  COMPLETED      0:0   00:00:16   00:00:00         16                      c1-39 
+20821882.0                                     bash  CANCELLED     0:15   00:00:02  00:03.094         16     22292K           c1-39 
+20821883                         p9g_l4_length_fine  COMPLETED      0:0   00:00:33  03:16.460         16                      c1-43 
+20821883.ba+                                  batch  COMPLETED      0:0   00:00:33  00:08.309         16    195436K           c1-43 
+20821883.ex+                                 extern  COMPLETED      0:0   00:00:33   00:00:00         16                      c1-43 
+20821883.0                                     bash  COMPLETED      0:0   00:00:18  03:08.150         16    319772K           c1-43 
+20821884                     p9g_l4_velocity_coarse  COMPLETED      0:0   00:00:36  03:34.929         16                      c1-56 
+20821884.ba+                                  batch  COMPLETED      0:0   00:00:36  00:08.484         16    166564K           c1-56 
+20821884.ex+                                 extern  COMPLETED      0:0   00:00:36   00:00:00         16                      c1-56 
+20821884.0                                     bash  COMPLETED      0:0   00:00:22  03:26.445         16    315260K           c1-56 
+20821885                       p9g_l4_velocity_fine  COMPLETED      0:0   00:00:37  03:50.749         16                      c1-56 
+20821885.ba+                                  batch  COMPLETED      0:0   00:00:37  00:08.428         16    168652K           c1-56 
+20821885.ex+                                 extern  COMPLETED      0:0   00:00:37   00:00:00         16                      c1-56 
+20821885.0                                     bash  COMPLETED      0:0   00:00:23  03:42.321         16    293440K           c1-56 
+20821886                                p9g_seed_l6  COMPLETED      0:0   00:02:38  09:11.678          4                       c3-1 
+20821886.ba+                                  batch  COMPLETED      0:0   00:02:38  00:10.822          4    150264K            c3-1 
+20821886.ex+                                 extern  COMPLETED      0:0   00:02:38   00:00:00          4                       c3-1 
+20821886.0                                     bash  COMPLETED      0:0   00:02:21  09:00.855          4    421288K            c3-1 
+20821887                       p9g_l6_length_coarse  COMPLETED      0:0   00:00:48  07:32.053         16                       c1-9 
+20821887.ba+                                  batch  COMPLETED      0:0   00:00:48  00:08.639         16    195848K            c1-9 
+20821887.ex+                                 extern  COMPLETED      0:0   00:00:48   00:00:00         16                       c1-9 
+20821887.0                                     bash  COMPLETED      0:0   00:00:35  07:23.413         16    339588K            c1-9 
+20821888                         p9g_l6_length_fine  COMPLETED      0:0   00:00:53  08:45.765         16                      c1-22 
+20821888.ba+                                  batch  COMPLETED      0:0   00:00:53  00:09.750         16    196712K           c1-22 
+20821888.ex+                                 extern  COMPLETED      0:0   00:00:53   00:00:00         16                      c1-22 
+20821888.0                                     bash  COMPLETED      0:0   00:00:39  08:36.015         16    341536K           c1-22 
+20821889                     p9g_l6_velocity_coarse  COMPLETED      0:0   00:01:05  10:43.848         16                      c1-29 
+20821889.ba+                                  batch  COMPLETED      0:0   00:01:05  00:10.618         16    163704K           c1-29 
+20821889.ex+                                 extern  COMPLETED      0:0   00:01:05   00:00:00         16                      c1-29 
+20821889.0                                     bash  COMPLETED      0:0   00:00:50  10:33.230         16    299332K           c1-29 
+20821890                       p9g_l6_velocity_fine  COMPLETED      0:0   00:01:10  11:57.699         16                      c1-29 
+20821890.ba+                                  batch  COMPLETED      0:0   00:01:10  00:10.514         16    166788K           c1-29 
+20821890.ex+                                 extern  COMPLETED      0:0   00:01:10   00:00:00         16                      c1-29 
+20821890.0                                     bash  COMPLETED      0:0   00:00:55  11:47.184         16    333336K           c1-29 
+20821891                                p9g_seed_l8  COMPLETED      0:0   00:04:20  16:00.713          4                       c3-1 
+20821891.ba+                                  batch  COMPLETED      0:0   00:04:20  00:10.794          4    180228K            c3-1 
+20821891.ex+                                 extern  COMPLETED      0:0   00:04:20   00:00:00          4                       c3-1 
+20821891.0                                     bash  COMPLETED      0:0   00:04:04  15:49.918          4    615264K            c3-1 
+20821892                       p9g_l8_length_coarse  COMPLETED      0:0   00:11:02   02:47:25         16                       c1-2 
+20821892.ba+                                  batch  COMPLETED      0:0   00:11:02  00:18.695         16    194896K            c1-2 
+20821892.ex+                                 extern  COMPLETED      0:0   00:11:02   00:00:00         16                       c1-2 
+20821892.0                                     bash  COMPLETED      0:0   00:10:39   02:47:07         16    383512K            c1-2 
+20821893                         p9g_l8_length_fine  COMPLETED      0:0   00:02:29  34:06.893         16                       c1-9 
+20821893.ba+                                  batch  COMPLETED      0:0   00:02:29  00:08.422         16    194748K            c1-9 
+20821893.ex+                                 extern  COMPLETED      0:0   00:02:29   00:00:00         16                       c1-9 
+20821893.0                                     bash  COMPLETED      0:0   00:02:15  33:58.470         16    372072K            c1-9 
+20821894                     p9g_l8_velocity_coarse CANCELLED+      0:0   01:10:28   17:28:51         16                      c1-22 
+20821894.ba+                                  batch  CANCELLED     0:15   01:10:29  00:10.823         16    195268K           c1-22 
+20821894.ex+                                 extern  COMPLETED      0:0   01:10:33   00:00:00         16                      c1-22 
+20821894.0                                     bash  CANCELLED     0:15   01:10:18   17:28:40         16    293916K           c1-22 
+20821895                       p9g_l8_velocity_fine  COMPLETED      0:0   00:03:12  45:07.374         16                      c1-29 
+20821895.ba+                                  batch  COMPLETED      0:0   00:03:12  00:09.954         16    196204K           c1-29 
+20821895.ex+                                 extern  COMPLETED      0:0   00:03:12   00:00:00         16                      c1-29 
+20821895.0                                     bash  COMPLETED      0:0   00:02:57  44:57.419         16    375844K           c1-29 
+20826255                 p9g_l4_length_coarse_retry  COMPLETED      0:0   00:01:01  04:48.140         16                       c3-3 
+20826255.ba+                                  batch  COMPLETED      0:0   00:01:01  00:24.260         16     93996K            c3-3 
+20826255.ex+                                 extern  COMPLETED      0:0   00:01:01   00:00:00         16                       c3-3 
+20826255.0                                     bash  COMPLETED      0:0   00:00:25  04:23.879         16      8316K            c3-3 
+20826256               p9g_l8_velocity_coarse_retry  COMPLETED      0:0   00:11:55   02:58:45         16                       c3-3 
+20826256.ba+                                  batch  COMPLETED      0:0   00:11:55  00:24.137         16    202260K            c3-3 
+20826256.ex+                                 extern  COMPLETED      0:0   00:11:55   00:00:00         16                       c3-3 
+20826256.0                                     bash  COMPLETED      0:0   00:11:21   02:58:21         16    352176K            c3-3 
+20826512                    p9g_l8_length_ultrafine  COMPLETED      0:0   00:03:15  43:22.763         16                       c1-8 
+20826512.ba+                                  batch  COMPLETED      0:0   00:03:15  00:12.027         16    338532K            c1-8 
+20826512.ex+                                 extern  COMPLETED      0:0   00:03:15   00:00:00         16                       c1-8 
+20826512.0                                     bash  COMPLETED      0:0   00:02:51  43:10.735         16    325256K            c1-8 
+20826513                  p9g_l8_velocity_ultrafine  COMPLETED      0:0   00:03:37  49:06.716         16                       c1-8 
+20826513.ba+                                  batch  COMPLETED      0:0   00:03:37  00:12.014         16    349104K            c1-8 
+20826513.ex+                                 extern  COMPLETED      0:0   00:03:37   00:00:00         16                       c1-8 
+20826513.0                                     bash  COMPLETED      0:0   00:03:13  48:54.701         16    335072K            c1-8 
+20826531                    p9g_l8_length_superfine  COMPLETED      0:0   00:03:54  55:00.780         16                      c1-22 
+20826531.ba+                                  batch  COMPLETED      0:0   00:03:54  00:13.180         16    418776K           c1-22 
+20826531.ex+                                 extern  COMPLETED      0:0   00:03:54   00:00:00         16                      c1-22 
+20826531.0                                     bash  COMPLETED      0:0   00:03:32  54:47.600         16    339424K           c1-22 
+20826532                  p9g_l8_velocity_superfine  COMPLETED      0:0   00:05:07   01:14:46         16                      c1-27 
+20826532.ba+                                  batch  COMPLETED      0:0   00:05:07  00:11.022         16    412.50M           c1-27 
+20826532.ex+                                 extern  COMPLETED      0:0   00:05:07   00:00:00         16                      c1-27 
+20826532.0                                     bash  COMPLETED      0:0   00:04:47   01:14:35         16    337924K           c1-27 

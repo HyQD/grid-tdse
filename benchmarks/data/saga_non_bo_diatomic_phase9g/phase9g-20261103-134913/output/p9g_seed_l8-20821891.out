@@ -1,0 +1,318 @@
+Starting job 20821891 on c3-1 on Saga at Tue Nov 3 14:10:34 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  4
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Direct eigensolver sample 1 (subspace=1):
+E = -0.126355421664 Eh  |dE| = 0.000e+00 Eh
+dPsi = 0.000e+00  residual = 1.418e-01  norm = 1.000000000000
+Solver iteration time = 2.239955 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 8.000000000000  <R> = 7.516081918660
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.000000000000  <l_r,z> = 0.000000000000
+<l_R^2> = 0.000000000000  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.120774 s  logging=0.000089 s  total=2.360818 s
+Direct eigensolver sample 10 (subspace=10):
+E = -0.473759617137 Eh  |dE| = 5.823e-04 Eh
+dPsi = 1.045e-01  residual = 2.212e-02  norm = 1.000000000000
+Solver iteration time = 0.717405 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 3.711496231344  <R> = 7.163244269009
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 5.931743762970  <l_r,z> = -0.000000000000
+<l_R^2> = 5.931743762970  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.113541 s  logging=0.000076 s  total=0.831022 s
+Direct eigensolver sample 20 (subspace=20):
+E = -0.483438910550 Eh  |dE| = 1.110e-03 Eh
+dPsi = 1.761e-01  residual = 3.025e-02  norm = 1.000000000000
+Solver iteration time = 1.590482 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 3.397608647499  <R> = 6.466757578758
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 5.122836891071  <l_r,z> = -0.000000000000
+<l_R^2> = 5.122836891071  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.103302 s  logging=0.000085 s  total=1.693869 s
+Direct eigensolver sample 30 (subspace=30):
+E = -0.492366777654 Eh  |dE| = 8.896e-04 Eh
+dPsi = 1.257e-01  residual = 3.544e-02  norm = 1.000000000000
+Solver iteration time = 3.108534 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 3.083404030979  <R> = 5.857108320566
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 4.031286558324  <l_r,z> = 0.000000000000
+<l_R^2> = 4.031286558324  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.099500 s  logging=0.000087 s  total=3.208121 s
+Direct eigensolver sample 40 (subspace=14):
+E = -0.503667908872 Eh  |dE| = 1.035e-03 Eh
+dPsi = 1.252e-01  residual = 3.567e-02  norm = 1.000000000000
+Solver iteration time = 0.946420 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 2.793319785371  <R> = 5.267237179919
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 3.170591195246  <l_r,z> = 0.000000000000
+<l_R^2> = 3.170591195246  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.087435 s  logging=0.000063 s  total=1.033918 s
+Direct eigensolver sample 50 (subspace=24):
+E = -0.517049786553 Eh  |dE| = 1.602e-03 Eh
+dPsi = 1.666e-01  residual = 4.501e-02  norm = 1.000000000000
+Solver iteration time = 2.061079 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 2.483376187189  <R> = 4.611627258167
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 2.276264676337  <l_r,z> = -0.000000000000
+<l_R^2> = 2.276264676337  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.085212 s  logging=0.000065 s  total=2.146356 s
+Direct eigensolver sample 60 (subspace=8):
+E = -0.536424432919 Eh  |dE| = 2.114e-03 Eh
+dPsi = 1.805e-01  residual = 6.820e-02  norm = 1.000000000000
+Solver iteration time = 0.542502 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 2.196127578872  <R> = 3.968561183261
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 1.598457496615  <l_r,z> = 0.000000000000
+<l_R^2> = 1.598457496615  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333311
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.081690 s  logging=0.000064 s  total=0.624256 s
+Direct eigensolver sample 70 (subspace=18):
+E = -0.554145676453 Eh  |dE| = 2.188e-03 Eh
+dPsi = 1.815e-01  residual = 1.561e-01  norm = 1.000000000000
+Solver iteration time = 1.360702 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.941686398870  <R> = 3.365963576800
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 1.042410972836  <l_r,z> = 0.000000000000
+<l_R^2> = 1.042410972836  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333331641
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.084311 s  logging=0.000064 s  total=1.445078 s
+Direct eigensolver sample 80 (subspace=28):
+E = -0.575907165213 Eh  |dE| = 1.825e-03 Eh
+dPsi = 1.409e-01  residual = 1.135e-01  norm = 1.000000000000
+Solver iteration time = 2.639170 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.708518437266  <R> = 2.794116934415
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.662782335465  <l_r,z> = 0.000000000000
+<l_R^2> = 0.662782335465  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333310633
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.082959 s  logging=0.000067 s  total=2.722196 s
+Direct eigensolver sample 90 (subspace=12):
+E = -0.586353455604 Eh  |dE| = 5.669e-04 Eh
+dPsi = 7.190e-02  residual = 8.602e-02  norm = 1.000000000000
+Solver iteration time = 0.783163 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.577778417176  <R> = 2.451915370492
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.481078481327  <l_r,z> = 0.000000000000
+<l_R^2> = 0.481078481327  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333278729
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.076394 s  logging=0.000080 s  total=0.859637 s
+Direct eigensolver sample 100 (subspace=22):
+E = -0.591182576399 Eh  |dE| = 2.732e-04 Eh
+dPsi = 5.682e-02  residual = 3.565e-02  norm = 1.000000000000
+Solver iteration time = 1.737196 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.472558238691  <R> = 2.173009428808
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.349028840998  <l_r,z> = -0.000000000000
+<l_R^2> = 0.349028840998  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333259938
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.074088 s  logging=0.000064 s  total=1.811348 s
+Direct eigensolver sample 110 (subspace=6):
+E = -0.592496468664 Eh  |dE| = 3.037e-05 Eh
+dPsi = 1.298e-02  residual = 2.369e-02  norm = 1.000000000000
+Solver iteration time = 0.433877 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.423625475311  <R> = 2.045608587248
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.298555737681  <l_r,z> = 0.000000000000
+<l_R^2> = 0.298555737681  <l_R,z> = -0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333263260
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.079794 s  logging=0.000063 s  total=0.513734 s
+Direct eigensolver sample 120 (subspace=16):
+E = -0.592589427671 Eh  |dE| = 5.267e-07 Eh
+dPsi = 1.471e-03  residual = 2.154e-03  norm = 1.000000000000
+Solver iteration time = 1.117675 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.418002239365  <R> = 2.030719915213
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.293826181047  <l_r,z> = -0.000000000000
+<l_R^2> = 0.293826181047  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333268558
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.081445 s  logging=0.000063 s  total=1.199183 s
+Direct eigensolver sample 130 (subspace=26):
+E = -0.592590005377 Eh  |dE| = 4.687e-10 Eh
+dPsi = 3.801e-05  residual = 8.190e-05  norm = 1.000000000000
+Solver iteration time = 2.334343 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.417941698424  <R> = 2.030559238691
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.293780997802  <l_r,z> = 0.000000000000
+<l_R^2> = 0.293780997802  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333271357
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.094355 s  logging=0.000062 s  total=2.428761 s
+Direct eigensolver sample 140 (subspace=10):
+E = -0.592590005870 Eh  |dE| = 4.053e-13 Eh
+dPsi = 1.203e-06  residual = 1.490e-06  norm = 1.000000000000
+Solver iteration time = 0.697273 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.417941643471  <R> = 2.030559181507
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.293780982798  <l_r,z> = -0.000000000000
+<l_R^2> = 0.293780982798  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333273964
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.101453 s  logging=0.000068 s  total=0.798794 s
+Direct eigensolver sample 150 (subspace=20):
+E = -0.592590005870 Eh  |dE| = 7.772e-15 Eh
+dPsi = 5.693e-08  residual = 4.666e-08  norm = 1.000000000000
+Solver iteration time = 1.633147 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.417941648802  <R> = 2.030559190404
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.293780980683  <l_r,z> = 0.000000000000
+<l_R^2> = 0.293780980683  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333276630
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.080526 s  logging=0.000065 s  total=1.713738 s
+Direct eigensolver sample 156 (subspace=26):
+E = -0.592590005870 Eh  |dE| = 5.440e-15 Eh
+dPsi = 6.582e-09  residual = 9.067e-09  norm = 1.000000000000
+Solver iteration time = 2.258200 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.417941648960  <R> = 2.030559190582
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.293780980592  <l_r,z> = 0.000000000000
+<l_R^2> = 0.293780980592  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333278211
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.120018 s  logging=0.000070 s  total=2.378287 s
+TDSE      1/1: t=0.02000000  norm=1.000000000000  operator_calls=12  krylov_dimension=12  krylov_error=5.082e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      4
+Process grid:                   (2, 2)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 1
+Norm:                           1.000000000000
+Maximum norm drift:             6.661e-16
+Distributed wall time:          6.800370 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_seed_l8.json
+
+real	4m3.804s
+user	0m0.015s
+sys	0m0.017s
+
+Job 20821891 consumed 0.3 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T14:10:31; waited 3.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   4.3 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821891           4            0.0 %  2026-11-03T14:10:34  260.0 s  0
+20821891.batch     4      1     1.0 %  2026-11-03T14:10:34  260.0 s  0
+20821891.bash      4      4    97.3 %  2026-11-03T14:10:50  244.0 s  0
+
+Used CPU time:   16.0 CPU minutes
+Unused CPU time: 1.3 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821891           8.0        
+20821891.batch     8.0     0.2
+20821891.bash      8.0     1.7
+
+Job 20821891 completed at Tue Nov 3 14:14:54 CET 2026

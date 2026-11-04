@@ -1,0 +1,110 @@
+Starting job 20820714 on c3-2 on Saga at Tue Nov 3 13:49:45 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  4
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Direct eigensolver sample 1 (subspace=1):
+E = -0.128841695012 Eh  |dE| = 0.000e+00 Eh
+dPsi = 0.000e+00  residual = 5.826e-01  norm = 1.000000000000
+Solver iteration time = 5.343883 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 1.000000000000  <R> = 1.499958122053
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.000000000000  <l_r,z> = 0.000000000000
+<l_R^2> = 0.000000000000  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.024898 s  logging=0.000144 s  total=5.368925 s
+Direct eigensolver sample 9 (subspace=9):
+E = -0.333263412840 Eh  |dE| = 2.165e-15 Eh
+dPsi = 5.247e-09  residual = 2.434e-15  norm = 1.000000000000
+Solver iteration time = 0.016859 s
+<I> = 1.000000000000  <P> = 1.000000000000
+<r> = 0.758844509518  <R> = 1.000622282494
+<L^2> = 0.000000000000  <L_z> = 0.000000000000
+<l_r^2> = 0.000000000000  <l_r,z> = 0.000000000000
+<l_R^2> = 0.000000000000  <l_R,z> = 0.000000000000
+<cos(theta_R)> = 0.000000000000  <cos^2(theta_R)> = 0.333333333333
+d_r = (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+d_R = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+d_total = (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Sampling timing: observables=0.003443 s  logging=0.000076 s  total=0.020378 s
+TDSE      4/4: t=0.04000000  norm=1.000000000000  operator_calls=3  krylov_dimension=3  krylov_error=9.805e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      4
+Process grid:                   (2, 2)
+Integrator:                     sil
+Field gauge:                    velocity
+Accepted steps:                 4
+Norm:                           1.000000000000
+Maximum norm drift:             2.220e-16
+Serial state difference:        3.854e-16
+Time-series maximum difference: 1.998e-15
+Distributed wall time:          3.130358 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_smoke_velocity.json
+
+real	0m32.066s
+user	0m0.019s
+sys	0m0.023s
+
+Job 20820714 consumed 0.1 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T13:49:44; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 20.0 minutes
+Elapsed wallclock time:   52.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20820714           4            0.0 %  2026-11-03T13:49:45   52.0 s  0
+20820714.batch     4      1     6.6 %  2026-11-03T13:49:45   52.0 s  0
+20820714.bash      4      4    45.4 %  2026-11-03T13:50:05   32.0 s  0
+
+Used CPU time:   1.2 CPU minutes
+Unused CPU time: 2.3 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20820714           8.0        
+20820714.batch     8.0     0.2
+20820714.bash      8.0     1.1
+
+Job 20820714 completed at Tue Nov 3 13:50:38 CET 2026

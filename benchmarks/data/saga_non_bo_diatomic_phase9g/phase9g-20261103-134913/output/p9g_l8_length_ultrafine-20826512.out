@@ -1,0 +1,101 @@
+Starting job 20826512 on c1-8 on Saga at Tue Nov 3 16:58:24 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Running serial compute-node import preflight
+2.5.2 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/format.py 0.67.0 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/core/registry.py
+TDSE     10/200: t=0.05000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=7.519e-13
+TDSE     20/200: t=0.10000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=2.746e-12
+TDSE     30/200: t=0.15000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=5.442e-12
+TDSE     40/200: t=0.20000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=7.928e-12
+TDSE     50/200: t=0.25000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=9.129e-12
+TDSE     60/200: t=0.30000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=7.351e-12
+TDSE     70/200: t=0.35000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=6.172e-12
+TDSE     80/200: t=0.40000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.005e-11
+TDSE     90/200: t=0.45000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.298e-12
+TDSE    100/200: t=0.50000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.508e-12
+TDSE    110/200: t=0.55000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.736e-12
+TDSE    120/200: t=0.60000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=3.064e-12
+TDSE    130/200: t=0.65000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=3.374e-12
+TDSE    140/200: t=0.70000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=3.564e-12
+TDSE    150/200: t=0.75000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=9.181e-12
+TDSE    160/200: t=0.80000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=3.944e-12
+TDSE    170/200: t=0.85000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=3.519e-12
+TDSE    180/200: t=0.90000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.911e-12
+TDSE    190/200: t=0.95000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.345e-12
+TDSE    200/200: t=1.00000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.191e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 200
+Norm:                           1.000000000000
+Maximum norm drift:             1.588e-14
+Distributed wall time:          151.285138 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l8_length_ultrafine.json
+
+real	2m50.818s
+user	0m0.006s
+sys	0m0.025s
+
+Job 20826512 consumed 0.9 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T16:58:23; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   3.2 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20826512          16            0.0 %  2026-11-03T16:58:24  195.0 s  0
+20826512.batch    16      1     0.4 %  2026-11-03T16:58:24  195.0 s  0
+20826512.bash     16     16    94.7 %  2026-11-03T16:58:48  171.0 s  0
+
+Used CPU time:   43.4 CPU minutes
+Unused CPU time: 8.6 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20826512          32.0        
+20826512.batch    32.0     0.3
+20826512.bash     32.0     4.9
+
+Job 20826512 completed at Tue Nov 3 17:01:39 CET 2026

@@ -1,0 +1,73 @@
+Phase 9g Saga gauge-validation summary
+======================================
+
+System and representation
+-------------------------
+System: H2+
+Electronic grid: 4 elements x 11 points/element on [0, 16]
+Internuclear grid: 4 elements x 21 points/element on [0, 8]
+Angular cutoffs: l_max = 2, 4, 6, 8
+Process grid: 4 x 4 MPI ranks
+Field strength: 0.02
+Carrier cycles: 1
+Final time: 1.0 a.u.
+CODATA set: 2018
+
+Validation matrix
+-----------------
+Both length- and velocity-gauge calculations completed for l_max=2,4,6,8
+at time steps 0.02 and 0.01. Additional l_max=8 calculations were completed
+at time steps 0.005 and 0.0025.
+
+All canonical result reports passed. The maximum observed norm drift was of
+order 1e-14.
+
+Fine-grid length/velocity maximum differences
+---------------------------------------------
+l_max   dipole_z       energy
+2       4.331e-05      2.706e-08
+4       6.645e-06      1.496e-08
+6       1.621e-06      6.019e-09
+8       5.627e-07      3.020e-09
+
+l_max=8 time-step refinement
+----------------------------
+Length gauge, dt=0.005 versus dt=0.0025:
+  energy      2.991e-10
+  r           6.456e-12
+  R           5.373e-14
+  l_R^2       7.222e-12
+  cos^2(R)    9.664e-14
+  dipole_z    1.032e-08
+
+Velocity gauge, dt=0.005 versus dt=0.0025:
+  energy      7.522e-12
+  r           5.715e-12
+  R           1.421e-14
+  l_R^2       7.168e-12
+  cos^2(R)    1.260e-13
+  dipole_z    9.811e-09
+
+Length/velocity differences at l_max=8 and dt=0.0025:
+  norm        8.105e-15
+  energy      1.487e-09
+  r           2.576e-10
+  R           5.547e-13
+  l_R^2       4.773e-09
+  cos^2(R)    1.297e-11
+  dipole_z    5.734e-07
+
+Canonical L^2 and l_r^2 are excluded from the gauge-invariant convergence
+gate because canonical angular momentum is gauge dependent.
+
+Conclusion
+----------
+Phase 9g passes. Length- and velocity-gauge discrepancies in the physical
+observables decrease strongly with l_max. At l_max=8, the remaining gauge
+differences are separated from the measured time-step errors and are
+consistent with finite angular and radial representation errors.
+
+The midpoint propagation displays the expected time-step convergence.
+Time steps 0.005 and 0.0025 provide reference-quality l_max=8 results.
+The dt=0.02 l_max=8 runs should not be used as performance references because
+they triggered significantly more expensive Krylov refinement.

@@ -1,0 +1,89 @@
+Starting job 20821888 on c1-22 on Saga at Tue Nov 3 14:13:11 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+TDSE     10/100: t=0.10000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=2.130e-12
+TDSE     20/100: t=0.20000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=6.881e-12
+TDSE     30/100: t=0.30000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=8.730e-12
+TDSE     40/100: t=0.40000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=7.353e-12
+TDSE     50/100: t=0.50000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=9.280e-12
+TDSE     60/100: t=0.60000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=9.613e-12
+TDSE     70/100: t=0.70000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=5.337e-12
+TDSE     80/100: t=0.80000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=9.150e-12
+TDSE     90/100: t=0.90000000  norm=1.000000000000  operator_calls=11  krylov_dimension=11  krylov_error=4.720e-12
+TDSE    100/100: t=1.00000000  norm=1.000000000000  operator_calls=10  krylov_dimension=10  krylov_error=5.042e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 100
+Norm:                           1.000000000000
+Maximum norm drift:             4.219e-15
+Distributed wall time:          25.432008 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l6_length_fine.json
+
+real	0m39.104s
+user	0m0.013s
+sys	0m0.019s
+
+Job 20821888 consumed 0.2 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T14:10:31; waited 0.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   53.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821888          16            0.0 %  2026-11-03T14:13:11   53.0 s  0
+20821888.batch    16      1     1.1 %  2026-11-03T14:13:11   53.0 s  0
+20821888.bash     16     16    82.7 %  2026-11-03T14:13:25   39.0 s  0
+
+Used CPU time:   8.8 CPU minutes
+Unused CPU time: 5.4 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821888          32.0        
+20821888.batch    32.0     0.2
+20821888.bash     32.0     4.5
+
+Job 20821888 completed at Tue Nov 3 14:14:05 CET 2026
