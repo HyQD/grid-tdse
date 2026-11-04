@@ -1,15 +1,30 @@
+import importlib.util
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from examples.spherical.two_radial.non_bo_diatomic_end_to_end_common import (
-    DEFAULT_ELECTRONIC_NODES,
-    DEFAULT_INTERNUCLEAR_NODES,
-    absorbing_boundaries,
-    configuration_record,
-    dynamics_representation,
-    physical_setup,
+
+SCRIPT_PATH = (
+    Path(__file__).parents[1]
+    / "examples"
+    / "spherical"
+    / "two_radial"
+    / "non_bo_diatomic_end_to_end_common.py"
 )
+SPEC = importlib.util.spec_from_file_location(
+    "non_bo_diatomic_end_to_end_common",
+    SCRIPT_PATH,
+)
+COMMON = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(COMMON)
+
+DEFAULT_ELECTRONIC_NODES = COMMON.DEFAULT_ELECTRONIC_NODES
+DEFAULT_INTERNUCLEAR_NODES = COMMON.DEFAULT_INTERNUCLEAR_NODES
+absorbing_boundaries = COMMON.absorbing_boundaries
+configuration_record = COMMON.configuration_record
+dynamics_representation = COMMON.dynamics_representation
+physical_setup = COMMON.physical_setup
 
 
 def _arguments(**updates):
