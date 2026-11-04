@@ -1,0 +1,85 @@
+Starting job 20821892 on c1-2 on Saga at Tue Nov 3 14:14:55 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Matplotlib is building the font cache; this may take a moment.
+TDSE     10/50: t=0.20000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=2.094e-12
+TDSE     20/50: t=0.40000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=2.664e-12
+TDSE     30/50: t=0.60000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=3.805e-12
+TDSE     40/50: t=0.80000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=5.191e-12
+TDSE     50/50: t=1.00000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=6.249e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 50
+Norm:                           1.000000000000
+Maximum norm drift:             2.187e-14
+Distributed wall time:          609.894135 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l8_length_coarse.json
+
+real	10m39.033s
+user	0m0.015s
+sys	0m0.031s
+
+Job 20821892 consumed 2.9 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T14:10:32; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   11.0 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821892          16            0.0 %  2026-11-03T14:14:55  662.0 s  0
+20821892.batch    16      1     0.2 %  2026-11-03T14:14:55  662.0 s  0
+20821892.bash     16     16    98.1 %  2026-11-03T14:15:18  639.0 s  0
+
+Used CPU time:   2.8 CPU hours
+Unused CPU time: 9.1 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821892          32.0        
+20821892.batch    32.0     0.2
+20821892.bash     32.0     5.1
+
+Job 20821892 completed at Tue Nov 3 14:25:58 CET 2026

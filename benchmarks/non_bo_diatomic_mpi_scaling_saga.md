@@ -615,6 +615,35 @@ reduction semantics, diagnostics, and sampling policy. The injected operator
 actions are synthetic correctness fixtures, so the recorded energy is not a
 physical H2+ result and the run is not a performance benchmark.
 
+## Phase 9g velocity-gauge convergence
+
+The Phase 9g Saga deployment series ran on 2026-11-03 at grid-tdse commit
+`a0841c2a029995dc99f35a7d2be44dcf9f1018ba`, with
+`OpenMPI/5.0.10-GCC-15.2.0`. It used H2+, CODATA 2018, a `4e11` electronic
+grid on `[0, 16]`, a `4e21` internuclear grid on `[0, 8]`, and a `4 x 4`
+process grid for the production dynamics. Paired length- and velocity-gauge
+runs covered `l_max=2,4,6,8` at `dt=0.02` and `0.01`; the `l_max=8` pair was
+also refined to `dt=0.005` and `0.0025`.
+
+At `dt=0.01`, the maximum length/velocity dipole-z discrepancy decreased from
+`4.331e-5` at `l_max=2` to `5.627e-7` at `l_max=8`. The gauge-covariant energy
+difference decreased from `2.706e-8` to `3.020e-9` over the same sequence.
+The `l_max=8`, `dt=0.0025` gauge differences were `1.487e-9` for energy,
+`2.576e-10` for `<r>`, `5.547e-13` for `<R>`, `4.773e-9` for `<l_R^2>`,
+`1.297e-11` for `<cos^2(theta_R)>`, and `5.734e-7` for the total z dipole.
+They exceeded their measured `dt=0.005` to `dt=0.0025` time-step errors by
+factors of about 5, 40, 10, 661, 103, and 56, respectively. The remaining
+discrepancies therefore reflect finite angular and radial representation
+errors rather than unresolved time stepping. Norm drift stayed of order
+`1e-14`.
+
+Canonical `<L^2>` and `<l_r^2>` were excluded from this gate because they are
+not gauge-invariant observables. Two transient shared-filesystem import
+failures were rerun successfully after adding a serial compute-node import
+preflight. The failed outputs and successful retries are both retained for
+provenance. These results satisfy the Phase 9g angular- and time-step
+convergence gate.
+
 ## Data
 
 The Phase 1 machine-readable records are in
@@ -641,5 +670,9 @@ JSON, worker, manifests, and small reproducibility states, is in
 The compact Phase 9b validation archive, including the exact gate worker,
 provenance, Slurm output, manifest, checksums, and result JSON, is in
 [`data/saga_non_bo_diatomic_phase9b/phase9b-20261102-090918`](data/saga_non_bo_diatomic_phase9b/phase9b-20261102-090918).
+The Phase 9g convergence archive, including all result JSON files, Slurm
+output, reusable Davidson ground states, accounting, provenance, and source
+checksums, is in
+[`data/saga_non_bo_diatomic_phase9g/phase9g-20261103-134913`](data/saga_non_bo_diatomic_phase9g/phase9g-20261103-134913).
 Raw Slurm output from the larger Phase 1--7 scaling series is intentionally
 not tracked.

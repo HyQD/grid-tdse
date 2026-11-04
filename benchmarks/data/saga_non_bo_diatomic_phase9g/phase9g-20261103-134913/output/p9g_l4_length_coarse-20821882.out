@@ -1,0 +1,90 @@
+Starting job 20821882 on c1-39 on Saga at Tue Nov 3 14:11:52 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Traceback (most recent call last):
+  File "/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD/grid-tdse/examples/mpi_non_bo_diatomic_2d_dynamics.py", line 24, in <module>
+    import numpy as np
+  File "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/__init__.py", line 454, in <module>
+    from . import lib, matrixlib as _mat
+  File "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/__init__.py", line 18, in <module>
+    from . import (
+    ...<23 lines>...
+    )
+  File "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/_npyio_impl.py", line 23, in <module>
+    from . import format
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 759, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 872, in get_code
+  File "<frozen importlib._bootstrap_external>", line 954, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/format.py'
+srun: error: c1-39: task 11: Exited with exit code 1
+srun: Terminating StepId=20821882.0
+[2026-11-03T14:12:08.435] error: *** STEP 20821882.0 ON c1-39 CANCELLED AT 2026-11-03T14:12:08 DUE TO TASK FAILURE ***
+srun: error: c1-39: tasks 0-10,12-15: Terminated
+srun: Force Terminated StepId=20821882.0
+
+real	0m2.284s
+user	0m0.012s
+sys	0m0.015s
+
+Job 20821882 consumed 0.1 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T14:10:29; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   16.0 seconds
+
+Job failed.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821882          16            0.0 %  2026-11-03T14:11:52   16.0 s  143 (command killed by signal 15)
+20821882.batch    16      1     3.3 %  2026-11-03T14:11:52   16.0 s  143 (command killed by signal 15)
+20821882.bash     16     16     9.7 %  2026-11-03T14:12:06    2.0 s  Signal 15
+
+Used CPU time:   11.5 CPU seconds
+Unused CPU time: 4.1 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821882          32.0        
+20821882.batch    32.0     0.2
+20821882.bash     32.0     0.3
+
+Job 20821882 completed at Tue Nov 3 14:12:08 CET 2026

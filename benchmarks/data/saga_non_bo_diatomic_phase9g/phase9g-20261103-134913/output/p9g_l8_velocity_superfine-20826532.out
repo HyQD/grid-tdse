@@ -1,0 +1,121 @@
+Starting job 20826532 on c1-27 on Saga at Tue Nov 3 17:04:47 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:     /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Running serial compute-node import preflight
+2.5.2 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/format.py 0.67.0 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/core/registry.py
+TDSE     10/400: t=0.02500000  norm=1.000000000000  operator_calls=5  krylov_dimension=5  krylov_error=6.408e-13
+TDSE     20/400: t=0.05000000  norm=1.000000000000  operator_calls=6  krylov_dimension=6  krylov_error=4.400e-13
+TDSE     30/400: t=0.07500000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=3.353e-13
+TDSE     40/400: t=0.10000000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=6.774e-13
+TDSE     50/400: t=0.12500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=1.754e-13
+TDSE     60/400: t=0.15000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.210e-13
+TDSE     70/400: t=0.17500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.451e-13
+TDSE     80/400: t=0.20000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.590e-13
+TDSE     90/400: t=0.22500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.695e-13
+TDSE    100/400: t=0.25000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.796e-13
+TDSE    110/400: t=0.27500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=2.898e-13
+TDSE    120/400: t=0.30000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=3.031e-13
+TDSE    130/400: t=0.32500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=4.093e-13
+TDSE    140/400: t=0.35000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.387e-13
+TDSE    150/400: t=0.37500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.375e-13
+TDSE    160/400: t=0.40000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.313e-13
+TDSE    170/400: t=0.42500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.205e-13
+TDSE    180/400: t=0.45000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.056e-13
+TDSE    190/400: t=0.47500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=9.238e-13
+TDSE    200/400: t=0.50000000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=8.740e-13
+TDSE    210/400: t=0.52500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=8.847e-13
+TDSE    220/400: t=0.55000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.066e-13
+TDSE    230/400: t=0.57500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.241e-13
+TDSE    240/400: t=0.60000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.382e-13
+TDSE    250/400: t=0.62500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.482e-13
+TDSE    260/400: t=0.65000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.540e-13
+TDSE    270/400: t=0.67500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.555e-13
+TDSE    280/400: t=0.70000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.531e-13
+TDSE    290/400: t=0.72500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.474e-13
+TDSE    300/400: t=0.75000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.390e-13
+TDSE    310/400: t=0.77500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.294e-13
+TDSE    320/400: t=0.80000000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.195e-13
+TDSE    330/400: t=0.82500000  norm=1.000000000000  operator_calls=9  krylov_dimension=9  krylov_error=1.095e-13
+TDSE    340/400: t=0.85000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=9.049e-13
+TDSE    350/400: t=0.87500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=6.040e-13
+TDSE    360/400: t=0.90000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=3.799e-13
+TDSE    370/400: t=0.92500000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=1.876e-13
+TDSE    380/400: t=0.95000000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=4.780e-13
+TDSE    390/400: t=0.97500000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=3.081e-13
+TDSE    400/400: t=1.00000000  norm=1.000000000000  operator_calls=7  krylov_dimension=7  krylov_error=3.554e-13
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    velocity
+Accepted steps:                 400
+Norm:                           1.000000000000
+Maximum norm drift:             6.994e-15
+Distributed wall time:          270.613042 s
+Result JSON:                    /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l8_velocity_superfine.json
+
+real	4m47.354s
+user	0m0.013s
+sys	0m0.019s
+
+Job 20826532 consumed 1.4 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-03T17:04:45; waited 2.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   5.1 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20826532          16            0.0 %  2026-11-03T17:04:47  307.0 s  0
+20826532.batch    16      1     0.2 %  2026-11-03T17:04:47  307.0 s  0
+20826532.bash     16     16    97.5 %  2026-11-03T17:05:07  287.0 s  0
+
+Used CPU time:   1.2 CPU hours
+Unused CPU time: 7.1 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20826532          32.0        
+20826532.batch    32.0     0.4
+20826532.bash     32.0     5.0
+
+Job 20826532 completed at Tue Nov 3 17:09:54 CET 2026
