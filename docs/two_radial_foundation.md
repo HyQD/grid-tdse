@@ -205,7 +205,7 @@ print(sizes)
 ```
 
 The executable
-[`examples/non_bo_diatomic_wavefunction_size.py`](../examples/non_bo_diatomic_wavefunction_size.py)
+[`examples/spherical/two_radial/non_bo_diatomic_wavefunction_size.py`](../examples/spherical/two_radial/non_bo_diatomic_wavefunction_size.py)
 provides command-line options for the system, angular cutoffs, symmetry
 sector, and compact or Cartesian angular storage.
 

@@ -12,7 +12,7 @@ for ranks in 1 2 4; do
         --job-name="gs_${system_label}_${ranks}r" \
         --ntasks="${ranks}" \
         "${job_script}" \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system "${system}" \
         --no-serial-comparison
 done

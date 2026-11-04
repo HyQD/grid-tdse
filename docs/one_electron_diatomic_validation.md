@@ -55,7 +55,7 @@ energy.
 Run the complete validation with
 
 ```bash
-python examples/one_electron_diatomic_validation.py
+python examples/spherical/one_radial/one_electron_diatomic_validation.py
 ```
 
 The default calculation uses `p=21` for the radial-box and angular studies,
@@ -64,13 +64,13 @@ prolate-spheroidal calculation, and saves
 `H2plus_spherical_convergence_R2.pdf`. The controls are listed by
 
 ```bash
-python examples/one_electron_diatomic_validation.py --help
+python examples/spherical/one_radial/one_electron_diatomic_validation.py --help
 ```
 
 The independent radial polynomial-order calculation is
 
 ```bash
-python examples/one_electron_diatomic_p_convergence.py \
+python examples/spherical/one_radial/one_electron_diatomic_p_convergence.py \
     --l-max 4 \
     --p-max 41
 ```

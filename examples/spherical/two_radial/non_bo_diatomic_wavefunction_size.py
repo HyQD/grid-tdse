@@ -2,7 +2,8 @@
 
 For example::
 
-    python examples/non_bo_diatomic_wavefunction_size.py --system H2+ --l-max 4
+    python examples/spherical/two_radial/non_bo_diatomic_wavefunction_size.py \
+        --system H2+ --l-max 4
 
 Use ``--M-tot none`` to estimate selected-basis Cartesian storage. The report
 always includes fully unrestricted real and complex reference arrays as well.

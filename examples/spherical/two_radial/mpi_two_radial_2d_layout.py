@@ -2,7 +2,8 @@
 
 For a four-rank smoke test that also redistributes the state, run::
 
-    mpiexec -n 4 python examples/mpi_two_radial_2d_layout.py \
+    mpiexec -n 4 python \
+        examples/spherical/two_radial/mpi_two_radial_2d_layout.py \
         --process-grid 2 2 --redistribute-process-grid 1 4
 
 The calculation constructs a non-BO H2+ representation and product state, but

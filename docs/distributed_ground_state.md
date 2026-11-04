@@ -155,7 +155,7 @@ OMP_NUM_THREADS=1 \
 OPENBLAS_NUM_THREADS=1 \
 MKL_NUM_THREADS=1 \
 mpiexec --mca btl self,sm -n 2 \
-python examples/mpi_non_bo_diatomic_ground_state.py
+python examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py
 ```
 
 The same local validation can be repeated with `-n 1` and `-n 4`. The example
@@ -172,7 +172,8 @@ The MPI example accepts `--partition-coordinate r` or
 changing the represented system:
 
 ```bash
-mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py \
+mpiexec -n 2 python \
+    examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
     --partition-coordinate r
 ```
 
@@ -202,7 +203,7 @@ OMP_NUM_THREADS=1 \
 OPENBLAS_NUM_THREADS=1 \
 MKL_NUM_THREADS=1 \
 mpiexec --mca btl self,sm -n 4 \
-python -u examples/mpi_non_bo_diatomic_2d_ground_state.py \
+python -u examples/spherical/two_radial/mpi_non_bo_diatomic_2d_ground_state.py \
     --process-grid 2x2 \
     --integrator sil \
     --max-iterations 20

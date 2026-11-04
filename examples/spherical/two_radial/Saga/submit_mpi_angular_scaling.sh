@@ -26,7 +26,7 @@ for l_max in "${l_max_values[@]}"; do
             --job-name="ang_${system_label}_l${l_max}_${ranks}r" \
             --ntasks="${ranks}" \
             "${job_script}" \
-            examples/mpi_non_bo_diatomic_ground_state.py \
+            examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
             --system "${system}" \
             --l-max "${l_max}" \
             --no-serial-comparison

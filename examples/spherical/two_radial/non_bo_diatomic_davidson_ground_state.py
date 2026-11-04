@@ -6,7 +6,7 @@ The radial representation matches the legacy/co-worker reference grid
 
 For example::
 
-    python examples/non_bo_diatomic_davidson_ground_state.py \
+    python examples/spherical/two_radial/non_bo_diatomic_davidson_ground_state.py \
         --system H2+ --l-max 0
 
 For angular-cutoff continuation, the example automatically uses the same

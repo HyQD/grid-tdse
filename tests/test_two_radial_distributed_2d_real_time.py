@@ -16,6 +16,7 @@ from grid_tdse.spherical.two_radial import (
     DiatomicIonDynamicsSamplingPolicy,
     FEMDVRGridSpec,
     TwoRadialAxialDipoleInteraction,
+    TwoRadialAbsorbingBoundaries,
     TwoRadialDistributed2DLayout,
     TwoRadialDistributed2DHamiltonian,
     TwoRadialDistributed2DLengthGaugeInteraction,
@@ -504,3 +505,126 @@ def test_cartesian_short_time_series_and_final_state_match_serial():
                 atol=8.0e-11,
                 rtol=8.0e-11,
             )
+
+
+def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
+    system, parameters, state = _problem()
+    pulse = _Pulse()
+    cap1 = -0.02j * (system.grid1.r / system.grid1.r[-1]) ** 3
+    cap2 = -0.03j * (system.grid2.r / system.grid2.r[-1]) ** 3
+    boundaries = TwoRadialAbsorbingBoundaries(
+        system,
+        cap1=cap1,
+        cap2=cap2,
+    )
+    physical_hamiltonian = system.hamiltonian(
+        radial_operator_mode="element-local"
+    )
+    dipole = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="length",
+        fields=(pulse,),
+        radial_operator_mode="element-local",
+    )
+    evaluator = DiatomicIonDynamicsObservableEvaluator(
+        system,
+        parameters,
+        physical_hamiltonian,
+        gauge="length",
+        fields=(pulse,),
+        radial_operator_mode="element-local",
+    )
+    sampler = DiatomicIonDynamicsSampler(
+        evaluator,
+        policy=DiatomicIonDynamicsSamplingPolicy(interval=1),
+    )
+
+    def serial_action(values, time):
+        return (
+            physical_hamiltonian(values)
+            + dipole(values, time)
+            + boundaries.cap_action(values)
+        )
+
+    def observe(values, step, time, diagnostics, final, checkpoint):
+        sampler.sample(
+            values,
+            step,
+            time,
+            diagnostics=diagnostics,
+            final=final,
+            checkpoint=checkpoint,
+        )
+
+    serial = _propagator(0.02, "sia").propagate(
+        state,
+        serial_action,
+        system.inner_product,
+        state_observer=observe,
+    )
+
+    process_grid = (1, 2)
+    layout = TwoRadialDistributed2DLayout(
+        system,
+        2,
+        process_grid=process_grid,
+    )
+    local = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(2)
+    solvers = [
+        TwoRadialDistributed2DRealTimeSolver(
+            layout,
+            parameters,
+            group.communicator(rank),
+            fields=(pulse,),
+            field_gauge="length",
+            final_time=0.02,
+            time_step=0.01,
+            integrator="sia",
+            max_krylov_dimension=20,
+            krylov_rtol=1.0e-11,
+            krylov_atol=1.0e-13,
+            max_krylov_refinements=6,
+            sampling_policy=DiatomicIonDynamicsSamplingPolicy(interval=1),
+            absorbing_boundaries=boundaries,
+            progress_interval=None,
+        )
+        for rank in range(2)
+    ]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(solver.run, initial)
+            for solver, initial in zip(solvers, local, strict=True)
+        ]
+        distributed = tuple(future.result(timeout=60.0) for future in futures)
+
+    actual = layout.assemble(tuple(result.state for result in distributed))
+    np.testing.assert_allclose(actual, serial.state, atol=6.0e-11, rtol=6.0e-11)
+    expected_energy = sampler.time_series.samples[-1].snapshot.energy_numerator
+    for result in distributed:
+        assert result.norm < result.propagation.initial_norm
+        assert result.time_series.samples[-1].snapshot.energy_numerator == pytest.approx(
+            expected_energy,
+            abs=1.0e-10,
+            rel=1.0e-10,
+        )
+
+
+def test_cartesian_sil_rejects_cap():
+    system, parameters, _ = _problem()
+    boundaries = TwoRadialAbsorbingBoundaries(
+        system,
+        cap1=-0.01j * np.ones(system.grid1.n_points),
+    )
+    layout = TwoRadialDistributed2DLayout(system, 1)
+
+    with pytest.raises(ValueError, match="cannot be used with a CAP"):
+        TwoRadialDistributed2DRealTimeSolver(
+            layout,
+            parameters,
+            final_time=0.01,
+            time_step=0.01,
+            integrator="sil",
+            absorbing_boundaries=boundaries,
+        )

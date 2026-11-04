@@ -160,7 +160,7 @@ iteration result, final symmetry expectations, and initial and final values
 of `<L_total^2>` and `<L_total,z>`.
 
 See
-[`examples/non_bo_diatomic_ground_state.py`](../examples/non_bo_diatomic_ground_state.py)
+[`examples/spherical/two_radial/non_bo_diatomic_ground_state.py`](../examples/spherical/two_radial/non_bo_diatomic_ground_state.py)
 for a complete calculation with every grid, angular, symmetry, and solver
 option shown explicitly. Radial-grid, angular, Coulomb-multipole, and
 imaginary-time-step convergence must all be checked before treating an

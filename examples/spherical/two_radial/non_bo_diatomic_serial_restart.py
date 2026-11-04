@@ -8,7 +8,7 @@ agree.  The default grid is deliberately small enough for a local smoke test.
 
 For example::
 
-    python examples/non_bo_diatomic_serial_restart.py \
+    python examples/spherical/two_radial/non_bo_diatomic_serial_restart.py \
         --run-directory phase9e-smoke \
         --overwrite
 """

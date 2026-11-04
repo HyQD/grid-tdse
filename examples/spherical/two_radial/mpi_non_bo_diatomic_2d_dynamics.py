@@ -6,7 +6,8 @@ permanently owned radial tile on each rank.
 
 For example::
 
-    mpiexec -n 4 python examples/mpi_non_bo_diatomic_2d_dynamics.py \
+    mpiexec -n 4 python \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_2d_dynamics.py \
         --process-grid 2x2 \
         --ground-state-path phase9g_h2p_ground.npz \
         --initial-state-policy compute-if-missing \

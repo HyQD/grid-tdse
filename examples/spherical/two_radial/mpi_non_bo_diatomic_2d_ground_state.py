@@ -2,7 +2,8 @@
 
 For example, run a four-rank ``2 x 2`` SIL calculation with::
 
-    mpiexec -n 4 python examples/mpi_non_bo_diatomic_2d_ground_state.py \
+    mpiexec -n 4 python \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_2d_ground_state.py \
         --process-grid 2x2 --max-iterations 20
 
 The process-grid dimensions must multiply to the MPI size. Omitting

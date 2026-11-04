@@ -2,7 +2,8 @@
 
 Install the optional MPI support and launch, for example, with::
 
-    mpiexec -n 2 python examples/mpi_non_bo_diatomic_ground_state.py
+    mpiexec -n 2 python \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py
 
 Both radial grids have four FEM-DVR elements and therefore support at most
 four ranks. Coordinate 2 (``R``) is partitioned by default; pass

@@ -8,7 +8,8 @@ four-rank smoke run is::
     mpiexec -n 4 python -u benchmarks/non_bo_diatomic_2d_execution.py \
         --process-grid 2 2 --l-max 1 --warmup-actions 1 --actions 3
 
-On Saga, use the phase-6 job and submission scripts in ``examples/Saga`` so
+On Saga, use the phase-6 job and submission scripts in
+``examples/spherical/two_radial/Saga`` so
 rank placement and thread counts are controlled consistently.
 """
 

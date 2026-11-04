@@ -181,8 +181,8 @@ done
 : "${GRID_TDSE_MPI_MODULE:?Set GRID_TDSE_MPI_MODULE in grid_tdse_paths.sh}"
 
 repository="${SRC_ROOT}/grid-tdse"
-template_dir="${repository}/examples/Saga/ground_state_chains"
-worker_source="${repository}/examples/mpi_non_bo_diatomic_ground_state_chain.py"
+template_dir="${repository}/examples/spherical/two_radial/Saga/ground_state_chains"
+worker_source="${repository}/examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state_chain.py"
 run_root="${PROJECT_ROOT}/jobs/grid-tdse/ground-state-chains/${run_name}"
 output_root="${run_root}/output"
 log_root="${run_root}/logs"
