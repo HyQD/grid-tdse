@@ -1,0 +1,86 @@
+Starting job 20826256 on c3-3 on Saga at Tue Nov 3 15:31:40 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Python:     /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Running serial compute-node import preflight
+2.5.2 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/lib/format.py 0.67.0 /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/core/registry.py
+TDSE     10/50: t=0.20000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=5.244e-12
+TDSE     20/50: t=0.40000000  norm=1.000000000000  operator_calls=54  krylov_dimension=17  krylov_error=3.954e-12
+TDSE     30/50: t=0.60000000  norm=1.000000000000  operator_calls=54  krylov_dimension=17  krylov_error=3.669e-12
+TDSE     40/50: t=0.80000000  norm=1.000000000000  operator_calls=53  krylov_dimension=17  krylov_error=5.665e-12
+TDSE     50/50: t=1.00000000  norm=1.000000000000  operator_calls=52  krylov_dimension=16  krylov_error=9.360e-13
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    velocity
+Accepted steps:                 50
+Norm:                           1.000000000000
+Maximum norm drift:             1.743e-14
+Distributed wall time:          653.828967 s
+Result JSON:                    /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l8_velocity_coarse.json
+
+real	11m21.106s
+user	0m0.023s
+sys	0m0.016s
+
+Job 20826256 consumed 3.2 billing hours from project nn4654k.
+
+Submitted 2026-11-03T15:31:38; waited 2.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   11.9 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20826256          16            0.0 %  2026-11-03T15:31:40  715.0 s  0
+20826256.batch    16      1     0.2 %  2026-11-03T15:31:40  715.0 s  0
+20826256.bash     16     16    98.2 %  2026-11-03T15:32:14  681.0 s  0
+
+Used CPU time:   3.0 CPU hours
+Unused CPU time: 11.9 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20826256          32.0        
+20826256.batch    32.0     0.2
+20826256.bash     32.0     5.1
+
+Job 20826256 completed at Tue Nov 3 15:43:36 CET 2026

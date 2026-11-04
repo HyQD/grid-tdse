@@ -141,15 +141,16 @@ The following limitations remain:
   remains useful;
 - Krylov orthogonalization batches basis projections, but norms and iteration
   diagnostics still require latency-sensitive scalar reductions;
-- distributed velocity-gauge interactions and absorbers are not complete;
+- distributed velocity-gauge interactions and serial absorbers are complete,
+  while a Cartesian-MPI absorber deployment smoke test remains advisable;
 - distributed checkpoint output gathers the complete state to rank zero;
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 8 and Phase 9a--9e. Serial
+The non-BO roadmap is complete through Phase 8 and Phase 9a--9g. Serial
 Davidson has removed ground-state preparation from the critical path, so
-distributed Davidson and further ITP optimization are deferred. Phase 9f,
-serial masks, CAPs, and SIA, is next.
+distributed Davidson and further ITP optimization are deferred. Phase 9h, the
+end-to-end dynamics example and acceptance matrix, is next.
 
 ## Saga findings to date
 
@@ -911,8 +912,8 @@ Phase 9h deployment.
 
 #### Phase 9g: velocity-gauge dynamics
 
-**Implementation status:** complete locally; the angular/time-step convergence
-deployment gate remains to be run on Saga. The Cartesian Hamiltonian now
+**Implementation status:** complete locally and validated on Saga. The
+Cartesian Hamiltonian now
 exposes bridge-correct strong first derivatives assembled from FEM-DVR weak
 element actions. The distributed velocity interaction reuses those derivatives
 for both propagation and the gauge-covariant energy sampler, without gathering
@@ -944,10 +945,16 @@ samples agree on `1 x 2`, `2 x 1`, and `2 x 2` process grids.
    requires an explicit gauge transformation and is not an acceptance metric
    until that transformation is implemented.
 
-**Phase 9g gate:** paired gauge calculations converge to the same physical
-observables within spatial, angular, and temporal discretization errors. The
-serial/Cartesian implementation gate is satisfied locally; the production
-angular-convergence evidence is pending Saga deployment.
+**Phase 9g gate:** satisfied locally and on Saga. Paired H2+ calculations on a
+`4e11` electronic grid and `4e21` internuclear grid used 16 MPI ranks at
+`l_max=2,4,6,8`. The maximum fine-step length/velocity dipole difference fell
+from `4.331e-5` at `l_max=2` to `5.627e-7` at `l_max=8`; the corresponding
+energy difference fell from `2.706e-8` to `3.020e-9`. Additional `l_max=8`
+steps at `dt=0.005` and `0.0025` separated the remaining physical-observable
+gauge differences from temporal error, while norm drift remained of order
+`1e-14`. Canonical angular-momentum expectations were excluded from the
+gauge-invariant gate. The complete record is archived under
+`benchmarks/data/saga_non_bo_diatomic_phase9g/phase9g-20261103-134913`.
 
 #### Phase 9h: end-to-end dynamics example
 

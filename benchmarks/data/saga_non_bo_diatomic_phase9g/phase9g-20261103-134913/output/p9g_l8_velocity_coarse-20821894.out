@@ -1,0 +1,109 @@
+Starting job 20821894 on c1-22 on Saga at Tue Nov 3 14:14:55 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Python:     /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Traceback (most recent call last):
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/examples/mpi_non_bo_diatomic_2d_dynamics.py", line 28, in <module>
+    from grid_tdse.spherical.two_radial import (
+    ...<15 lines>...
+    )
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/__init__.py", line 3, in <module>
+    from . import ground_state, real_time, spherical
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/spherical/__init__.py", line 3, in <module>
+    from . import one_radial, two_radial
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/spherical/one_radial/__init__.py", line 3, in <module>
+    from .ground_state import (
+    ...<2 lines>...
+    )
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/spherical/one_radial/ground_state.py", line 9, in <module>
+    from .hamiltonian import OneElectronDiatomicHamiltonian
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-tdse/grid_tdse/spherical/one_radial/hamiltonian.py", line 8, in <module>
+    from grid_lib.pseudospectral_grids import (
+    ...<3 lines>...
+    )
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-lib/grid_lib/__init__.py", line 2, in <module>
+    from .spherical_coordinates import (
+    ...<10 lines>...
+    )
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-lib/grid_lib/spherical_coordinates/__init__.py", line 3, in <module>
+    from .angular_momentum import (
+    ...<7 lines>...
+    )
+  File "/cluster/projects/nn4654k/haakoek/src/HyQD/grid-lib/grid_lib/spherical_coordinates/angular_momentum.py", line 3, in <module>
+    from numba import njit
+  File "/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/__init__.py", line 92, in <module>
+    from numba.core.decorators import (cfunc, jit, njit, stencil,
+                                       jit_module)
+  File "/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/core/decorators.py", line 13, in <module>
+    from numba.stencils.stencil import stencil
+  File "/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/stencils/stencil.py", line 11, in <module>
+    from numba.core import types, typing, utils, ir, config, ir_utils, registry
+  File "<frozen importlib._bootstrap>", line 1371, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1342, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 938, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 759, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 872, in get_code
+  File "<frozen importlib._bootstrap_external>", line 954, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: '/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/core/registry.py'
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+[2026-11-03T15:25:23.298] error: *** JOB 20821894 ON c1-22 CANCELLED AT 2026-11-03T15:25:23 DUE to SIGNAL Terminated ***
+[2026-11-03T15:25:23.299] error: *** STEP 20821894.0 ON c1-22 CANCELLED AT 2026-11-03T15:25:23 DUE to SIGNAL Terminated ***
+
+Job 20821894 consumed 18.8 billing hours from project nn4654k.
+
+Submitted 2026-11-03T14:10:32; waited 0.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   1.2 hours
+
+Job was cancelled.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821894          16            0.0 %  2026-11-03T14:14:55    1.2 h  0
+20821894.batch    16      1     0.0 %  2026-11-03T14:14:55    1.2 h  Signal 15
+20821894.bash     16     16    93.2 %  2026-11-03T14:15:10    1.2 h  Signal 15
+
+Used CPU time:   17.5 CPU hours
+Unused CPU time: 1.3 CPU hours
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821894          32.0        
+20821894.batch    32.0     0.2
+20821894.bash     32.0     3.8
+
+Job 20821894 completed at Tue Nov 3 15:25:30 CET 2026

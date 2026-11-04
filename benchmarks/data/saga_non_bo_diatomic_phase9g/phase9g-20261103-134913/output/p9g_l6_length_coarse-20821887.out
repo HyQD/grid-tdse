@@ -1,0 +1,84 @@
+Starting job 20821887 on c1-9 on Saga at Tue Nov 3 14:13:11 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Python:     /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+TDSE     10/50: t=0.20000000  norm=1.000000000000  operator_calls=17  krylov_dimension=17  krylov_error=3.926e-12
+TDSE     20/50: t=0.40000000  norm=1.000000000000  operator_calls=17  krylov_dimension=17  krylov_error=5.782e-12
+TDSE     30/50: t=0.60000000  norm=1.000000000000  operator_calls=17  krylov_dimension=17  krylov_error=8.094e-12
+TDSE     40/50: t=0.80000000  norm=1.000000000000  operator_calls=18  krylov_dimension=18  krylov_error=3.089e-12
+TDSE     50/50: t=1.00000000  norm=1.000000000000  operator_calls=17  krylov_dimension=17  krylov_error=8.074e-12
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 50
+Norm:                           1.000000000000
+Maximum norm drift:             6.550e-15
+Distributed wall time:          21.297590 s
+Result JSON:                    /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l6_length_coarse.json
+
+real	0m34.517s
+user	0m0.009s
+sys	0m0.019s
+
+Job 20821887 consumed 0.2 billing hours from project nn4654k.
+
+Submitted 2026-11-03T14:10:30; waited 0.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   48.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821887          16            0.0 %  2026-11-03T14:13:11   48.0 s  0
+20821887.batch    16      1     1.1 %  2026-11-03T14:13:11   48.0 s  0
+20821887.bash     16     16    79.2 %  2026-11-03T14:13:24   35.0 s  0
+
+Used CPU time:   7.5 CPU minutes
+Unused CPU time: 5.3 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821887          32.0        
+20821887.batch    32.0     0.2
+20821887.bash     32.0     4.5
+
+Job 20821887 completed at Tue Nov 3 14:13:59 CET 2026

@@ -1,0 +1,89 @@
+Starting job 20821883 on c1-43 on Saga at Tue Nov 3 14:11:52 CET 2026
+
+PROJECT_ROOT=/cluster/projects/nn4654k/haakoek
+ENV_PREFIX=/cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/nn4654k/haakoek/src/HyQD
+Python:     /cluster/projects/nn4654k/haakoek/.conda-envs/grid_tdse/bin/python
+MPI module: OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:  16
+Script:     examples/mpi_non_bo_diatomic_2d_dynamics.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+ 
+
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+TDSE     10/100: t=0.10000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=1.488e-12
+TDSE     20/100: t=0.20000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=3.886e-12
+TDSE     30/100: t=0.30000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=3.296e-12
+TDSE     40/100: t=0.40000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=4.787e-12
+TDSE     50/100: t=0.50000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=6.885e-12
+TDSE     60/100: t=0.60000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=6.325e-12
+TDSE     70/100: t=0.70000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=3.917e-12
+TDSE     80/100: t=0.80000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=6.519e-12
+TDSE     90/100: t=0.90000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=4.820e-12
+TDSE    100/100: t=1.00000000  norm=1.000000000000  operator_calls=8  krylov_dimension=8  krylov_error=9.176e-13
+
+Phase 9g Cartesian-MPI gauge validation
+Status:                         PASS
+MPI ranks:                      16
+Process grid:                   (4, 4)
+Integrator:                     sil
+Field gauge:                    length
+Accepted steps:                 100
+Norm:                           1.000000000000
+Maximum norm drift:             1.887e-15
+Distributed wall time:          7.070915 s
+Result JSON:                    /cluster/projects/nn4654k/haakoek/jobs/grid-tdse/phase9g/phase9g-20261103-134913/results/p9g_l4_length_fine.json
+
+real	0m19.005s
+user	0m0.009s
+sys	0m0.018s
+
+Job 20821883 consumed 0.1 billing hours from project nn4654k.
+
+Submitted 2026-11-03T14:10:29; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 4.0 hours
+Elapsed wallclock time:   33.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20821883          16            0.0 %  2026-11-03T14:11:52   33.0 s  0
+20821883.batch    16      1     1.6 %  2026-11-03T14:11:52   33.0 s  0
+20821883.bash     16     16    65.3 %  2026-11-03T14:12:06   18.0 s  0
+
+Used CPU time:   3.3 CPU minutes
+Unused CPU time: 5.5 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20821883          32.0        
+20821883.batch    32.0     0.2
+20821883.bash     32.0     4.2
+
+Job 20821883 completed at Tue Nov 3 14:12:25 CET 2026
