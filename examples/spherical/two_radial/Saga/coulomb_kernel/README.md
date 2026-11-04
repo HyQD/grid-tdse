@@ -49,8 +49,8 @@ command -v python
 python --version
 python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
 python benchmarks/non_bo_diatomic_coulomb_execution.py --help
-bash -n examples/Saga/coulomb_kernel/job_coulomb_kernel.sh
-bash -n examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh
+bash -n examples/spherical/two_radial/Saga/coulomb_kernel/job_coulomb_kernel.sh
+bash -n examples/spherical/two_radial/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh
 ```
 
 The submission helper creates a unique directory below
@@ -66,7 +66,7 @@ one node and tests tile sizes from 32 through 2048:
 ```bash
 cd "${SRC_ROOT}/grid-tdse"
 
-examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
+examples/spherical/two_radial/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
     --stage tile \
     --system H2+ \
     --run-name h2p-coulomb-tile-l8-sequential
@@ -134,7 +134,7 @@ exit
 If available, run one repetition of the same sweep with counters:
 
 ```bash
-examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
+examples/spherical/two_radial/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
     --stage tile \
     --system H2+ \
     --repetitions 1 \
@@ -157,7 +157,7 @@ dynamics-like input at `l_max = 4, 6, 8`:
 ```bash
 best_tile=<best-tile>
 
-examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
+examples/spherical/two_radial/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
     --stage angular \
     --system H2+ \
     --tile-size "${best_tile}" \
@@ -171,7 +171,7 @@ Then compare 16 MPI ranks x 1 Numba thread, 8 x 2, and 4 x 4. All cases use
 exactly 16 physical cores on one node:
 
 ```bash
-examples/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
+examples/spherical/two_radial/Saga/coulomb_kernel/submit_coulomb_kernel_benchmarks.sh \
     --stage threads \
     --system H2+ \
     --tile-size "${best_tile}" \

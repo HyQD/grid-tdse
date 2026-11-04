@@ -101,7 +101,7 @@ done
 : "${SRC_ROOT:?Source grid_tdse_paths.sh before submitting}"
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-repository_root=$(cd -- "${script_dir}/../../.." && pwd)
+repository_root=$(cd -- "${script_dir}/../../../../.." && pwd)
 if [[ ${repository_root} != "${SRC_ROOT}/grid-tdse" ]]; then
     echo "Warning: submitting scripts from ${repository_root}" >&2
 fi

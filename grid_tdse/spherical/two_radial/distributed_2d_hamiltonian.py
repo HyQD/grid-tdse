@@ -196,14 +196,30 @@ class TwoRadialDistributed2DHamiltonian:
     ) -> DistributedTwoRadial2DState:
         """Apply both radial terms, Coulomb interaction, and optional CAP."""
 
+        physical = self.physical_action(state)
+        values = physical.coefficients
+        if self._local_caps[state.rank] is not None:
+            values = values + self.cap_action(state).coefficients
+        return DistributedTwoRadial2DState(self.layout, state.rank, values)
+
+    def physical_action(
+        self,
+        state: DistributedTwoRadial2DState,
+    ) -> DistributedTwoRadial2DState:
+        """Apply the physical field-free Hamiltonian without a CAP.
+
+        Complex absorbing potentials are propagation devices rather than
+        physical energy terms.  Keeping this action explicit lets dynamics
+        sampling evaluate the physical energy while ``__call__`` retains the
+        full propagation Hamiltonian.
+        """
+
         self._validate_local_state(state)
         if self.profile_enabled:
             self._profile_counts["hamiltonian_calls"] += 1
         values = self.apply_one_body_coordinate1(state).coefficients.copy()
         values += self.apply_one_body_coordinate2(state).coefficients
         self._apply_coulomb_values(state, out=values)
-        if self._local_caps[state.rank] is not None:
-            values += self.cap_action(state).coefficients
         return DistributedTwoRadial2DState(self.layout, state.rank, values)
 
     def components(

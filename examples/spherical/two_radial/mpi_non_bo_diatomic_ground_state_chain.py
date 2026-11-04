@@ -3,7 +3,8 @@
 This production-oriented example embeds a converged lower-``l_max`` archive
 into the next angular basis, solves with distributed Krylov imaginary-time
 propagation, and writes a new self-describing state archive.  It is intended
-for the dependent Saga chains in ``examples/Saga/ground_state_chains``.
+for the dependent Saga chains in
+``examples/spherical/two_radial/Saga/ground_state_chains``.
 """
 
 from __future__ import annotations

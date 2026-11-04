@@ -566,7 +566,7 @@ benchmarks to disable that optional component and avoid the warnings.
 
 Ready-to-edit serial and MPI job scripts, together with a 1-, 2-, and 4-rank
 submission helper, are provided in
-[`examples/Saga`](../examples/Saga/README.md).
+[`examples/spherical/two_radial/Saga`](../examples/spherical/two_radial/Saga/README.md).
 
 ### Choose MPI ranks, CPUs, and nodes
 
@@ -629,7 +629,7 @@ sbatch \
     --ntasks=4 \
     --cpus-per-task=1 \
     job_mpi.sh \
-    examples/mpi_non_bo_diatomic_ground_state.py \
+    examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
     --system H2+
 ```
 
@@ -719,13 +719,13 @@ and rank-series helper into the persistent jobs directory:
 ```bash
 mkdir -p "${PROJECT_ROOT}/jobs/grid-tdse"
 
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_mpi.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/job_mpi.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/submit_mpi_ground_state_rank_series.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_angular_scaling.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/submit_mpi_angular_scaling.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 
 cd "${PROJECT_ROOT}/jobs/grid-tdse"
@@ -760,7 +760,7 @@ bash -n job_mpi.sh
 
 Run this command from the jobs directory and only on the copied script. Do not
 apply project-specific substitutions to the tracked template under
-`${SRC_ROOT}/grid-tdse/examples/Saga`.
+`${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga`.
 
 Do not edit the tracked template in `${SRC_ROOT}/grid-tdse`. When the template
 changes upstream, copy it again and reapply the two project-specific values.
@@ -779,7 +779,7 @@ for ranks in 1 2 4; do
         --job-name="correct_h2p_${ranks}r" \
         --ntasks="${ranks}" \
         job_mpi.sh \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system H2+
 done
 ```
@@ -809,7 +809,7 @@ for ranks in 1 4; do
         --job-name="correct_hdp_${ranks}r" \
         --ntasks="${ranks}" \
         job_mpi.sh \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system HD+
 done
 ```
@@ -840,7 +840,7 @@ sbatch \
     --job-name=correct_h2p_l4_1r \
     --ntasks=1 \
     job_mpi.sh \
-    examples/mpi_non_bo_diatomic_ground_state.py \
+    examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
     --system H2+ \
     --l-max 4
 ```

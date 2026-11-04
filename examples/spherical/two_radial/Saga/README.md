@@ -105,17 +105,17 @@ remains clean:
 
 ```bash
 mkdir -p "${PROJECT_ROOT}/jobs/grid-tdse"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_mpi.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/job_mpi.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_serial.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/job_serial.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_ground_state_rank_series.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/submit_mpi_ground_state_rank_series.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_mpi_angular_scaling.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/submit_mpi_angular_scaling.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/job_hamiltonian_baseline.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/job_hamiltonian_baseline.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
-cp "${SRC_ROOT}/grid-tdse/examples/Saga/submit_hamiltonian_execution_baseline.sh" \
+cp "${SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Saga/submit_hamiltonian_execution_baseline.sh" \
    "${PROJECT_ROOT}/jobs/grid-tdse/"
 
 cd "${PROJECT_ROOT}/jobs/grid-tdse"
@@ -164,7 +164,7 @@ bash -n submit_hamiltonian_execution_baseline.sh
 The serial prototype accepts a Python script followed by its arguments:
 
 ```bash
-sbatch job_serial.sh examples/non_bo_diatomic_ground_state.py
+sbatch job_serial.sh examples/spherical/two_radial/non_bo_diatomic_ground_state.py
 ```
 
 It requests one task and one CPU and launches the program with `srun` on a
@@ -181,7 +181,7 @@ for ranks in 1 2 4; do
         --job-name="correct_h2p_${ranks}r" \
         --ntasks="${ranks}" \
         job_mpi.sh \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system H2+
 done
 ```
@@ -194,7 +194,7 @@ for ranks in 1 4; do
         --job-name="correct_hdp_${ranks}r" \
         --ntasks="${ranks}" \
         job_mpi.sh \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system HD+
 done
 ```
@@ -214,7 +214,7 @@ for coordinate in r R; do
         --job-name="correct_h2p_${coordinate}_2r" \
         --ntasks=2 \
         job_mpi.sh \
-        examples/mpi_non_bo_diatomic_ground_state.py \
+        examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
         --system H2+ \
         --partition-coordinate "${coordinate}"
 done
@@ -280,7 +280,7 @@ sbatch \
     --job-name=correct_h2p_l4_1r \
     --ntasks=1 \
     job_mpi.sh \
-    examples/mpi_non_bo_diatomic_ground_state.py \
+    examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py \
     --system H2+ \
     --l-max 4
 ```
@@ -505,7 +505,7 @@ sbatch \
     --time=00:10:00 \
     --output=p7_h2p_sil_2x2_smoke-%j.out \
     job_mpi.sh \
-    examples/mpi_non_bo_diatomic_2d_ground_state.py \
+    examples/spherical/two_radial/mpi_non_bo_diatomic_2d_ground_state.py \
     --process-grid 2x2 \
     --integrator sil \
     --l-max 0 \

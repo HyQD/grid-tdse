@@ -44,7 +44,7 @@ export OMPI_MCA_coll="^hcoll"
 
 cd "${SRC_ROOT}/grid-tdse"
 
-script=${1:-examples/mpi_non_bo_diatomic_ground_state.py}
+script=${1:-examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state.py}
 if (( $# > 0 )); then
     shift
 fi

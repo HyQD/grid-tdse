@@ -3,11 +3,13 @@
 The default FEM-DVR grids are the grids used by
 ``non_bo_diatomic_ground_state.py``. For example::
 
-    python examples/time_non_bo_diatomic_hamiltonian.py H2+ 4
+    python examples/spherical/two_radial/time_non_bo_diatomic_hamiltonian.py \
+        H2+ 4
 
 Custom grids can be supplied explicitly::
 
-    python examples/time_non_bo_diatomic_hamiltonian.py HD+ 4 \
+    python examples/spherical/two_radial/time_non_bo_diatomic_hamiltonian.py \
+        HD+ 4 \
         --r-nodes 0 4 8 16 --r-points 11 11 11 \
         --R-nodes 0 2 4 6 8 --R-points 21 21 21 21
 

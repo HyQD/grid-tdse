@@ -8,7 +8,7 @@ radial marginals are written as compressed NPZ archives.
 
 For example::
 
-    python examples/non_bo_diatomic_serial_absorbed_dynamics.py \
+    python examples/spherical/two_radial/non_bo_diatomic_serial_absorbed_dynamics.py \
         --run-directory phase9f-smoke \
         --overwrite
 """

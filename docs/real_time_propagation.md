@@ -415,7 +415,8 @@ quadratures and ordered angular channel tables.
 
 ## Helium example
 
-[`examples/tdse_he_atom.py`](../examples/tdse_he_atom.py) first computes the
+[`examples/spherical/two_radial/tdse_he_atom.py`](../examples/spherical/two_radial/tdse_he_atom.py)
+first computes the
 infinite-nuclear-mass helium ground state and then propagates it in a
 z-polarized, one-cycle sine-square laser pulse. The example exposes length and
 velocity gauges through one setting and demonstrates composition of the
@@ -425,9 +426,10 @@ the unnormalized total electronic position expectation and probability norm as
 output with explicit physical, representation, laser, gauge, and CODATA
 metadata.
 
-[`examples/tdse_he_atom_high_level.py`](../examples/tdse_he_atom_high_level.py)
+[`examples/spherical/two_radial/tdse_he_atom_high_level.py`](../examples/spherical/two_radial/tdse_he_atom_high_level.py)
 loads an archived helium ground state and performs the same type of calculation
 through `TwoElectronAtomTDSE` and demonstrates SIL with a post-step mask. The
 corresponding non-Born--Oppenheimer H2+ workflow is shown in
-[`examples/tdse_non_bo_h2p.py`](../examples/tdse_non_bo_h2p.py), which uses SIA
+[`examples/spherical/two_radial/tdse_non_bo_h2p.py`](../examples/spherical/two_radial/tdse_non_bo_h2p.py),
+which uses SIA
 because its CAP makes the Hamiltonian non-Hermitian.

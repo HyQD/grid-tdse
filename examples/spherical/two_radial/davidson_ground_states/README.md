@@ -1,6 +1,7 @@
 # Davidson ground-state archives
 
-`examples/non_bo_diatomic_davidson_ground_state.py` writes converged CODATA
+`examples/spherical/two_radial/non_bo_diatomic_davidson_ground_state.py`
+writes converged CODATA
 2018 H2+, HD+, and D2+ Davidson states to this directory.
 
 Archive names encode the system, symmetry sector, fixed

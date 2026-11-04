@@ -269,7 +269,8 @@ tile size must therefore be recorded alongside MPI communication costs.
 
 ## Benchmark record
 
-Reproducible scripts belong under `examples/Saga`. Summarized results and
+Reproducible scripts belong under `examples/spherical/two_radial/Saga`.
+Summarized results and
 machine-readable measurements should be stored separately:
 
 ```text
@@ -462,7 +463,9 @@ tests cover full and fixed-`M_tot` angular storage and `(1,1)`, `(1,2)`,
 `(2,1)`, and `(2,2)` layouts. Random complex H2+, HD+, and D2+ actions agree
 with the serial element-local Hamiltonian. A real four-rank local MPI run on a
 `(2,2)` grid agreed with serial to `3.6e-15` in the complete action. The
-reusable `examples/mpi_two_radial_2d_hamiltonian.py` driver was then used for
+reusable
+`examples/spherical/two_radial/mpi_two_radial_2d_hamiltonian.py` driver was
+then used for
 Saga deployment validation. On Saga, serial-limit `(1,1)`, one-coordinate `(1,2)`
 and `(2,1)`, and Cartesian `(2,2)` process grids all agreed with the serial
 Hamiltonian. The validation covered H2+, HD+, and D2+, including an H2+
@@ -867,7 +870,8 @@ segments. Unit tests additionally cover snapshot checksum validation,
 manifest output, retained intermediate checkpoints, no-copy checkpoint reuse,
 global snapshot numbering, restart metadata, and continuation under a changed
 field. The runnable gate is
-`examples/non_bo_diatomic_serial_restart.py`. No Saga deployment is required
+`examples/spherical/two_radial/non_bo_diatomic_serial_restart.py`. No Saga
+deployment is required
 for this serial storage and restart phase; filesystem-specific deployment
 checks may be added later when production checkpoint placement is selected.
 
@@ -904,7 +908,8 @@ difference. Resuming the masked calculation from an intermediate post-mask
 checkpoint reproduced the uninterrupted final state to `9.067e-17`.
 
 The runnable gate is
-`examples/non_bo_diatomic_serial_absorbed_dynamics.py`. It writes the masked
+`examples/spherical/two_radial/non_bo_diatomic_serial_absorbed_dynamics.py`.
+It writes the masked
 and CAP radial-density time series as compact NPZ archives plus a JSON summary.
 No Saga deployment is required for this serial acceptance gate; a small
 Cartesian-MPI absorber smoke test remains advisable before the end-to-end
@@ -963,6 +968,54 @@ ground state, embeds it into the dynamics representation, applies a finite
 z-polarized pulse, samples the complete observable contract, writes optional
 wavefunction snapshots and checkpoints, restarts, and reproduces its serial
 result with Cartesian MPI.
+
+**Implementation status:** complete locally; production-grid and Saga
+acceptance runs remain. The serial example is
+`examples/spherical/two_radial/non_bo_diatomic_end_to_end.py`, and its
+independent Cartesian-MPI counterpart is
+`examples/spherical/two_radial/mpi_non_bo_diatomic_2d_end_to_end.py`. Both
+default
+to H2+ with `l_max=2`, `M_tot=0`, a Davidson seed in the legacy `sp` sector
+(`I=+1`, pair exchange `+1`, symmetry adaptation enabled), CODATA 2018, and
+the following grids:
+
+- electronic: `[0, 4, 8, 12, 16, 20]`, 11 points per element;
+- internuclear: `[0, 5, 10]`, 15 points per element.
+
+The seed is embedded into the dynamics basis containing both electronic
+parities. The default field is an `electromagnetic_fields.SineSquareLaser`
+with intensity `3e13 W/cm^2`, wavelength 800 nm, three optical cycles, and
+length gauge. Separate electronic and internuclear `CubicCAP` profiles use
+`alpha=0.8` and `eta=1.0`. Propagation uses SIA with `dt=0.25`. The user must
+provide `--final-time`; the requested timestep is retained exactly, and the
+actual endpoint is rounded upward to the first complete timestep at or beyond
+that target. All physical and numerical values, including the propagation
+endpoint, gauge, CAP
+parameters, output directories, observable interval, wavefunction interval,
+and checkpoint interval, are exposed as command-line options.
+
+At completion, both examples save a common four-panel diagnostic figure with
+the physical electric field (red), induced conditional total dipole,
+gauge-covariant conditional energy, and surviving-norm loss on a logarithmic
+axis. The figure is displayed by default, its path is user-configurable, and
+batch runs can disable interactive display with `--no-show-figure`.
+
+Observables, including norm and raw radial marginals, default to every
+accepted step. Full-wavefunction output defaults to the initial and final
+states, with an optional periodic interval and user-selected directory.
+Rolling serial checkpoints and gathered MPI restart states default to every
+100 accepted steps. The MPI example deliberately performs no inline serial
+calculation: serial and distributed runs are launched separately and their
+archives are compared afterward. Phase 9h MPI snapshots and restart states
+are explicitly root-gathered; scalable distributed I/O remains Phase 10.
+
+Compact two-step serial and two-rank MPI smoke calculations reproduced their
+final states to `3.4e-16` in maximum coefficient error. Restarting the MPI
+calculation from its first accepted-step archive, and exactly resuming the
+serial calculation from its corresponding checkpoint, both reproduced the
+uninterrupted final state exactly. Cartesian CAP/SIA unit tests also compare
+against serial propagation and verify that sampled energy excludes the
+nonphysical CAP term.
 
 **Phase 9 completion gate:** the end-to-end example passes field-free,
 length-gauge, absorber, restart, and gauge-comparison acceptance tests with

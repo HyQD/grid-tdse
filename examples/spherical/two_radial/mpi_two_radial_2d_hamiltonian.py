@@ -2,7 +2,8 @@
 
 For a four-rank H2+ comparison against the serial element-local action, run::
 
-    mpiexec -n 4 python examples/mpi_two_radial_2d_hamiltonian.py \
+    mpiexec -n 4 python \
+        examples/spherical/two_radial/mpi_two_radial_2d_hamiltonian.py \
         --process-grid 2 2 --l-max 1
 
 The example scatters a deterministic complex state, applies the two radial

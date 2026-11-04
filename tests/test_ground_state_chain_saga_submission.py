@@ -6,6 +6,8 @@ REPOSITORY_ROOT = Path(__file__).parents[1]
 SUBMIT_SCRIPT = (
     REPOSITORY_ROOT
     / "examples"
+    / "spherical"
+    / "two_radial"
     / "Saga"
     / "ground_state_chains"
     / "submit_ground_state_chains.sh"
@@ -13,6 +15,8 @@ SUBMIT_SCRIPT = (
 JOB_SCRIPT = (
     REPOSITORY_ROOT
     / "examples"
+    / "spherical"
+    / "two_radial"
     / "Saga"
     / "ground_state_chains"
     / "job_ground_state_chain.sh"
@@ -20,6 +24,8 @@ JOB_SCRIPT = (
 WORKER_SCRIPT = (
     REPOSITORY_ROOT
     / "examples"
+    / "spherical"
+    / "two_radial"
     / "mpi_non_bo_diatomic_ground_state_chain.py"
 )
 

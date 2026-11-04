@@ -9,7 +9,8 @@ outside the timed interval.  For example::
         --process-grid 2 2 --l-max 2 --state-dtype complex \
         --warmup-actions 2 --actions 20
 
-Use the dedicated Saga scripts in ``examples/Saga/coulomb_kernel`` for
+Use the dedicated Saga scripts in
+``examples/spherical/two_radial/Saga/coulomb_kernel`` for
 controlled tile-size and fixed-core MPI/Numba-thread studies.
 """
 

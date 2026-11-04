@@ -11,6 +11,7 @@ import numpy as np
 
 from grid_tdse.real_time import RealTimePropagationResult, RealTimePropagator
 
+from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .diatomic import DiatomicIonParameters
 from .dipole import DipoleGauge
 from .distributed_2d_dipole import (
@@ -120,6 +121,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         krylov_breakdown_tolerance: float = 1.0e-14,
         reality_tolerance: float = 1.0e-10,
         sampling_policy: DiatomicIonDynamicsSamplingPolicy | None = None,
+        absorbing_boundaries: TwoRadialAbsorbingBoundaries | None = None,
         root: int = 0,
         progress_interval: int | None = 10,
         tile_size: int = 2048,
@@ -131,6 +133,20 @@ class TwoRadialDistributed2DRealTimeSolver:
             raise TypeError("parameters must be a DiatomicIonParameters")
         if integrator not in ("sil", "sia"):
             raise ValueError("integrator must be 'sil' or 'sia'")
+        if absorbing_boundaries is not None:
+            if not isinstance(absorbing_boundaries, TwoRadialAbsorbingBoundaries):
+                raise TypeError(
+                    "absorbing_boundaries must be a TwoRadialAbsorbingBoundaries"
+                )
+            if absorbing_boundaries.representation is not layout.representation:
+                raise ValueError(
+                    "absorbing boundaries belong to a different representation"
+                )
+            if integrator == "sil" and absorbing_boundaries.has_cap:
+                raise ValueError(
+                    "integrator 'sil' requires a Hermitian Hamiltonian and "
+                    "cannot be used with a CAP; use 'sia'"
+                )
         if not isinstance(profile, (bool, np.bool_)):
             raise TypeError("profile must be boolean")
         self.layout = layout
@@ -160,10 +176,12 @@ class TwoRadialDistributed2DRealTimeSolver:
                 "sampling_policy must be a DiatomicIonDynamicsSamplingPolicy"
             )
         self.sampling_policy = sampling_policy
+        self.absorbing_boundaries = absorbing_boundaries
         self.hamiltonian = TwoRadialDistributed2DHamiltonian(
             layout,
             communicator,
             tile_size=tile_size,
+            absorbing_boundaries=absorbing_boundaries,
             profile=profile,
         )
         self.reductions = TwoRadialDistributed2DReductions(
@@ -199,7 +217,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         self.observable_evaluator = DiatomicIonDynamicsObservableEvaluator(
             self.representation,
             parameters,
-            self.hamiltonian,
+            self.hamiltonian.physical_action,
             gauge=field_gauge,
             fields=self.fields,
             velocity_action=velocity_action,
@@ -303,11 +321,21 @@ class TwoRadialDistributed2DRealTimeSolver:
             if state_observer is not None:
                 state_observer(state, step, time, diagnostics, final)
 
+        def post_step(coefficients, time):
+            state = self.hamiltonian.apply_mask(local_state(coefficients), time)
+            return state.coefficients
+
         propagation = self.propagator.propagate(
             initial_state.coefficients,
             hamiltonian_action,
             inner_product,
             state_observer=observe,
+            post_step=(
+                post_step
+                if self.absorbing_boundaries is not None
+                and self.absorbing_boundaries.has_mask
+                else None
+            ),
         )
         return Distributed2DRealTimeResult(
             state=local_state(propagation.state),

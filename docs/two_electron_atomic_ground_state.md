@@ -116,7 +116,7 @@ iteration result, spin multiplicity, symmetry expectations, and initial and
 final values of `<L_total^2>` and `<L_total,z>`.
 
 See
-[`examples/two_electron_atom_ground_state.py`](../examples/two_electron_atom_ground_state.py)
+[`examples/spherical/two_radial/two_electron_atom_ground_state.py`](../examples/spherical/two_radial/two_electron_atom_ground_state.py)
 for a complete calculation with every grid, angular, symmetry, and solver
 option shown explicitly. Radial-grid, angular, Coulomb-multipole, and
 imaginary-time-step convergence must all be checked before treating an

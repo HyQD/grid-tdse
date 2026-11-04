@@ -76,9 +76,9 @@ python -m pip check
 command -v python
 git rev-parse HEAD
 python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
-python examples/mpi_non_bo_diatomic_ground_state_chain.py --help
-bash -n examples/Saga/ground_state_chains/job_ground_state_chain.sh
-bash -n examples/Saga/ground_state_chains/submit_ground_state_chains.sh
+python examples/spherical/two_radial/mpi_non_bo_diatomic_ground_state_chain.py --help
+bash -n examples/spherical/two_radial/Saga/ground_state_chains/job_ground_state_chain.sh
+bash -n examples/spherical/two_radial/Saga/ground_state_chains/submit_ground_state_chains.sh
 ```
 
 Do not update the checkout or environment while a chain is queued or running.
@@ -100,7 +100,7 @@ The safest first production submission is the full 11-point H2+ chain:
 ```bash
 cd "${SRC_ROOT}/grid-tdse"
 
-examples/Saga/ground_state_chains/submit_ground_state_chains.sh \
+examples/spherical/two_radial/Saga/ground_state_chains/submit_ground_state_chains.sh \
     --system H2+ \
     --electronic-grid 11 \
     --run-name h2p-e11-ground-state-chain
@@ -132,7 +132,7 @@ After the H2+ 11-point chain behaves as expected, submit H2+, HD+, and D2+.
 This creates six independent dependency chains:
 
 ```bash
-examples/Saga/ground_state_chains/submit_ground_state_chains.sh \
+examples/spherical/two_radial/Saga/ground_state_chains/submit_ground_state_chains.sh \
     --all \
     --electronic-grid both
 ```
@@ -141,7 +141,7 @@ The 21-point chains stop at `l_max=6` by default. Extend them only after
 reviewing elapsed time, memory, and convergence through that cutoff:
 
 ```bash
-examples/Saga/ground_state_chains/submit_ground_state_chains.sh \
+examples/spherical/two_radial/Saga/ground_state_chains/submit_ground_state_chains.sh \
     --all \
     --electronic-grid 21 \
     --extend-21 \
@@ -169,7 +169,7 @@ export GRID_TDSE_CHAIN_MAX_ITERATIONS_L2=20000
 export GRID_TDSE_CHAIN_MAX_ITERATIONS_L4=40000
 export GRID_TDSE_CHAIN_MAX_ITERATIONS_L6=200000
 
-examples/Saga/ground_state_chains/submit_ground_state_chains.sh \
+examples/spherical/two_radial/Saga/ground_state_chains/submit_ground_state_chains.sh \
     --system H2+ \
     --electronic-grid 11 \
     --integrator exponential-euler \

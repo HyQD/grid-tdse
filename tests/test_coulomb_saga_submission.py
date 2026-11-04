@@ -5,7 +5,13 @@ import subprocess
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
 JOB_SCRIPT = (
-    REPOSITORY_ROOT / "examples" / "Saga" / "coulomb_kernel" / "job_coulomb_kernel.sh"
+    REPOSITORY_ROOT
+    / "examples"
+    / "spherical"
+    / "two_radial"
+    / "Saga"
+    / "coulomb_kernel"
+    / "job_coulomb_kernel.sh"
 )
 SUBMIT_SCRIPT = JOB_SCRIPT.with_name("submit_coulomb_kernel_benchmarks.sh")
 
