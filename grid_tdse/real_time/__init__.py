@@ -14,6 +14,7 @@ from .propagation import (
 )
 from .snapshot import (
     RealTimeSnapshotRecord,
+    RealTimeSnapshotSelector,
     RealTimeSnapshotWriter,
     RealTimeStateSnapshot,
     load_real_time_snapshot,
@@ -28,6 +29,7 @@ __all__ = [
     "RealTimePropagationStep",
     "RealTimePropagator",
     "RealTimeSnapshotRecord",
+    "RealTimeSnapshotSelector",
     "RealTimeSnapshotWriter",
     "RealTimeStateSnapshot",
     "StateObserver",

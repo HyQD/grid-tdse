@@ -51,6 +51,9 @@ def _calculation(
     checkpoint_interval=None,
     checkpoint_overwrite=False,
     wavefunction_snapshot_directory=None,
+    wavefunction_snapshot_interval=2,
+    wavefunction_snapshot_steps=None,
+    wavefunction_snapshot_times=None,
     wavefunction_snapshot_prefix="wavefunction",
     mask_r=None,
     mask_R=None,
@@ -99,7 +102,19 @@ def _calculation(
         checkpoint_metadata={"test": "phase9e"},
         wavefunction_snapshot_directory=wavefunction_snapshot_directory,
         wavefunction_snapshot_interval=(
-            2 if wavefunction_snapshot_directory is not None else None
+            wavefunction_snapshot_interval
+            if wavefunction_snapshot_directory is not None
+            else None
+        ),
+        wavefunction_snapshot_steps=(
+            wavefunction_snapshot_steps
+            if wavefunction_snapshot_directory is not None
+            else None
+        ),
+        wavefunction_snapshot_times=(
+            wavefunction_snapshot_times
+            if wavefunction_snapshot_directory is not None
+            else None
         ),
         wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
         wavefunction_snapshot_metadata={"code_provenance": {"source": "test"}},
@@ -380,6 +395,29 @@ def test_phase9e_serial_snapshots_checkpoint_and_continuation(tmp_path):
     extended = load_real_time_checkpoint(checkpoint_path)
     assert len(extended.segments) == 3
     assert extended.segments[-1].dynamics != extended.segments[-2].dynamics
+
+
+def test_serial_tdse_selects_wavefunctions_by_explicit_steps_and_times(tmp_path):
+    seed = _calculation(archive_path=tmp_path / "ground.npz", final_time=0.01)
+    snapshots = tmp_path / "explicit-snapshots"
+    snapshots.mkdir()
+    calculation = _calculation(
+        archive_path=None,
+        initial_state=seed.initialization.archive,
+        final_time=0.04,
+        wavefunction_snapshot_directory=snapshots,
+        wavefunction_snapshot_interval=None,
+        wavefunction_snapshot_steps=[1, 3],
+        wavefunction_snapshot_times=[0.02, 0.025],
+        wavefunction_snapshot_prefix="explicit",
+    )
+
+    with pytest.warns(RuntimeWarning, match=r"times=\[0\.025\]"):
+        calculation.run(progress=False)
+
+    assert [
+        record.accepted_step for record in calculation.wavefunction_snapshots
+    ] == [0, 1, 2, 3, 4]
 
 
 def test_phase9f_masks_caps_and_absorbed_restart(tmp_path):

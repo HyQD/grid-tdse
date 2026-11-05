@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 import hashlib
 from importlib.metadata import PackageNotFoundError, version
@@ -10,6 +11,7 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Any, Literal, Mapping
+import warnings
 
 import numpy as np
 
@@ -132,6 +134,103 @@ class RealTimeSnapshotRecord:
         }
 
 
+class RealTimeSnapshotSelector:
+    """Select accepted states by interval, global step, or absolute time."""
+
+    def __init__(
+        self,
+        *,
+        interval: int | None = None,
+        steps: Iterable[int] | None = None,
+        times: Iterable[float] | None = None,
+        include_initial: bool = True,
+        include_final: bool = True,
+    ) -> None:
+        self.interval = _optional_positive_integer(interval, "snapshot interval")
+        self.steps = _snapshot_steps(steps)
+        self.times = _snapshot_times(times)
+        self.include_initial = _boolean(include_initial, "include_initial")
+        self.include_final = _boolean(include_final, "include_final")
+        self._matched_steps: set[int] = set()
+        self._matched_time_indices: set[int] = set()
+        self._warning_emitted = False
+
+    @property
+    def unmatched_steps(self) -> tuple[int, ...]:
+        """Requested global steps not observed by this selector."""
+
+        return tuple(step for step in self.steps if step not in self._matched_steps)
+
+    @property
+    def unmatched_times(self) -> tuple[float, ...]:
+        """Requested absolute times not observed by this selector."""
+
+        return tuple(
+            time
+            for index, time in enumerate(self.times)
+            if index not in self._matched_time_indices
+        )
+
+    def selected(self, step, local_step, time, *, final=False) -> bool:
+        """Return whether an accepted state belongs to the requested union."""
+
+        step = _nonnegative_integer(step, "accepted_step")
+        local_step = _nonnegative_integer(local_step, "local accepted_step")
+        time = _finite_real(time, "snapshot time")
+        final = _boolean(final, "final")
+
+        step_selected = step in self.steps
+        if step_selected:
+            self._matched_steps.add(step)
+        time_selected = False
+        for index, requested in enumerate(self.times):
+            if _snapshot_times_match(time, requested):
+                self._matched_time_indices.add(index)
+                time_selected = True
+
+        return bool(
+            (local_step == 0 and self.include_initial)
+            or (step > 0 and self.interval is not None and step % self.interval == 0)
+            or step_selected
+            or time_selected
+            or (final and self.include_final)
+        )
+
+    def warn_unmatched(self) -> None:
+        """Warn once about requested steps or times that were not observed."""
+
+        if self._warning_emitted:
+            return
+        self._warning_emitted = True
+        parts = []
+        if self.unmatched_steps:
+            parts.append(f"steps={list(self.unmatched_steps)}")
+        if self.unmatched_times:
+            parts.append(f"times={list(self.unmatched_times)}")
+        if not parts:
+            return
+        warnings.warn(
+            "wavefunction snapshot requests did not match accepted propagation "
+            f"states: {', '.join(parts)}; requested times must coincide with an "
+            "accepted propagation time",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the selection policy and unmatched requests."""
+
+        return {
+            "interval": self.interval,
+            "steps": list(self.steps),
+            "times": list(self.times),
+            "include_initial": self.include_initial,
+            "include_final": self.include_final,
+            "unmatched_steps": list(self.unmatched_steps),
+            "unmatched_times": list(self.unmatched_times),
+        }
+
+
 class RealTimeSnapshotWriter:
     """Retain selected accepted states and write a machine-readable manifest."""
 
@@ -140,6 +239,8 @@ class RealTimeSnapshotWriter:
         directory: str | os.PathLike[str],
         *,
         interval: int | None = None,
+        steps: Iterable[int] | None = None,
+        times: Iterable[float] | None = None,
         include_initial: bool = True,
         include_final: bool = True,
         prefix: str = "wavefunction",
@@ -158,9 +259,18 @@ class RealTimeSnapshotWriter:
             raise FileNotFoundError(
                 f"snapshot directory does not exist: {self.directory}"
             )
-        self.interval = _optional_positive_integer(interval, "snapshot interval")
-        self.include_initial = _boolean(include_initial, "include_initial")
-        self.include_final = _boolean(include_final, "include_final")
+        self.selector = RealTimeSnapshotSelector(
+            interval=interval,
+            steps=steps,
+            times=times,
+            include_initial=include_initial,
+            include_final=include_final,
+        )
+        self.interval = self.selector.interval
+        self.steps = self.selector.steps
+        self.times = self.selector.times
+        self.include_initial = self.selector.include_initial
+        self.include_final = self.selector.include_final
         if not isinstance(prefix, str) or not prefix or Path(prefix).name != prefix:
             raise ValueError("snapshot prefix must be a nonempty file-name component")
         self.prefix = prefix
@@ -217,9 +327,9 @@ class RealTimeSnapshotWriter:
         step = self.accepted_step_offset + local_step
         final = _boolean(final, "final")
         checkpoint = _boolean(checkpoint, "checkpoint")
-        if not self._selected(step, local_step, final):
-            return
         time = _finite_real(time, "snapshot time")
+        if not self.selector.selected(step, local_step, time, final=final):
+            return
         values = _finite_array(state, "snapshot state")
         state_data_id = real_time_state_data_id(values)
         norm = self._norm(values, diagnostics)
@@ -259,6 +369,7 @@ class RealTimeSnapshotWriter:
     def finish(self) -> Path:
         """Atomically write the retained-state manifest."""
 
+        self.selector.warn_unmatched()
         manifest = {
             "format": "grid-tdse-real-time-snapshot-manifest",
             "format_version": 1,
@@ -267,17 +378,11 @@ class RealTimeSnapshotWriter:
             "dynamics": self.dynamics,
             "integrator": self.integrator,
             "metadata": self.metadata,
+            "selection": self.selector.as_dict(),
             "records": [record.as_dict() for record in self._records],
         }
         _atomic_json(self.manifest_path, manifest, overwrite=self.overwrite)
         return self.manifest_path
-
-    def _selected(self, step: int, local_step: int, final: bool) -> bool:
-        return bool(
-            (local_step == 0 and self.include_initial)
-            or (step > 0 and self.interval is not None and step % self.interval == 0)
-            or (final and self.include_final)
-        )
 
     def _norm(self, state, diagnostics) -> float:
         if diagnostics is not None:
@@ -551,6 +656,39 @@ def _optional_positive_integer(value, name: str) -> int | None:
     if result == 0:
         raise ValueError(f"{name} must be positive")
     return result
+
+
+def _snapshot_steps(values) -> tuple[int, ...]:
+    if values is None:
+        return ()
+    try:
+        candidates = tuple(values)
+    except TypeError as exc:
+        raise TypeError("snapshot steps must be an iterable or None") from exc
+    return tuple(
+        sorted(
+            {
+                _nonnegative_integer(value, "snapshot step")
+                for value in candidates
+            }
+        )
+    )
+
+
+def _snapshot_times(values) -> tuple[float, ...]:
+    if values is None:
+        return ()
+    try:
+        candidates = tuple(values)
+    except TypeError as exc:
+        raise TypeError("snapshot times must be an iterable or None") from exc
+    return tuple(sorted({_finite_real(value, "snapshot time") for value in candidates}))
+
+
+def _snapshot_times_match(actual: float, requested: float) -> bool:
+    scale = max(1.0, abs(actual), abs(requested))
+    tolerance = 64.0 * np.finfo(float).eps * scale
+    return bool(np.isclose(actual, requested, rtol=0.0, atol=tolerance))
 
 
 def _boolean(value, name: str) -> bool:

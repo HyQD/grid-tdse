@@ -51,6 +51,8 @@ def _arguments(**updates):
         "checkpoint_interval": 100,
         "no_checkpoints": False,
         "wavefunction_snapshot_interval": None,
+        "wavefunction_snapshot_steps": None,
+        "wavefunction_snapshot_times": None,
         "no_wavefunction_snapshots": False,
     }
     values.update(updates)
@@ -85,6 +87,8 @@ def test_phase9h_defaults_build_requested_physical_problem():
     assert record["time_step"] == 0.25
     assert record["checkpoint_interval"] == 100
     assert record["wavefunction_snapshot_interval"] is None
+    assert record["wavefunction_snapshot_steps"] == []
+    assert record["wavefunction_snapshot_times"] == []
     assert record["field"]["intensity_wcm2"] == 3.0e13
     assert record["field"]["wavelength_nm"] == 800.0
     assert record["field"]["carrier_cycles"] == 3.0
@@ -98,3 +102,16 @@ def test_phase9h_final_time_is_rounded_up_without_changing_time_step():
     assert setup["final_time"] == 2.25
     assert setup["n_steps"] == 9
     assert setup["pulse_duration"] > setup["final_time"]
+
+
+def test_phase9h_records_explicit_wavefunction_snapshot_selection():
+    arguments = _arguments(
+        wavefunction_snapshot_interval=100,
+        wavefunction_snapshot_steps=[0, 7, 25],
+        wavefunction_snapshot_times=[0.0, 1.75, 6.25],
+    )
+    record = configuration_record(arguments, physical_setup(arguments))
+
+    assert record["wavefunction_snapshot_interval"] == 100
+    assert record["wavefunction_snapshot_steps"] == [0, 7, 25]
+    assert record["wavefunction_snapshot_times"] == [0.0, 1.75, 6.25]

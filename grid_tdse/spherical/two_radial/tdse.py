@@ -122,6 +122,8 @@ class _TwoRadialTDSE:
         checkpoint_metadata: Mapping[str, Any] | None,
         wavefunction_snapshot_directory: str | PathLike[str] | None,
         wavefunction_snapshot_interval: int | None,
+        wavefunction_snapshot_steps: Iterable[int] | None,
+        wavefunction_snapshot_times: Iterable[float] | None,
         wavefunction_snapshot_initial: bool,
         wavefunction_snapshot_final: bool,
         wavefunction_snapshot_prefix: str,
@@ -219,10 +221,14 @@ class _TwoRadialTDSE:
         )
         if (
             wavefunction_snapshot_directory is None
-            and wavefunction_snapshot_interval is not None
+            and (
+                wavefunction_snapshot_interval is not None
+                or wavefunction_snapshot_steps is not None
+                or wavefunction_snapshot_times is not None
+            )
         ):
             raise ValueError(
-                "wavefunction_snapshot_interval requires "
+                "wavefunction snapshot selection requires "
                 "wavefunction_snapshot_directory"
             )
         self.wavefunction_snapshot_directory = (
@@ -231,6 +237,8 @@ class _TwoRadialTDSE:
             else Path(wavefunction_snapshot_directory)
         )
         self.wavefunction_snapshot_interval = wavefunction_snapshot_interval
+        self.wavefunction_snapshot_steps = wavefunction_snapshot_steps
+        self.wavefunction_snapshot_times = wavefunction_snapshot_times
         self.wavefunction_snapshot_initial = wavefunction_snapshot_initial
         self.wavefunction_snapshot_final = wavefunction_snapshot_final
         self.wavefunction_snapshot_prefix = wavefunction_snapshot_prefix
@@ -470,6 +478,8 @@ class _TwoRadialTDSE:
         writer = RealTimeSnapshotWriter(
             self.wavefunction_snapshot_directory,
             interval=self.wavefunction_snapshot_interval,
+            steps=self.wavefunction_snapshot_steps,
+            times=self.wavefunction_snapshot_times,
             include_initial=self.wavefunction_snapshot_initial,
             include_final=self.wavefunction_snapshot_final,
             prefix=self.wavefunction_snapshot_prefix,
@@ -541,6 +551,8 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         checkpoint_metadata: Mapping[str, Any] | None = None,
         wavefunction_snapshot_directory: str | PathLike[str] | None = None,
         wavefunction_snapshot_interval: int | None = None,
+        wavefunction_snapshot_steps: Iterable[int] | None = None,
+        wavefunction_snapshot_times: Iterable[float] | None = None,
         wavefunction_snapshot_initial: bool = True,
         wavefunction_snapshot_final: bool = True,
         wavefunction_snapshot_prefix: str = "wavefunction",
@@ -611,6 +623,8 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             checkpoint_metadata=checkpoint_metadata,
             wavefunction_snapshot_directory=wavefunction_snapshot_directory,
             wavefunction_snapshot_interval=wavefunction_snapshot_interval,
+            wavefunction_snapshot_steps=wavefunction_snapshot_steps,
+            wavefunction_snapshot_times=wavefunction_snapshot_times,
             wavefunction_snapshot_initial=wavefunction_snapshot_initial,
             wavefunction_snapshot_final=wavefunction_snapshot_final,
             wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
@@ -685,6 +699,8 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         checkpoint_metadata: Mapping[str, Any] | None = None,
         wavefunction_snapshot_directory: str | PathLike[str] | None = None,
         wavefunction_snapshot_interval: int | None = None,
+        wavefunction_snapshot_steps: Iterable[int] | None = None,
+        wavefunction_snapshot_times: Iterable[float] | None = None,
         wavefunction_snapshot_initial: bool = True,
         wavefunction_snapshot_final: bool = True,
         wavefunction_snapshot_prefix: str = "wavefunction",
@@ -838,6 +854,8 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             checkpoint_metadata=checkpoint_metadata,
             wavefunction_snapshot_directory=wavefunction_snapshot_directory,
             wavefunction_snapshot_interval=wavefunction_snapshot_interval,
+            wavefunction_snapshot_steps=wavefunction_snapshot_steps,
+            wavefunction_snapshot_times=wavefunction_snapshot_times,
             wavefunction_snapshot_initial=wavefunction_snapshot_initial,
             wavefunction_snapshot_final=wavefunction_snapshot_final,
             wavefunction_snapshot_prefix=wavefunction_snapshot_prefix,
