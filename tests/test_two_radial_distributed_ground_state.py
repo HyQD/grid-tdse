@@ -462,6 +462,16 @@ def test_distributed_sampling_matches_serial_observables_and_logs_once(
             expected_initial.cos2_theta_R,
             abs=2.0e-13,
         )
+        for name in (
+            "R_squared",
+            "cos4_theta_R",
+            "cos6_theta_R",
+            "cos8_theta_R",
+            "R_cos2_theta_R",
+        ):
+            assert getattr(initial, name) == pytest.approx(
+                getattr(expected_initial, name), abs=2.0e-13
+            )
         assert initial.inversion == pytest.approx(expected_initial.inversion)
         assert initial.pair_exchange == pytest.approx(expected_initial.pair_exchange)
         actual = result.samples[-1].observables
@@ -543,6 +553,15 @@ def test_distributed_dynamics_snapshot_matches_serial_below_unit_norm(
         assert snapshot.numerators.r_dot_R == pytest.approx(
             expected.numerators.r_dot_R, abs=2.0e-13
         )
+        for name in (
+            "cos4_theta_R",
+            "cos6_theta_R",
+            "cos8_theta_R",
+            "R_cos2_theta_R",
+        ):
+            assert getattr(snapshot.numerators, name) == pytest.approx(
+                getattr(expected.numerators, name), abs=2.0e-13
+            )
         np.testing.assert_allclose(
             snapshot.numerators.dipole_total,
             expected.numerators.dipole_total,

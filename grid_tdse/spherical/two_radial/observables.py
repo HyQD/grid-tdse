@@ -32,6 +32,7 @@ class DiatomicIonObservables:
 
     r: float
     R: float
+    R_squared: float
     total_l_squared: float
     total_l_z: float
     l_r_squared: float
@@ -40,6 +41,10 @@ class DiatomicIonObservables:
     l_R_z: float
     cos_theta_R: float
     cos2_theta_R: float
+    cos4_theta_R: float
+    cos6_theta_R: float
+    cos8_theta_R: float
+    R_cos2_theta_R: float
     dipole_r: tuple[float, float, float]
     dipole_R: tuple[float, float, float]
     dipole_total: tuple[float, float, float]
@@ -72,6 +77,10 @@ class DiatomicIonObservableNumerators:
     l_R_z: float
     cos_theta_R: float
     cos2_theta_R: float
+    cos4_theta_R: float
+    cos6_theta_R: float
+    cos8_theta_R: float
+    R_cos2_theta_R: float
     coordinate_r: tuple[float, float, float]
     coordinate_R: tuple[float, float, float]
     dipole_r: tuple[float, float, float]
@@ -99,6 +108,10 @@ class DiatomicIonObservableEvaluator:
         "l_R_z",
         "cos_theta_R",
         "cos2_theta_R",
+        "cos4_theta_R",
+        "cos6_theta_R",
+        "cos8_theta_R",
+        "R_cos2_theta_R",
         "r_x",
         "r_y",
         "r_z",
@@ -123,7 +136,10 @@ class DiatomicIonObservableEvaluator:
         self.parameters = parameters
         self._directions1 = _direction_matrices(system.basis1.states)
         self._directions2 = _direction_matrices(system.basis2.states)
-        self._cos2_R = _cos2_matrix(system.basis2.states)
+        self._cos_R_powers = {
+            power: _cos_power_matrix(system.basis2.states, power)
+            for power in (2, 4, 6, 8)
+        }
 
     def __call__(self, state: np.ndarray) -> DiatomicIonObservables:
         """Return observables for a serial state."""
@@ -271,6 +287,12 @@ class DiatomicIonObservableEvaluator:
         )
         pair_values = _pair_diagonals(self.system)
         norm = np.sum(population)
+        cos2_R_action = _coordinate_angular_action(
+            self.system,
+            values,
+            2,
+            self._cos_R_powers[2],
+        )
         results = [
             norm,
             _radial_local_expectation(values, r, 1, w_r, w_R),
@@ -302,16 +324,29 @@ class DiatomicIonObservableEvaluator:
             ),
             _local_inner_product(
                 values,
-                _coordinate_angular_action(
-                    self.system,
-                    values,
-                    2,
-                    self._cos2_R,
-                ),
+                cos2_R_action,
                 w_r,
                 w_R,
             ),
         ]
+        for power in (4, 6, 8):
+            results.append(
+                _local_inner_product(
+                    values,
+                    _coordinate_angular_action(
+                        self.system,
+                        values,
+                        2,
+                        self._cos_R_powers[power],
+                    ),
+                    w_r,
+                    w_R,
+                )
+            )
+        R_cos2_action = cos2_R_action * R.reshape(
+            (1,) * (cos2_R_action.ndim - 1) + (-1,)
+        )
+        results.append(_local_inner_product(values, R_cos2_action, w_r, w_R))
         for coordinate, radial, matrices in (
             (1, r, self._directions1),
             (2, R, self._directions2),
@@ -386,6 +421,10 @@ class DiatomicIonObservableEvaluator:
             l_R_z=scalar["l_R_z"],
             cos_theta_R=scalar["cos_theta_R"],
             cos2_theta_R=scalar["cos2_theta_R"],
+            cos4_theta_R=scalar["cos4_theta_R"],
+            cos6_theta_R=scalar["cos6_theta_R"],
+            cos8_theta_R=scalar["cos8_theta_R"],
+            R_cos2_theta_R=scalar["R_cos2_theta_R"],
             coordinate_r=coordinate_r,
             coordinate_R=coordinate_R,
             dipole_r=dipole_r,
@@ -405,6 +444,7 @@ class DiatomicIonObservableEvaluator:
         return DiatomicIonObservables(
             r=numerators.r / norm,
             R=numerators.R / norm,
+            R_squared=numerators.R_squared / norm,
             total_l_squared=numerators.total_l_squared / norm,
             total_l_z=numerators.total_l_z / norm,
             l_r_squared=numerators.l_r_squared / norm,
@@ -413,6 +453,10 @@ class DiatomicIonObservableEvaluator:
             l_R_z=numerators.l_R_z / norm,
             cos_theta_R=numerators.cos_theta_R / norm,
             cos2_theta_R=numerators.cos2_theta_R / norm,
+            cos4_theta_R=numerators.cos4_theta_R / norm,
+            cos6_theta_R=numerators.cos6_theta_R / norm,
+            cos8_theta_R=numerators.cos8_theta_R / norm,
+            R_cos2_theta_R=numerators.R_cos2_theta_R / norm,
             dipole_r=tuple(value / norm for value in numerators.dipole_r),
             dipole_R=tuple(value / norm for value in numerators.dipole_R),
             dipole_total=tuple(value / norm for value in numerators.dipole_total),
@@ -693,18 +737,28 @@ def _direction_matrices(states):
     return tuple(matrices)
 
 
-def _cos2_matrix(states):
+def _cos_power_matrix(states, power):
+    """Return the exact projected matrix of ``cos(theta)**power``."""
+
+    if not isinstance(power, int) or power < 0:
+        raise ValueError("power must be a nonnegative integer")
     result = np.zeros((len(states), len(states)), dtype=float)
     indices = {state: index for index, state in enumerate(states)}
     for input_, (l_value, m_value) in enumerate(states):
-        coefficients = {
-            (l_value + 2, m_value): _a_lm(l_value, m_value)
-            * _a_lm(l_value + 1, m_value),
-            (l_value, m_value): _a_lm(l_value, m_value) ** 2
-            + _a_lm(l_value - 1, m_value) ** 2,
-            (l_value - 2, m_value): _a_lm(l_value - 1, m_value)
-            * _a_lm(l_value - 2, m_value),
-        }
+        coefficients = {(l_value, m_value): 1.0}
+        for _ in range(power):
+            next_coefficients = {}
+            for (l_in, m_in), coefficient in coefficients.items():
+                for state, factor in (
+                    ((l_in + 1, m_in), _a_lm(l_in, m_in)),
+                    ((l_in - 1, m_in), _a_lm(l_in - 1, m_in)),
+                ):
+                    if factor:
+                        next_coefficients[state] = (
+                            next_coefficients.get(state, 0.0)
+                            + coefficient * factor
+                        )
+            coefficients = next_coefficients
         for state, coefficient in coefficients.items():
             output = indices.get(state)
             if output is not None:

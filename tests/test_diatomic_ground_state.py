@@ -737,10 +737,19 @@ def test_diatomic_observable_evaluator_samples_requested_quantities():
         np.sum(population * calculation.representation.grid2.r[None, :] * weights)
         / norm
     )
+    expected_R_squared = (
+        np.sum(
+            population
+            * calculation.representation.grid2.r[None, :] ** 2
+            * weights
+        )
+        / norm
+    )
     angular = calculation.angular_momentum_expectations(state)
 
     assert values.r == pytest.approx(expected_r)
     assert values.R == pytest.approx(expected_R)
+    assert values.R_squared == pytest.approx(expected_R_squared)
     assert values.total_l_squared == pytest.approx(angular.total_l_squared)
     assert values.total_l_z == pytest.approx(angular.total_l_z)
     assert values.l_r_squared == pytest.approx(0.0, abs=1.0e-14)
@@ -749,11 +758,45 @@ def test_diatomic_observable_evaluator_samples_requested_quantities():
     assert values.l_R_z == pytest.approx(0.0, abs=1.0e-14)
     assert values.cos_theta_R == pytest.approx(0.0, abs=1.0e-14)
     assert values.cos2_theta_R == pytest.approx(1.0 / 3.0)
+    assert values.cos4_theta_R == pytest.approx(1.0 / 5.0)
+    assert values.cos6_theta_R == pytest.approx(1.0 / 7.0)
+    assert values.cos8_theta_R == pytest.approx(1.0 / 9.0)
+    assert values.R_cos2_theta_R == pytest.approx(expected_R / 3.0)
     np.testing.assert_allclose(values.dipole_r, 0.0, atol=1.0e-14)
     np.testing.assert_allclose(values.dipole_R, 0.0, atol=1.0e-14)
     np.testing.assert_allclose(values.dipole_total, 0.0, atol=1.0e-14)
     assert values.inversion == pytest.approx(1.0)
     assert values.pair_exchange == pytest.approx(1.0)
+
+
+def test_alignment_moments_include_paths_above_the_angular_cutoff():
+    calculation = _calculation(
+        symmetry_adapted_basis=False,
+        M_tot=0,
+        l_max=2,
+    )
+    system = calculation.representation
+    electronic_channel = system.basis1.index(0, 0)
+    internuclear_channel = system.basis2.index(2, 0)
+    pair = system.angular_pairs.get(electronic_channel, internuclear_channel)
+    assert pair is not None
+
+    state = np.zeros(system.psi_shape)
+    state[pair] = 1.0
+    state /= np.sqrt(system.inner_product(state, state).real)
+    values = calculation.observable_evaluator(state)
+
+    points, weights = np.polynomial.legendre.leggauss(32)
+    angular_density = 5.0 / 8.0 * (3.0 * points**2 - 1.0) ** 2
+    for power in (2, 4, 6, 8):
+        expected = np.sum(weights * points**power * angular_density)
+        assert getattr(values, f"cos{power}_theta_R") == pytest.approx(
+            expected, abs=2.0e-14
+        )
+    assert values.R_cos2_theta_R == pytest.approx(
+        values.R * values.cos2_theta_R,
+        abs=2.0e-14,
+    )
 
 
 def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
@@ -800,6 +843,16 @@ def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
     assert snapshot.numerators.r == pytest.approx(
         snapshot.norm * normalized_snapshot.numerators.r
     )
+    for name in (
+        "R_squared",
+        "cos4_theta_R",
+        "cos6_theta_R",
+        "cos8_theta_R",
+        "R_cos2_theta_R",
+    ):
+        assert getattr(snapshot.numerators, name) == pytest.approx(
+            snapshot.norm * getattr(normalized_snapshot.numerators, name)
+        )
     assert snapshot.conditional.r == pytest.approx(normalized_snapshot.conditional.r)
     assert snapshot.conditional.r_squared == pytest.approx(
         normalized_snapshot.conditional.r_squared
@@ -864,10 +917,21 @@ def test_dynamics_sampling_keeps_numerators_and_conditional_values_distinct():
     assert checkpoint.propagation.krylov_dimension == 7
     assert final.is_final
     assert sampler.time_series.accepted_steps.tolist() == [0, 1, 3]
-    assert sampler.time_series.records()[0]["snapshot.gauge"] == "velocity"
+    initial_record = sampler.time_series.records()[0]
+    assert initial_record["snapshot.gauge"] == "velocity"
+    for name in (
+        "R_squared",
+        "cos4_theta_R",
+        "cos6_theta_R",
+        "cos8_theta_R",
+        "R_cos2_theta_R",
+    ):
+        assert initial_record[f"snapshot.numerators.{name}"] == pytest.approx(
+            getattr(initial.snapshot.numerators, name)
+        )
     assert not any(
         "radial_densities" in name
-        for name in sampler.time_series.records()[0]
+        for name in initial_record
     )
 
 
@@ -959,6 +1023,10 @@ def test_ground_state_sampling_records_initial_interval_and_final_states(
         assert marker in terminal
         assert marker in logfile
     assert "<cos^2(theta_R)>" in terminal
+    assert "<cos^4(theta_R)>" in terminal
+    assert "<cos^6(theta_R)>" in terminal
+    assert "<cos^8(theta_R)>" in terminal
+    assert "<R cos^2(theta_R)>" in terminal
     assert "d_total =" in terminal
     assert "Sampling timing:" in logfile
 
@@ -1012,6 +1080,15 @@ def test_diatomic_ground_state_result_saves_restart_metadata(tmp_path):
     assert stored.calculation["residual_norm"] == pytest.approx(result.residual_norm)
     assert stored.calculation["sample_interval"] == 10
     assert stored.calculation["observables"]["r"] == pytest.approx(result.observables.r)
+    assert stored.calculation["observables"]["R_squared"] == pytest.approx(
+        result.observables.R_squared
+    )
+    assert stored.calculation["observables"]["cos8_theta_R"] == pytest.approx(
+        result.observables.cos8_theta_R
+    )
+    assert stored.calculation["observables"]["R_cos2_theta_R"] == pytest.approx(
+        result.observables.R_cos2_theta_R
+    )
     assert stored.calculation["samples"]["columns"]["iteration"] == [0, 1]
 
 

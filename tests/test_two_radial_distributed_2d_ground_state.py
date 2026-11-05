@@ -343,6 +343,16 @@ def test_cartesian_sampling_matches_serial_observables_and_logs_once(
         final = result.samples[-1].observables
         assert initial.r == pytest.approx(expected_initial.r, abs=3.0e-13)
         assert initial.R == pytest.approx(expected_initial.R, abs=3.0e-13)
+        for name in (
+            "R_squared",
+            "cos4_theta_R",
+            "cos6_theta_R",
+            "cos8_theta_R",
+            "R_cos2_theta_R",
+        ):
+            assert getattr(initial, name) == pytest.approx(
+                getattr(expected_initial, name), abs=3.0e-13
+            )
         assert final.total_l_squared == pytest.approx(
             expected_final.total_l_squared,
             abs=3.0e-13,
@@ -412,6 +422,15 @@ def test_cartesian_dynamics_snapshot_matches_serial_below_unit_norm():
         assert snapshot.numerators.r_dot_R == pytest.approx(
             expected.numerators.r_dot_R, abs=3.0e-13
         )
+        for name in (
+            "cos4_theta_R",
+            "cos6_theta_R",
+            "cos8_theta_R",
+            "R_cos2_theta_R",
+        ):
+            assert getattr(snapshot.numerators, name) == pytest.approx(
+                getattr(expected.numerators, name), abs=3.0e-13
+            )
         np.testing.assert_allclose(
             snapshot.conditional.dipole_total,
             expected.conditional.dipole_total,

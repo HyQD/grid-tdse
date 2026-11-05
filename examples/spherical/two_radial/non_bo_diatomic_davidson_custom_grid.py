@@ -315,6 +315,15 @@ print(
 )
 print(f"<r>:                      {result.observables.r:.12f} a0")
 print(f"<R>:                      {result.observables.R:.12f} a0")
+print(f"<R^2>:                    {result.observables.R_squared:.12f} a0^2")
+print(f"<cos^2(theta_R)>:         {result.observables.cos2_theta_R:.12f}")
+print(f"<cos^4(theta_R)>:         {result.observables.cos4_theta_R:.12f}")
+print(f"<cos^6(theta_R)>:         {result.observables.cos6_theta_R:.12f}")
+print(f"<cos^8(theta_R)>:         {result.observables.cos8_theta_R:.12f}")
+print(
+    "<R cos^2(theta_R)>:     "
+    f"{result.observables.R_cos2_theta_R:.12f} a0"
+)
 
 if not result.converged:
     raise RuntimeError("refusing to save an unconverged ground state")

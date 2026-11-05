@@ -203,6 +203,10 @@ def format_diatomic_ground_state_sample(
             f"<I> = {values.inversion:.12f}  <P> = {exchange}",
             f"<r> = {values.r:.12f}  <R> = {values.R:.12f}",
             (
+                f"<R^2> = {values.R_squared:.12f}  "
+                f"<R cos^2(theta_R)> = {values.R_cos2_theta_R:.12f}"
+            ),
+            (
                 f"<L^2> = {values.total_l_squared:.12f}  "
                 f"<L_z> = {values.total_l_z:.12f}"
             ),
@@ -217,6 +221,11 @@ def format_diatomic_ground_state_sample(
             (
                 f"<cos(theta_R)> = {values.cos_theta_R:.12f}  "
                 f"<cos^2(theta_R)> = {values.cos2_theta_R:.12f}"
+            ),
+            (
+                f"<cos^4(theta_R)> = {values.cos4_theta_R:.12f}  "
+                f"<cos^6(theta_R)> = {values.cos6_theta_R:.12f}  "
+                f"<cos^8(theta_R)> = {values.cos8_theta_R:.12f}"
             ),
             f"d_r = {_format_vector(values.dipole_r)} ea0",
             f"d_R = {_format_vector(values.dipole_R)} ea0",
