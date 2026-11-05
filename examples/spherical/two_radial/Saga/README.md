@@ -13,6 +13,10 @@ scaling, tile-size selection, hardware counters, and fixed-core MPI/Numba
 thread comparisons, use the dedicated
 [`coulomb_kernel` workflow](coulomb_kernel/README.md).
 
+For per-rank construction-memory measurements and explicit verification of the
+active `py3nj`/SymPy Gaunt backend, use the dedicated
+[`construction_memory` workflow](construction_memory/README.md).
+
 Before submitting them:
 
 1. Replace `<project-id>` and `<username>` in each job script.
