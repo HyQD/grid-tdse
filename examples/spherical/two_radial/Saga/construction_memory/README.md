@@ -1,9 +1,10 @@
 # Two-radial construction-memory diagnostic on Saga
 
-This workflow addresses two questions before changing the production code:
+This workflow validates the lightweight element-local construction path by
+answering two questions:
 
-1. how much memory each MPI rank retains while constructing the global
-   two-radial representation and element-local distributed Hamiltonian; and
+1. how much memory each MPI rank retains without dense global one-body and
+   expanded pair operators; and
 2. whether `grid-lib` resolves Gaunt coefficients through `py3nj` or SymPy on
    the Saga login and compute nodes.
 
@@ -12,9 +13,11 @@ It performs no Hamiltonian action, ground-state solve, or propagation.
 The `production` profile uses the current `4e11` electronic and `4e21`
 internuclear grids. The `assessment` profile reproduces the radial dimensions
 from the performance assessment at `l_max=8` and `l_max=16`, with an
-intermediate `48e11/24e11` case at `l_max=12`. Assessment jobs request 14 GiB
-per rank because the existing implementation is expected to peak near 10 GiB
-per rank at `l_max=16`.
+intermediate `48e11/24e11` case at `l_max=12`. The pre-optimization baseline is
+archived under
+`benchmarks/data/saga_non_bo_diatomic_construction_memory/`. Assessment jobs
+retain the conservative 14-GiB request until the `l_max=16` post-change peak
+has been measured on Saga.
 
 ## Prepare Saga
 
@@ -88,14 +91,14 @@ examples/spherical/two_radial/Saga/construction_memory/submit_construction_memor
     --l-max 12 16
 ```
 
-These initial measurements use one MPI process. That is intentional: the
-arrays under investigation are constructed independently on every rank, so
-one process measures their per-rank cost without multiplying a potentially
-10-GiB peak. The benchmark emulates rank zero of the target logical process
-grid (`2x2` for production and `2*l_max` by `l_max` for assessment). It computes
-the corresponding complex state-tile size but does not allocate that state.
-Afterward, replication can be demonstrated safely with four real ranks on the
-production profile or the assessment `l_max=8` case by passing `--ranks 4`.
+These initial measurements use one MPI process. That is intentional: one
+process measures the per-rank retained and transient cost without multiplying
+an unknown post-change peak. The benchmark emulates rank zero of the target
+logical process grid (`2x2` for production and `2*l_max` by `l_max` for
+assessment). It computes the corresponding complex state-tile size but does
+not allocate that state. Afterward, replication can be checked with four real
+ranks on the production profile or the assessment `l_max=8` case by passing
+`--ranks 4`.
 
 ## Inspect completed jobs
 
@@ -104,7 +107,7 @@ run_root=$(cat \
     "${PROJECT_ROOT}/jobs/grid-tdse/construction-memory/latest_production_run.txt")
 
 grep --text -H -E \
-    'Profile:|l_max:|MPI processes:|Logical layout ranks:|Radial points:|Gaunt backend:|py3nj available:|Final RSS/rank:|Peak RSS/rank:|Result JSON:' \
+    'Profile:|l_max:|MPI processes:|Logical layout ranks:|Radial points:|Radial operator storage:|Gaunt backend:|py3nj available:|Final RSS/rank:|Peak RSS/rank:|Result JSON:' \
     "${run_root}/output/"*.out
 
 grep --text -H -E \
@@ -129,6 +132,8 @@ cat "${run_root}/sacct.txt"
 
 Interpret the JSON `current_rss_mib` as retained process memory and
 `peak_rss_mib`/Slurm `MaxRSS` as high-water measurements. The array inventory
-deduplicates NumPy views by their root allocation. Its `expanded_pair_operators`
-and `dense_one_body` categories identify the arrays that the element-local
-action does not use.
+deduplicates NumPy views by their root allocation. A successful lightweight run
+has no `expanded_pair_operators` or `dense_one_body` category. Compare RSS,
+process peak, Slurm `MaxRSS`, and total inventoried arrays with the matching
+archived baseline; do not infer transient-memory removal from retained arrays
+alone.

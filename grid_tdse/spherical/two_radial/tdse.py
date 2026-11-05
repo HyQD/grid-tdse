@@ -598,7 +598,16 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             M_tot=M_tot,
             radial_coulomb_method=radial_coulomb_method,
         )
-        self.representation = self.specification.build()
+        options = {} if integrator_options is None else dict(integrator_options)
+        needs_global_operators = radial_operator_mode == "global" or (
+            integrator == "crank-nicolson"
+            and options.get("preconditioner", True) is not False
+        )
+        self.representation = self.specification.build(
+            radial_operator_mode=(
+                "global" if needs_global_operators else "element-local"
+            )
+        )
         self.absorbing_boundaries = TwoRadialAbsorbingBoundaries(
             self.representation,
             mask1=mask,
@@ -788,7 +797,16 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             M_tot=M_tot,
             radial_coulomb_method=radial_coulomb_method,
         )
-        self.representation = self.specification.build()
+        options = {} if integrator_options is None else dict(integrator_options)
+        needs_global_operators = radial_operator_mode == "global" or (
+            integrator == "crank-nicolson"
+            and options.get("preconditioner", True) is not False
+        )
+        self.representation = self.specification.build(
+            radial_operator_mode=(
+                "global" if needs_global_operators else "element-local"
+            )
+        )
         self.initialization = None
         if initial_state is None:
             if ground_state_path is None:

@@ -352,7 +352,7 @@ def dynamics_representation(arguments, setup):
         M_tot=arguments.M_tot,
         radial_coulomb_method="poisson",
     )
-    return specification.build()
+    return specification.build(radial_operator_mode="element-local")
 
 
 def absorbing_boundaries(arguments, representation):

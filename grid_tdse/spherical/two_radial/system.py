@@ -94,6 +94,31 @@ class CoordinateSpec:
             operator[channel] += np.diag(diagonal[channel])
         return operator
 
+    def build_one_body_channel(
+        self,
+        l: int,
+        m: int,
+        grid: RadialGrid | None = None,
+        diagonal: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Return one dense radial block without constructing all channels."""
+
+        grid = self.build_grid() if grid is None else grid
+        channel = self.basis.index(l, m)
+        if diagonal is None:
+            values = self.build_one_body_diagonal(grid)[channel]
+        else:
+            diagonal = np.asarray(diagonal)
+            expected_shape = (self.basis.n_channels, grid.n_points)
+            if diagonal.shape != expected_shape:
+                raise ValueError(
+                    f"diagonal has shape {diagonal.shape}; expected "
+                    f"{expected_shape}"
+                )
+            values = diagonal[channel]
+        operator = self.kinetic_prefactor * grid.second_derivative(l)
+        return operator + np.diag(values)
+
 
 @dataclass(frozen=True)
 class TwoRadialSystemSpec:
@@ -110,10 +135,29 @@ class TwoRadialSystemSpec:
     M_tot: int | None = None
     radial_coulomb_method: RadialCoulombMethod | None = None
 
-    def build(self) -> "TwoRadialSystem":
+    def build(
+        self,
+        *,
+        radial_operator_mode: RadialOperatorMode = "global",
+    ) -> "TwoRadialSystem":
+        """Prepare a representation for global or element-local radial actions.
+
+        The lightweight ``"element-local"`` path retains the grids and
+        channel diagonals required by FEM-DVR element actions, but never
+        constructs the dense per-channel one-body matrices.
+        """
+
+        if radial_operator_mode not in {"global", "element-local"}:
+            raise ValueError(
+                "radial_operator_mode must be 'global' or 'element-local'"
+            )
         grid1 = self.coordinate1.build_grid()
         grid2 = self.coordinate2.build_grid()
         require_same_grid_family(grid1, grid2)
+        if radial_operator_mode == "element-local" and grid1.family != "femdvr":
+            raise ValueError(
+                "element-local radial operators require FEM-DVR grids"
+            )
         h1_diagonal = self.coordinate1.build_one_body_diagonal(grid1)
         h2_diagonal = self.coordinate2.build_one_body_diagonal(grid2)
         radial_multipoles = build_radial_coulomb_multipoles(
@@ -134,14 +178,23 @@ class TwoRadialSystemSpec:
             self.multipoles,
             angular_pairs=angular_pairs,
         )
+        retain_global_operators = radial_operator_mode == "global"
         return TwoRadialSystem(
             grid1=grid1,
             grid2=grid2,
             basis1=self.coordinate1.basis,
             basis2=self.coordinate2.basis,
             angular_pairs=angular_pairs,
-            h1=self.coordinate1.build_one_body_operator(grid1, h1_diagonal),
-            h2=self.coordinate2.build_one_body_operator(grid2, h2_diagonal),
+            h1=(
+                self.coordinate1.build_one_body_operator(grid1, h1_diagonal)
+                if retain_global_operators
+                else None
+            ),
+            h2=(
+                self.coordinate2.build_one_body_operator(grid2, h2_diagonal)
+                if retain_global_operators
+                else None
+            ),
             multipoles=self.multipoles,
             radial_multipoles=radial_multipoles,
             couplings=couplings,
@@ -149,6 +202,7 @@ class TwoRadialSystemSpec:
             kinetic_prefactor2=self.coordinate2.kinetic_prefactor,
             h1_diagonal=h1_diagonal,
             h2_diagonal=h2_diagonal,
+            radial_operator_mode=radial_operator_mode,
         )
 
 
@@ -160,8 +214,8 @@ class TwoRadialSystem:
     grid2: RadialGrid
     basis1: AngularBasisSpec
     basis2: AngularBasisSpec
-    h1: np.ndarray
-    h2: np.ndarray
+    h1: np.ndarray | None
+    h2: np.ndarray | None
     multipoles: CoulombMultipoleSpec
     radial_multipoles: RadialCoulombMultipoles
     couplings: CoulombCouplings
@@ -170,8 +224,19 @@ class TwoRadialSystem:
     kinetic_prefactor2: float | None = None
     h1_diagonal: np.ndarray | None = None
     h2_diagonal: np.ndarray | None = None
+    radial_operator_mode: RadialOperatorMode = "global"
 
     def __post_init__(self) -> None:
+        if self.radial_operator_mode not in {"global", "element-local"}:
+            raise ValueError(
+                "radial_operator_mode must be 'global' or 'element-local'"
+            )
+        if (self.h1 is None) != (self.h2 is None):
+            raise ValueError(
+                "h1 and h2 must either both be present or both be absent"
+            )
+        if self.radial_operator_mode == "global" and self.h1 is None:
+            raise ValueError("global radial operators require both h1 and h2")
         angular_pairs = self.angular_pairs
         if angular_pairs is None:
             angular_pairs = AngularPairBasis(self.basis1, self.basis2)
@@ -189,6 +254,12 @@ class TwoRadialSystem:
     @property
     def uses_compact_angular_storage(self) -> bool:
         return self.angular_pairs.is_compact
+
+    @property
+    def has_global_radial_operators(self) -> bool:
+        """Whether dense per-channel one-body matrices are retained."""
+
+        return self.h1 is not None
 
     @property
     def full_psi_shape(self) -> tuple[int, int, int, int]:
@@ -283,9 +354,20 @@ class TwoRadialSystem:
         self,
         *,
         tile_size: int = 2048,
-        radial_operator_mode: RadialOperatorMode = "global",
+        radial_operator_mode: RadialOperatorMode | None = None,
     ):
         from .hamiltonian import TwoRadialHamiltonian
+
+        if radial_operator_mode is None:
+            radial_operator_mode = self.radial_operator_mode
+        if (
+            radial_operator_mode == "global"
+            and not self.has_global_radial_operators
+        ):
+            raise ValueError(
+                "global radial operators were not retained; rebuild the system "
+                "with radial_operator_mode='global'"
+            )
 
         return TwoRadialHamiltonian(
             self.h1,

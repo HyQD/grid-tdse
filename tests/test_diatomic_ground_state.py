@@ -291,6 +291,7 @@ def test_element_local_ground_state_hamiltonian_matches_global_path():
     local_calculation = _calculation(M_tot=0, radial_operator_mode="element-local")
 
     assert local_calculation.radial_operator_mode == "element-local"
+    assert not local_calculation.representation.has_global_radial_operators
     np.testing.assert_allclose(
         local_calculation.hamiltonian(local_calculation.initial_state),
         global_calculation.hamiltonian(global_calculation.initial_state),

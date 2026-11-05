@@ -345,6 +345,7 @@ def test_diatomic_tdse_exposes_element_local_radial_action(tmp_path):
     )
 
     assert local_calculation.radial_operator_mode == "element-local"
+    assert not local_calculation.representation.has_global_radial_operators
     assert (
         local_calculation.dynamics_metadata["radial_operator_mode"]
         == "element-local"

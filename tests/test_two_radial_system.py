@@ -133,16 +133,59 @@ def test_element_local_femdvr_hamiltonian_matches_global_action(M_tot):
     )
 
 
+@pytest.mark.parametrize("M_tot", [None, 0])
+def test_lightweight_element_local_system_omits_dense_one_body_operators(M_tot):
+    specification = TwoRadialSystemSpec(
+        coordinate1=_coordinate(
+            FEMDVRGridSpec([0.0, 0.8, 2.0], [4, 5]), l_max=1
+        ),
+        coordinate2=_coordinate(
+            FEMDVRGridSpec([0.0, 0.5, 1.5], [5, 4]), l_max=1
+        ),
+        multipoles=CoulombMultipoleSpec(2, 0),
+        coulomb_terms=(CoulombTerm(1.0, 1.0),),
+        M_tot=M_tot,
+    )
+    reference = specification.build()
+    lightweight = specification.build(radial_operator_mode="element-local")
+
+    assert lightweight.h1 is None
+    assert lightweight.h2 is None
+    assert not lightweight.has_global_radial_operators
+    hamiltonian = lightweight.hamiltonian()
+    assert hamiltonian.h1 is None
+    assert hamiltonian.h2 is None
+    assert hamiltonian.h2_transpose is None
+    assert not hasattr(hamiltonian, "_h1_pairs")
+    assert not hasattr(hamiltonian, "_h2_pairs_transpose")
+
+    rng = np.random.default_rng(2112)
+    state = rng.normal(size=lightweight.psi_shape) + 1j * rng.normal(
+        size=lightweight.psi_shape
+    )
+    np.testing.assert_allclose(
+        hamiltonian(state),
+        reference.hamiltonian(radial_operator_mode="global")(state),
+        atol=8.0e-12,
+        rtol=8.0e-13,
+    )
+    with pytest.raises(ValueError, match="were not retained"):
+        lightweight.hamiltonian(radial_operator_mode="global")
+
+
 def test_element_local_mode_rejects_sinc_grids():
-    system = TwoRadialSystemSpec(
+    specification = TwoRadialSystemSpec(
         coordinate1=_coordinate(RadialSincDVRGridSpec(6.0, 6)),
         coordinate2=_coordinate(RadialSincDVRGridSpec(4.0, 5)),
         multipoles=CoulombMultipoleSpec(2, 0),
         coulomb_terms=(CoulombTerm(1.0, 1.0),),
-    ).build()
+    )
+    system = specification.build()
 
     with pytest.raises(ValueError, match="require FEM-DVR"):
         system.hamiltonian(radial_operator_mode="element-local")
+    with pytest.raises(ValueError, match="require FEM-DVR"):
+        specification.build(radial_operator_mode="element-local")
 
 
 def test_hamiltonian_rejects_unknown_radial_operator_mode():
