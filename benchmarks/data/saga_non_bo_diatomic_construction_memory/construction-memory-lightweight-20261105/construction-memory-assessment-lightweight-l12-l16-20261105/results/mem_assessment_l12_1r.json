@@ -1,0 +1,2086 @@
+{
+  "backend": {
+    "configured": "auto",
+    "py3nj_available": true,
+    "py3nj_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py",
+    "py3nj_version": "0.2.1",
+    "resolved": "py3nj"
+  },
+  "execution": {
+    "layout_ranks": 288,
+    "mpi_processes": 1,
+    "process_grid": [
+      24,
+      12
+    ],
+    "tile_size": 2048
+  },
+  "problem": {
+    "M_tot": 0,
+    "angular_pairs": 777,
+    "codata_set": "2018",
+    "coulomb_couplings": 1251060,
+    "electronic_elements": 48,
+    "electronic_points_per_element": 11,
+    "electronic_rmax": 16.0,
+    "global_shape": [
+      777,
+      479,
+      239
+    ],
+    "internuclear_elements": 24,
+    "internuclear_points_per_element": 11,
+    "internuclear_rmax": 8.0,
+    "l_max": 12,
+    "lambda_max": 24,
+    "m_max": 12,
+    "mu_max": 24,
+    "profile_name": "assessment",
+    "radial_operator_mode": "element-local",
+    "radial_points": [
+      479,
+      239
+    ],
+    "system": "H2+"
+  },
+  "ranks": [
+    {
+      "array_inventory": {
+        "named_entries": [
+          {
+            "category": "global_radial_multipoles",
+            "dtype": "float64",
+            "name": "representation.radial_multipoles.values",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 11906024,
+            "shape": [
+              13,
+              479,
+              239
+            ],
+            "view_nbytes": 11906024
+          },
+          {
+            "category": "global_radial_multipoles",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._radial_flat",
+            "owns_unique_storage_in_inventory": false,
+            "root_nbytes": 11906024,
+            "shape": [
+              13,
+              114481
+            ],
+            "view_nbytes": 11906024
+          },
+          {
+            "category": "local_radial_multipoles",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._local_radial_coulomb",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 41600,
+            "shape": [
+              13,
+              400
+            ],
+            "view_nbytes": 41600
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.output_1",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.output_2",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int64",
+            "name": "representation.couplings.offsets",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 6224,
+            "shape": [
+              778
+            ],
+            "view_nbytes": 6224
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.input_1",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.input_2",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.radial_index",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "float64",
+            "name": "representation.couplings.coefficient",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 10008480,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 10008480
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int64",
+            "name": "serial_hamiltonian._compact_couplings[1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 6224,
+            "shape": [
+              778
+            ],
+            "view_nbytes": 6224
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._compact_couplings[4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 10008480,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 10008480
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "representation.h1_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 647608,
+            "shape": [
+              169,
+              479
+            ],
+            "view_nbytes": 647608
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "representation.h2_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 173992,
+            "shape": [
+              91,
+              239
+            ],
+            "view_nbytes": 173992
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h1_diagonal_pairs",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 2977464,
+            "shape": [
+              777,
+              479
+            ],
+            "view_nbytes": 2977464
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h2_diagonal_pairs",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 1485624,
+            "shape": [
+              777,
+              239
+            ],
+            "view_nbytes": 1485624
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._h1_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 2977464,
+            "shape": [
+              777,
+              479
+            ],
+            "view_nbytes": 2977464
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._h2_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 1485624,
+            "shape": [
+              777,
+              239
+            ],
+            "view_nbytes": 1485624
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][5]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][6]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][7]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][8]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][9]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][10]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][11]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][12]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][13]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][14]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][15]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][16]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][17]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][18]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][19]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][20]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][21]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][22]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][23]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][24]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][25]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][26]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][27]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][28]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][29]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][30]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][31]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][32]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][33]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][34]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][35]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][36]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][37]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][38]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][39]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][40]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][41]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][42]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][43]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][44]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][45]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][46]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][47]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][5]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][6]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][7]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][8]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][9]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][10]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][11]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][12]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][13]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][14]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][15]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][16]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][17]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][18]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][19]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][20]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][21]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][22]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][23]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][5]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][6]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][7]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][8]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][9]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][10]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][11]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][12]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][13]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][14]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][15]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][16]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][17]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][18]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][19]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][20]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][21]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][22]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][23]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][24]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][25]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][26]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][27]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][28]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][29]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][30]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][31]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][32]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][33]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][34]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][35]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][36]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][37]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][38]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][39]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][40]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][41]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][42]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][43]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][44]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][45]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][46]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][47]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][5]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][6]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][7]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][8]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][9]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][10]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][11]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][12]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][13]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][14]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][15]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][16]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][17]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][18]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][19]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][20]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][21]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][22]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][23]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          }
+        ],
+        "unique_bytes_by_category": {
+          "compact_couplings": 20026292,
+          "element_matrices": 138048,
+          "global_couplings": 25033640,
+          "global_radial_multipoles": 11906024,
+          "local_radial_multipoles": 41600,
+          "one_body_diagonals": 9747776
+        },
+        "unique_bytes_total": 66893380
+      },
+      "backend": {
+        "configured": "auto",
+        "py3nj_available": true,
+        "py3nj_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py",
+        "py3nj_version": "0.2.1",
+        "resolved": "py3nj"
+      },
+      "hostname": "c5-60",
+      "layout_rank": 0,
+      "owned_complex_state_bytes": 4972800,
+      "owned_shape": [
+        777,
+        20,
+        20
+      ],
+      "rank": 0,
+      "stages": [
+        {
+          "current_rss_mib": 330.73828125,
+          "elapsed_seconds": null,
+          "peak_rss_mib": 330.73828125,
+          "resource_peak_rss_mib": 330.73828125,
+          "stage": "imports_complete"
+        },
+        {
+          "current_rss_mib": 571.30078125,
+          "elapsed_seconds": 35.971149982884526,
+          "peak_rss_mib": 707.9453125,
+          "resource_peak_rss_mib": 707.9453125,
+          "stage": "representation_built"
+        },
+        {
+          "current_rss_mib": 571.30078125,
+          "elapsed_seconds": 0.015407629311084747,
+          "peak_rss_mib": 707.9453125,
+          "resource_peak_rss_mib": 707.9453125,
+          "stage": "layout_built"
+        },
+        {
+          "current_rss_mib": 595.32421875,
+          "elapsed_seconds": 1.5462019089609385,
+          "peak_rss_mib": 707.9453125,
+          "resource_peak_rss_mib": 707.9453125,
+          "stage": "distributed_hamiltonian_built"
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "mpi_library": "Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026",
+    "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+    "python": "3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]",
+    "python_executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+    "slurm_job_id": "20846905"
+  },
+  "schema": "grid-tdse-two-radial-construction-memory-v1"
+}
