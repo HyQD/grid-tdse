@@ -276,7 +276,14 @@ class TwoElectronAtomGroundState:
             M_tot=M_tot,
         )
         self.specification = specification
-        self.representation = specification.build()
+        needs_global_operators = radial_operator_mode == "global" or (
+            integrator == "crank-nicolson" and self.use_preconditioner
+        )
+        self.representation = specification.build(
+            radial_operator_mode=(
+                "global" if needs_global_operators else "element-local"
+            )
+        )
         self.hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
@@ -417,9 +424,18 @@ class TwoElectronAtomGroundState:
                 "for another conserved sector"
             )
         s_channel = self.representation.basis1.index(0, 0)
+        s_operator = (
+            self.representation.h1[s_channel]
+            if self.representation.h1 is not None
+            else self.specification.coordinate1.build_one_body_channel(
+                0,
+                0,
+                self.representation.grid1,
+                self.representation.h1_diagonal,
+            )
+        )
         _, s_states = weighted_eigenstates(
-            self.representation.h1[s_channel],
-            self.representation.grid1.weights,
+            s_operator, self.representation.grid1.weights
         )
         state = np.zeros(self.representation.psi_shape, dtype=s_states.dtype)
 
@@ -453,9 +469,18 @@ class TwoElectronAtomGroundState:
                     "l_max must be at least one for antisymmetric inversion"
                 )
             p_channel = self.representation.basis1.index(1, 0)
+            p_operator = (
+                self.representation.h1[p_channel]
+                if self.representation.h1 is not None
+                else self.specification.coordinate1.build_one_body_channel(
+                    1,
+                    0,
+                    self.representation.grid1,
+                    self.representation.h1_diagonal,
+                )
+            )
             _, p_states = weighted_eigenstates(
-                self.representation.h1[p_channel],
-                self.representation.grid1.weights,
+                p_operator, self.representation.grid1.weights
             )
             direct = np.outer(s_states[:, 0], p_states[:, 0])
             exchanged = np.outer(p_states[:, 0], s_states[:, 0])

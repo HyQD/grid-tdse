@@ -478,7 +478,19 @@ class NonBornOppenheimerDiatomicIonGroundState:
             radial_coulomb_method=radial_coulomb_method,
         )
         self.specification = specification
-        self.representation = specification.build()
+        needs_global_operators = radial_operator_mode == "global" or (
+            self.solver_name == "itp"
+            and integrator == "crank-nicolson"
+            and self.use_preconditioner
+        ) or (
+            self.solver_name == "davidson"
+            and davidson_preconditioner != "identity"
+        )
+        self.representation = specification.build(
+            radial_operator_mode=(
+                "global" if needs_global_operators else "element-local"
+            )
+        )
         self.hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
@@ -824,12 +836,32 @@ class NonBornOppenheimerDiatomicIonGroundState:
 
         electron_channel = self.representation.basis1.index(l_e, 0)
         pair_channel = self.representation.basis2.index(l_R, 0)
+        electron_operator = (
+            self.representation.h1[electron_channel]
+            if self.representation.h1 is not None
+            else self.specification.coordinate1.build_one_body_channel(
+                l_e,
+                0,
+                self.representation.grid1,
+                self.representation.h1_diagonal,
+            )
+        )
+        pair_operator = (
+            self.representation.h2[pair_channel]
+            if self.representation.h2 is not None
+            else self.specification.coordinate2.build_one_body_channel(
+                l_R,
+                0,
+                self.representation.grid2,
+                self.representation.h2_diagonal,
+            )
+        )
         _, electron_radial = lowest_weighted_eigenstate(
-            self.representation.h1[electron_channel],
+            electron_operator,
             self.representation.grid1.weights,
         )
         _, pair_radial = lowest_weighted_eigenstate(
-            self.representation.h2[pair_channel],
+            pair_operator,
             self.representation.grid2.weights,
         )
         radial_product = electron_radial[:, None] * pair_radial[None, :]

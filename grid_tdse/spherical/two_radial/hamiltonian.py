@@ -15,8 +15,8 @@ class TwoRadialHamiltonian:
 
     def __init__(
         self,
-        h1: np.ndarray,
-        h2: np.ndarray,
+        h1: np.ndarray | None,
+        h2: np.ndarray | None,
         radial_multipoles: RadialCoulombMultipoles,
         couplings: CoulombCouplings,
         *,
@@ -30,9 +30,13 @@ class TwoRadialHamiltonian:
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
     ) -> None:
-        self.h1 = np.ascontiguousarray(h1)
-        self.h2 = np.ascontiguousarray(h2)
-        self.h2_transpose = np.ascontiguousarray(h2.transpose(0, 2, 1))[None]
+        self.h1 = None if h1 is None else np.ascontiguousarray(h1)
+        self.h2 = None if h2 is None else np.ascontiguousarray(h2)
+        self.h2_transpose = (
+            None
+            if self.h2 is None or radial_operator_mode != "global"
+            else np.ascontiguousarray(self.h2.transpose(0, 2, 1))[None]
+        )
         self.radial_multipoles = radial_multipoles
         self.couplings = couplings
         self.angular_pairs = angular_pairs
@@ -65,10 +69,13 @@ class TwoRadialHamiltonian:
                 couplings,
                 self.angular_pairs,
             )
-            self._h1_pairs = np.ascontiguousarray(self.h1[self._pair_channels1])
-            self._h2_pairs_transpose = np.ascontiguousarray(
-                self.h2[self._pair_channels2].transpose(0, 2, 1)
-            )
+            if self.radial_operator_mode == "global":
+                self._h1_pairs = np.ascontiguousarray(
+                    self.h1[self._pair_channels1]
+                )
+                self._h2_pairs_transpose = np.ascontiguousarray(
+                    self.h2[self._pair_channels2].transpose(0, 2, 1)
+                )
             if self.h1_diagonal is not None:
                 self._h1_diagonal_pairs = np.ascontiguousarray(
                     self.h1_diagonal[self._pair_channels1]
@@ -84,17 +91,18 @@ class TwoRadialHamiltonian:
 
     @property
     def psi_shape(self) -> tuple[int, ...]:
+        n_radial1, n_radial2 = self.radial_multipoles.values.shape[1:]
         if self._uses_compact_storage:
             return (
                 self.angular_pairs.n_pairs,
-                self.h1.shape[1],
-                self.h2.shape[1],
+                n_radial1,
+                n_radial2,
             )
         return (
-            self.h1.shape[0],
-            self.h2.shape[0],
-            self.h1.shape[1],
-            self.h2.shape[1],
+            self.couplings.n_channels_1,
+            self.couplings.n_channels_2,
+            n_radial1,
+            n_radial2,
         )
 
     def __call__(self, psi: np.ndarray) -> np.ndarray:
@@ -247,17 +255,13 @@ class TwoRadialHamiltonian:
             raise ValueError(
                 "radial_operator_mode must be 'global' or 'element-local'"
             )
-        if self.h1.ndim != 3 or self.h1.shape[1] != self.h1.shape[2]:
-            raise ValueError("h1 must have shape (channels1, r1, r1)")
-        if self.h2.ndim != 3 or self.h2.shape[1] != self.h2.shape[2]:
-            raise ValueError("h2 must have shape (channels2, r2, r2)")
         c = self.couplings
-        if self.h1.shape[0] != c.n_channels_1 or self.h2.shape[0] != c.n_channels_2:
-            raise ValueError("one-body channel counts do not match Coulomb couplings")
+        n_radial1 = self.radial_multipoles.values.shape[1]
+        n_radial2 = self.radial_multipoles.values.shape[2]
         expected = (
             len(self.radial_multipoles.lambdas),
-            self.h1.shape[1],
-            self.h2.shape[1],
+            n_radial1,
+            n_radial2,
         )
         if self.radial_multipoles.values.shape != expected:
             raise ValueError(
@@ -266,7 +270,33 @@ class TwoRadialHamiltonian:
             )
         if c.n_pairs and c.radial_index.max() >= expected[0]:
             raise ValueError("Coulomb coupling references a missing radial multipole")
-        if self.radial_operator_mode == "element-local":
+        if self.radial_operator_mode == "global":
+            if self.h1 is None or self.h2 is None:
+                raise ValueError(
+                    "global radial operators require both dense h1 and h2 arrays"
+                )
+            if self.h1.ndim != 3 or self.h1.shape[1:] != (
+                n_radial1,
+                n_radial1,
+            ):
+                raise ValueError(
+                    "h1 must have shape (channels1, r1, r1)"
+                )
+            if self.h2.ndim != 3 or self.h2.shape[1:] != (
+                n_radial2,
+                n_radial2,
+            ):
+                raise ValueError(
+                    "h2 must have shape (channels2, r2, r2)"
+                )
+            if (
+                self.h1.shape[0] != c.n_channels_1
+                or self.h2.shape[0] != c.n_channels_2
+            ):
+                raise ValueError(
+                    "one-body channel counts do not match Coulomb couplings"
+                )
+        else:
             self._validate_element_local_data()
 
     def _validate_element_local_data(self) -> None:
@@ -284,8 +314,8 @@ class TwoRadialHamiltonian:
             self.kinetic_prefactor2
         ):
             raise ValueError("kinetic prefactors must be finite")
-        expected1 = (self.h1.shape[0], self.h1.shape[1])
-        expected2 = (self.h2.shape[0], self.h2.shape[1])
+        expected1 = (self.couplings.n_channels_1, self.grid1.n_points)
+        expected2 = (self.couplings.n_channels_2, self.grid2.n_points)
         if self.h1_diagonal is None or self.h1_diagonal.shape != expected1:
             actual = None if self.h1_diagonal is None else self.h1_diagonal.shape
             raise ValueError(

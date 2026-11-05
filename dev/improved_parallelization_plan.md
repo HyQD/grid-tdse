@@ -227,6 +227,26 @@ path as the numerical reference, require action-level equivalence tests, and
 repeat this exact construction-memory audit to quantify both retained and
 transient-memory reductions.
 
+**Implementation status:** implemented locally; Saga validation remains. A
+`TwoRadialSystemSpec` can now construct an element-local representation without
+dense per-channel one-body matrices. The element-local Hamiltonian also omits
+the global coordinate-2 transpose and both expanded angular-pair operator
+arrays. High-level ground-state and real-time interfaces select this path when
+their configured solver does not require a dense one-body preconditioner;
+the global path remains available and unchanged for those preconditioners and
+as a numerical reference. Product guesses construct only the required radial
+channels. The MPI dynamics and end-to-end setup paths, together with the
+construction-memory diagnostic, explicitly request the lightweight mode.
+
+Action-level tests match the retained global reference to approximately
+`1e-11` or better. On the assessment `l_max=8`, `319 x 159` radial grid and
+logical `16 x 8` layout, a local one-process diagnostic reduced the inventoried
+arrays from the archived 346.5 MiB to 9.4 MiB and the observed process peak
+from the Saga baseline of 761.8 MiB to 297.7 MiB on the development machine.
+These cross-machine RSS values are indicative rather than a controlled speedup;
+the same Saga workflow must be rerun for the production and assessment series
+before closing the memory gate.
+
 The sanitized manifests, copied workers, Slurm output, accounting records,
 complete allocation inventories, and combined summary are archived under
 [`benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105`](../benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105).

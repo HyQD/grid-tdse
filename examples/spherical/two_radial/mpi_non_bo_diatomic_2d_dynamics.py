@@ -180,7 +180,9 @@ def _representation(arguments, electronic_grid, internuclear_grid):
         M_tot=0,
         radial_coulomb_method="poisson",
     )
-    return parameters, pair_parity, specification.build()
+    return parameters, pair_parity, specification.build(
+        radial_operator_mode="element-local"
+    )
 
 
 def _maximum_time_series_difference(left, right):

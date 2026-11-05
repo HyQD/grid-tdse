@@ -1,9 +1,10 @@
-"""Measure retained memory while constructing a distributed two-radial problem.
+"""Measure retained memory for lightweight distributed two-radial construction.
 
 This diagnostic deliberately performs no Hamiltonian action or propagation.  Each
-MPI rank independently constructs the same global representation and then the
-rank-local Cartesian Hamiltonian, matching the current production setup path.
-It records both process RSS and a byte inventory of the principal NumPy arrays.
+MPI rank independently constructs the element-local representation and then the
+rank-local Cartesian Hamiltonian, matching the production distributed setup path.
+It records process RSS and a byte inventory of the principal NumPy arrays so the
+result can be compared directly with the archived global-construction baseline.
 
 For a small local smoke test::
 
@@ -394,7 +395,9 @@ def main() -> None:
     stages = [_snapshot(communicator, "imports_complete")]
 
     started = perf_counter()
-    representation = _specification(arguments).build()
+    representation = _specification(arguments).build(
+        radial_operator_mode="element-local"
+    )
     stages.append(
         _snapshot(
             communicator,
@@ -483,6 +486,7 @@ def main() -> None:
             ],
             "angular_pairs": representation.angular_pairs.n_pairs,
             "coulomb_couplings": representation.couplings.n_pairs,
+            "radial_operator_mode": representation.radial_operator_mode,
             "global_shape": list(representation.psi_shape),
         },
         "execution": {
@@ -531,6 +535,10 @@ def main() -> None:
     )
     print(f"Angular pairs:              {representation.angular_pairs.n_pairs}")
     print(f"Coulomb couplings:          {representation.couplings.n_pairs}")
+    print(
+        "Radial operator storage:    "
+        f"{representation.radial_operator_mode}"
+    )
     print(f"Gaunt backend:              {backend['resolved']}")
     print(f"py3nj available:            {backend['py3nj_available']}")
     print(f"py3nj path:                 {backend['py3nj_path']}")

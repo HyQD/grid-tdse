@@ -83,6 +83,8 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     radial_operator_mode="element-local",
     codata_set="2022",
     initial_state="product",
+    integrator="sil",
+    use_preconditioner=False,
 )
 process_grid = (
     None
