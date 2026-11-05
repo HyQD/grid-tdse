@@ -1,0 +1,100 @@
+Starting job 20844672 on c5-54 on Saga at Thu Nov 5 15:33:56 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:           /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module:       OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:        1
+Memory per rank:  14336 MiB
+Script:           /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-20261105-153240/non_bo_diatomic_construction_memory.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+
+
+Running compute-node Gaunt-backend preflight
+Python: 3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]
+py3nj available: True
+py3nj path: /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Gaunt backend: py3nj
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Two-radial construction-memory diagnostic
+Profile:                    assessment
+System:                     H2+
+l_max:                      16
+MPI processes:              1
+Logical layout ranks:       512
+Process grid:               (32, 16)
+Radial points:              639 x 319
+Angular pairs:              1713
+Coulomb couplings:          7744055
+Gaunt backend:              py3nj
+py3nj available:            True
+py3nj path:                 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Final RSS/rank:             8932.2--8932.2 MiB
+Peak RSS/rank:              10292.8--10292.8 MiB
+Logical state tile/rank:    10.5 MiB (not allocated)
+Rank-0 unique array inventory:
+  compact_couplings                    118.2 MiB
+  dense_one_body                      1137.9 MiB
+  element_matrices                       0.2 MiB
+  expanded_pair_operators             6666.3 MiB
+  global_couplings                     147.7 MiB
+  global_radial_multipoles              26.4 MiB
+  local_radial_multipoles                0.1 MiB
+  one_body_diagonals                    26.8 MiB
+  total                               8123.6 MiB
+Result JSON:                /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-20261105-153240/results/mem_assessment_l16_1r.json
+
+real	2m30.710s
+user	0m0.010s
+sys	0m0.020s
+
+Job 20844672 consumed 0.1 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-05T15:32:47; waited 0.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   2.9 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20844672           1            0.0 %  2026-11-05T15:33:56  172.0 s  0
+20844672.batch     1      1     7.5 %  2026-11-05T15:33:56  172.0 s  0
+20844672.bash      1      1    96.7 %  2026-11-05T15:34:17  151.0 s  0
+
+Used CPU time:   2.7 CPU minutes
+Unused CPU time: 13.0 CPU seconds
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20844672          14.0
+20844672.batch    14.0     0.4
+20844672.bash     14.0    10.1
+
+Job 20844672 completed at Thu Nov 5 15:36:49 CET 2026

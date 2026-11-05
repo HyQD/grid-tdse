@@ -1,0 +1,6 @@
+JobID                                   JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     ReqMem     MaxRSS        NodeList
+------------ ---------------------------------- ---------- -------- ---------- ---------- ---------- ---------- ---------- ---------------
+20844662                   mem_assessment_l8_1r  COMPLETED      0:0   00:00:37  00:24.026          1        14G                      c5-54
+20844662.ba+                              batch  COMPLETED      0:0   00:00:37  00:14.958          1               414276K           c5-54
+20844662.ex+                             extern  COMPLETED      0:0   00:00:37   00:00:00          1                                 c5-54
+20844662.0                                 bash  COMPLETED      0:0   00:00:13  00:09.068          1               825684K           c5-54
