@@ -1,0 +1,99 @@
+Starting job 20846905 on c5-60 on Saga at Thu Nov 5 16:57:13 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:           /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+MPI module:       OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:        1
+Memory per rank:  14336 MiB
+Script:           /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-lightweight-l12-l16-20261105/non_bo_diatomic_construction_memory.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+
+
+Running compute-node Gaunt-backend preflight
+Python: 3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]
+py3nj available: True
+py3nj path: /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Gaunt backend: py3nj
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Two-radial construction-memory diagnostic
+Profile:                    assessment
+System:                     H2+
+l_max:                      12
+MPI processes:              1
+Logical layout ranks:       288
+Process grid:               (24, 12)
+Radial points:              479 x 239
+Angular pairs:              777
+Coulomb couplings:          1251060
+Radial operator storage:    element-local
+Gaunt backend:              py3nj
+py3nj available:            True
+py3nj path:                 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Final RSS/rank:             595.3--595.3 MiB
+Peak RSS/rank:              707.9--707.9 MiB
+Logical state tile/rank:    4.7 MiB (not allocated)
+Rank-0 unique array inventory:
+  compact_couplings                     19.1 MiB
+  element_matrices                       0.1 MiB
+  global_couplings                      23.9 MiB
+  global_radial_multipoles              11.4 MiB
+  local_radial_multipoles                0.0 MiB
+  one_body_diagonals                     9.3 MiB
+  total                                 63.8 MiB
+Result JSON:                /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-lightweight-l12-l16-20261105/results/mem_assessment_l12_1r.json
+
+real	0m46.337s
+user	0m0.012s
+sys	0m0.030s
+
+Job 20846905 consumed 0.1 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-05T16:57:12; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   1.2 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20846905           1            0.0 %  2026-11-05T16:57:13   73.0 s  0
+20846905.batch     1      1    22.8 %  2026-11-05T16:57:13   73.0 s  0
+20846905.bash      1      1    90.1 %  2026-11-05T16:57:40   46.0 s  0
+
+Used CPU time:   58.1 CPU seconds
+Unused CPU time: 14.9 CPU seconds
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20846905          14.0
+20846905.batch    14.0     0.4
+20846905.bash     14.0     0.7
+
+Job 20846905 completed at Thu Nov 5 16:58:26 CET 2026

@@ -1,0 +1,3 @@
+job_id,profile,l_max,mpi_processes,layout_ranks,process_grid,electronic_elements,electronic_points,internuclear_elements,internuclear_points,memory_per_rank,dependency,result_json
+20846905,assessment,12,1,288,24x12,48,11,24,11,14G,none,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-lightweight-l12-l16-20261105/results/mem_assessment_l12_1r.json
+20846906,assessment,16,1,512,32x16,64,11,32,11,14G,afterany:20846905,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-lightweight-l12-l16-20261105/results/mem_assessment_l16_1r.json

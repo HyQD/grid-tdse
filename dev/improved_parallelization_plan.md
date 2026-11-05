@@ -136,13 +136,12 @@ The following limitations remain:
 - the two-dimensional process-grid dimensions remain bounded by the available
   FEM-DVR elements in their respective radial directions;
 - rank-local Coulomb data, the principal one-dimensional work arrays, and the
-  two-dimensional Hamiltonian's work and communication buffers are reused,
-  but the element-local construction path still instantiates replicated dense
-  one-body and expanded angular-pair arrays that its action never uses. The
-  2026-11-05 Saga construction-memory audit measured `7.62 GiB` of these
-  arrays per rank and a `10.11 GiB` Slurm `MaxRSS` for the assessment
-  `l_max=16` case. Removing their construction is the highest-priority memory
-  scalability prerequisite for large-radial-grid dynamics;
+  two-dimensional Hamiltonian's work and communication buffers are reused.
+  The lightweight element-local construction path no longer creates the
+  replicated dense one-body and expanded angular-pair arrays identified by
+  the original Saga audit. At assessment `l_max=16`, the validated change
+  reduced Slurm `MaxRSS` from `10356.6 MiB` to `2290.1 MiB`; the remaining
+  construction peak is primarily angular-cutoff dependent;
 - Krylov orthogonalization batches basis projections, but norms and iteration
   diagnostics still require latency-sensitive scalar reductions;
 - distributed velocity-gauge interactions and serial absorbers are complete,
@@ -227,7 +226,7 @@ path as the numerical reference, require action-level equivalence tests, and
 repeat this exact construction-memory audit to quantify both retained and
 transient-memory reductions.
 
-**Implementation status:** implemented locally; Saga validation remains. A
+**Implementation status:** implemented and validated on Saga. A
 `TwoRadialSystemSpec` can now construct an element-local representation without
 dense per-channel one-body matrices. The element-local Hamiltonian also omits
 the global coordinate-2 transpose and both expanded angular-pair operator
@@ -239,17 +238,19 @@ channels. The MPI dynamics and end-to-end setup paths, together with the
 construction-memory diagnostic, explicitly request the lightweight mode.
 
 Action-level tests match the retained global reference to approximately
-`1e-11` or better. On the assessment `l_max=8`, `319 x 159` radial grid and
-logical `16 x 8` layout, a local one-process diagnostic reduced the inventoried
-arrays from the archived 346.5 MiB to 9.4 MiB and the observed process peak
-from the Saga baseline of 761.8 MiB to 297.7 MiB on the development machine.
-These cross-machine RSS values are indicative rather than a controlled speedup;
-the same Saga workflow must be rerun for the production and assessment series
-before closing the memory gate.
+`1e-11` or better. The controlled Saga rerun eliminated the unused dense/pair
+inventory at every tested cutoff. On the assessment grids, inventoried arrays
+fell by `96.1--97.3%`, process peaks fell by `50.0%`, `76.4%`, and `78.2%` at
+`l_max=8`, `12`, and `16`, and the corresponding Slurm `MaxRSS` reductions
+were `47.3%`, `75.3%`, and `77.9%`. At fixed angular cutoff, the assessment
+grids now add only `12.7--74.8 MiB` to the production-grid process peak. This
+closes the lightweight construction-memory validation gate.
 
 The sanitized manifests, copied workers, Slurm output, accounting records,
 complete allocation inventories, and combined summary are archived under
 [`benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105`](../benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105).
+The matching lightweight validation is archived under
+[`benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-lightweight-20261105`](../benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-lightweight-20261105).
 
 ### Correctness validation
 

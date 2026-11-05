@@ -1,0 +1,4 @@
+job_id,profile,l_max,mpi_processes,layout_ranks,process_grid,electronic_elements,electronic_points,internuclear_elements,internuclear_points,memory_per_rank,dependency,result_json
+20845983,production,8,1,4,2x2,4,11,4,21,4G,none,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-production-lightweight-20261105-163557/results/mem_production_l8_1r.json
+20845984,production,12,1,4,2x2,4,11,4,21,4G,afterany:20845983,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-production-lightweight-20261105-163557/results/mem_production_l12_1r.json
+20845985,production,16,1,4,2x2,4,11,4,21,4G,afterany:20845984,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-production-lightweight-20261105-163557/results/mem_production_l16_1r.json

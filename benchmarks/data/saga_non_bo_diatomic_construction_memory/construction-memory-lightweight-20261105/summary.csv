@@ -1,0 +1,7 @@
+profile,l_max,logical_ranks,process_grid,radial_r,radial_R,gaunt_backend,final_rss_mib,process_peak_rss_mib,slurm_max_rss_mib,array_inventory_mib,unused_dense_pair_mib,state_tile_mib,unused_state_ratio,job_id,git_commit
+production,8,4,2x2,39,79,py3nj,359.0,368.2,412.2,4.5,0.0,3.2,0.0,20845983,aeb33abcdac842ff55f8ca219e52e52a8ede22c3
+production,12,4,2x2,39,79,py3nj,568.9,674.0,718.8,44.9,0.0,9.5,0.0,20845984,aeb33abcdac842ff55f8ca219e52e52a8ede22c3
+production,16,4,2x2,39,79,py3nj,1064.5,2167.9,2214.6,269.7,0.0,20.9,0.0,20845985,aeb33abcdac842ff55f8ca219e52e52a8ede22c3
+assessment,8,128,16x8,319,159,py3nj,374.6,380.9,424.7,9.4,0.0,1.6,0.0,20846901,aeb33abcdac842ff55f8ca219e52e52a8ede22c3
+assessment,12,288,24x12,479,239,py3nj,595.3,707.9,752.2,63.8,0.0,4.7,0.0,20846905,aeb33abcdac842ff55f8ca219e52e52a8ede22c3
+assessment,16,512,32x16,639,319,py3nj,1134.9,2242.7,2290.1,319.4,0.0,10.5,0.0,20846906,aeb33abcdac842ff55f8ca219e52e52a8ede22c3

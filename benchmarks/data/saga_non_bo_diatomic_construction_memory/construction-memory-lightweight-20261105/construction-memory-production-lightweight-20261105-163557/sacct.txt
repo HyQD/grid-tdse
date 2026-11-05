@@ -1,0 +1,14 @@
+JobID                                         JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     ReqMem     MaxRSS        NodeList
+------------ ---------------------------------------- ---------- -------- ---------- ---------- ---------- ---------- ---------- ---------------
+20845983                         mem_production_l8_1r  COMPLETED      0:0   00:00:42  00:26.672          1         4G                      c5-60
+20845983.ba+                                    batch  COMPLETED      0:0   00:00:42  00:17.214          1               411800K           c5-60
+20845983.ex+                                   extern  COMPLETED      0:0   00:00:42   00:00:00          1                                 c5-60
+20845983.0                                       bash  COMPLETED      0:0   00:00:13  00:09.457          1               422132K           c5-60
+20845984                        mem_production_l12_1r  COMPLETED      0:0   00:01:11  00:58.276          1         4G                      c5-60
+20845984.ba+                                    batch  COMPLETED      0:0   00:01:11  00:17.848          1               411640K           c5-60
+20845984.ex+                                   extern  COMPLETED      0:0   00:01:11   00:00:00          1                                 c5-60
+20845984.0                                       bash  COMPLETED      0:0   00:00:45  00:40.427          1               736012K           c5-60
+20845985                        mem_production_l16_1r  COMPLETED      0:0   00:03:01  02:48.613          1         4G                      c5-60
+20845985.ba+                                    batch  COMPLETED      0:0   00:03:01  00:17.391          1               411420K           c5-60
+20845985.ex+                                   extern  COMPLETED      0:0   00:03:01   00:00:00          1                                 c5-60
+20845985.0                                       bash  COMPLETED      0:0   00:02:35  02:31.221          1              2267796K           c5-60
