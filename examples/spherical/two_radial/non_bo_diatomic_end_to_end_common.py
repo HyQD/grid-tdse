@@ -417,9 +417,10 @@ def print_initial_observables(
     electronic_grid: FEMDVRGridSpec,
     internuclear_grid: FEMDVRGridSpec,
 ) -> None:
-    """Print the common normalized observables before propagation starts."""
+    """Print the common physical observables before propagation starts."""
 
     conditional = snapshot.conditional
+    numerators = snapshot.numerators
     pair_exchange = conditional.pair_exchange
 
     def vector(values) -> str:
@@ -451,6 +452,14 @@ def print_initial_observables(
     print(f"<L_z>:                    {conditional.total_l_z:.12f}")
     print(f"<cos^2(theta_R)>:         {conditional.cos2_theta_R:.12f}")
     print(f"<cos(theta_R)>:           {conditional.cos_theta_R:.12f}")
+    print(f"<R^2>:                    {numerators.R_squared:.12f} a0^2")
+    print(f"<cos^4(theta_R)>:         {numerators.cos4_theta_R:.12f}")
+    print(f"<cos^6(theta_R)>:         {numerators.cos6_theta_R:.12f}")
+    print(f"<cos^8(theta_R)>:         {numerators.cos8_theta_R:.12f}")
+    print(
+        "<R cos^2(theta_R)>:     "
+        f"{numerators.R_cos2_theta_R:.12f} a0"
+    )
     print(f"<I>:                      {conditional.inversion:.12f}")
     print(
         "<P>:                      "
