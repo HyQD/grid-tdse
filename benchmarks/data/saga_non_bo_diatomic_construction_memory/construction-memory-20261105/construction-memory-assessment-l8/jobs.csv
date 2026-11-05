@@ -1,0 +1,2 @@
+job_id,profile,l_max,mpi_processes,layout_ranks,process_grid,electronic_elements,electronic_points,internuclear_elements,internuclear_points,memory_per_rank,dependency,result_json
+20844662,assessment,8,1,128,16x8,32,11,16,11,14G,none,/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/construction-memory/construction-memory-assessment-l8/results/mem_assessment_l8_1r.json

@@ -1,0 +1,617 @@
+{
+  "backend": {
+    "configured": "auto",
+    "py3nj_available": true,
+    "py3nj_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py",
+    "py3nj_version": "0.2.1",
+    "resolved": "py3nj"
+  },
+  "execution": {
+    "layout_ranks": 4,
+    "mpi_processes": 1,
+    "process_grid": [
+      2,
+      2
+    ],
+    "tile_size": 2048
+  },
+  "problem": {
+    "M_tot": 0,
+    "angular_pairs": 777,
+    "codata_set": "2018",
+    "coulomb_couplings": 1251060,
+    "electronic_elements": 4,
+    "electronic_points_per_element": 11,
+    "electronic_rmax": 16.0,
+    "global_shape": [
+      777,
+      39,
+      79
+    ],
+    "internuclear_elements": 4,
+    "internuclear_points_per_element": 21,
+    "internuclear_rmax": 8.0,
+    "l_max": 12,
+    "lambda_max": 24,
+    "m_max": 12,
+    "mu_max": 24,
+    "profile_name": "production",
+    "radial_points": [
+      39,
+      79
+    ],
+    "system": "H2+"
+  },
+  "ranks": [
+    {
+      "array_inventory": {
+        "named_entries": [
+          {
+            "category": "dense_one_body",
+            "dtype": "float64",
+            "name": "representation.h1",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 2056392,
+            "shape": [
+              169,
+              39,
+              39
+            ],
+            "view_nbytes": 2056392
+          },
+          {
+            "category": "dense_one_body",
+            "dtype": "float64",
+            "name": "representation.h2",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 4543448,
+            "shape": [
+              91,
+              79,
+              79
+            ],
+            "view_nbytes": 4543448
+          },
+          {
+            "category": "dense_one_body",
+            "dtype": "float64",
+            "name": "serial_hamiltonian.h2_transpose",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 4543448,
+            "shape": [
+              1,
+              91,
+              79,
+              79
+            ],
+            "view_nbytes": 4543448
+          },
+          {
+            "category": "expanded_pair_operators",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h1_pairs",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 9454536,
+            "shape": [
+              777,
+              39,
+              39
+            ],
+            "view_nbytes": 9454536
+          },
+          {
+            "category": "expanded_pair_operators",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h2_pairs_transpose",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 38794056,
+            "shape": [
+              777,
+              79,
+              79
+            ],
+            "view_nbytes": 38794056
+          },
+          {
+            "category": "global_radial_multipoles",
+            "dtype": "float64",
+            "name": "representation.radial_multipoles.values",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 320424,
+            "shape": [
+              13,
+              39,
+              79
+            ],
+            "view_nbytes": 320424
+          },
+          {
+            "category": "global_radial_multipoles",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._radial_flat",
+            "owns_unique_storage_in_inventory": false,
+            "root_nbytes": 320424,
+            "shape": [
+              13,
+              3081
+            ],
+            "view_nbytes": 320424
+          },
+          {
+            "category": "local_radial_multipoles",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._local_radial_coulomb",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 83200,
+            "shape": [
+              13,
+              800
+            ],
+            "view_nbytes": 83200
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.output_1",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.output_2",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int64",
+            "name": "representation.couplings.offsets",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 6224,
+            "shape": [
+              778
+            ],
+            "view_nbytes": 6224
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.input_1",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.input_2",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "int32",
+            "name": "representation.couplings.radial_index",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "global_couplings",
+            "dtype": "float64",
+            "name": "representation.couplings.coefficient",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 10008480,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 10008480
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3108,
+            "shape": [
+              777
+            ],
+            "view_nbytes": 3108
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int64",
+            "name": "serial_hamiltonian._compact_couplings[1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 6224,
+            "shape": [
+              778
+            ],
+            "view_nbytes": 6224
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "int32",
+            "name": "serial_hamiltonian._compact_couplings[3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 5004240,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 5004240
+          },
+          {
+            "category": "compact_couplings",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._compact_couplings[4]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 10008480,
+            "shape": [
+              1251060
+            ],
+            "view_nbytes": 10008480
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "representation.h1_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 52728,
+            "shape": [
+              169,
+              39
+            ],
+            "view_nbytes": 52728
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "representation.h2_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 57512,
+            "shape": [
+              91,
+              79
+            ],
+            "view_nbytes": 57512
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h1_diagonal_pairs",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 242424,
+            "shape": [
+              777,
+              39
+            ],
+            "view_nbytes": 242424
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "serial_hamiltonian._h2_diagonal_pairs",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 491064,
+            "shape": [
+              777,
+              79
+            ],
+            "view_nbytes": 491064
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._h1_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 242424,
+            "shape": [
+              777,
+              39
+            ],
+            "view_nbytes": 242424
+          },
+          {
+            "category": "one_body_diagonals",
+            "dtype": "float64",
+            "name": "distributed_hamiltonian._h2_diagonal",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 491064,
+            "shape": [
+              777,
+              79
+            ],
+            "view_nbytes": 491064
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[1][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3200,
+            "shape": [
+              20,
+              20
+            ],
+            "view_nbytes": 3200
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3528,
+            "shape": [
+              21,
+              21
+            ],
+            "view_nbytes": 3528
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3528,
+            "shape": [
+              21,
+              21
+            ],
+            "view_nbytes": 3528
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "second_derivative[2][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3200,
+            "shape": [
+              20,
+              20
+            ],
+            "view_nbytes": 3200
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 968,
+            "shape": [
+              11,
+              11
+            ],
+            "view_nbytes": 968
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[1][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 800,
+            "shape": [
+              10,
+              10
+            ],
+            "view_nbytes": 800
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][0]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3200,
+            "shape": [
+              20,
+              20
+            ],
+            "view_nbytes": 3200
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][1]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3528,
+            "shape": [
+              21,
+              21
+            ],
+            "view_nbytes": 3528
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][2]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3528,
+            "shape": [
+              21,
+              21
+            ],
+            "view_nbytes": 3528
+          },
+          {
+            "category": "element_matrices",
+            "dtype": "float64",
+            "name": "first_derivative[2][3]",
+            "owns_unique_storage_in_inventory": true,
+            "root_nbytes": 3200,
+            "shape": [
+              20,
+              20
+            ],
+            "view_nbytes": 3200
+          }
+        ],
+        "unique_bytes_by_category": {
+          "compact_couplings": 20026292,
+          "dense_one_body": 11143288,
+          "element_matrices": 33984,
+          "expanded_pair_operators": 48248592,
+          "global_couplings": 25033640,
+          "global_radial_multipoles": 320424,
+          "local_radial_multipoles": 83200,
+          "one_body_diagonals": 1577216
+        },
+        "unique_bytes_total": 106466636
+      },
+      "backend": {
+        "configured": "auto",
+        "py3nj_available": true,
+        "py3nj_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py",
+        "py3nj_version": "0.2.1",
+        "resolved": "py3nj"
+      },
+      "hostname": "c5-60",
+      "layout_rank": 0,
+      "owned_complex_state_bytes": 9945600,
+      "owned_shape": [
+        777,
+        20,
+        40
+      ],
+      "rank": 0,
+      "stages": [
+        {
+          "current_rss_mib": 330.04296875,
+          "elapsed_seconds": null,
+          "peak_rss_mib": 330.04296875,
+          "resource_peak_rss_mib": 330.04296875,
+          "stage": "imports_complete"
+        },
+        {
+          "current_rss_mib": 532.26171875,
+          "elapsed_seconds": 31.83158053457737,
+          "peak_rss_mib": 672.9609375,
+          "resource_peak_rss_mib": 672.9609375,
+          "stage": "representation_built"
+        },
+        {
+          "current_rss_mib": 532.26171875,
+          "elapsed_seconds": 0.003103334456682205,
+          "peak_rss_mib": 672.9609375,
+          "resource_peak_rss_mib": 672.9609375,
+          "stage": "layout_built"
+        },
+        {
+          "current_rss_mib": 614.5,
+          "elapsed_seconds": 1.4835296720266342,
+          "peak_rss_mib": 672.9609375,
+          "resource_peak_rss_mib": 672.9609375,
+          "stage": "distributed_hamiltonian_built"
+        }
+      ]
+    }
+  ],
+  "runtime": {
+    "mpi_library": "Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026",
+    "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+    "python": "3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]",
+    "python_executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+    "slurm_job_id": "20844567"
+  },
+  "schema": "grid-tdse-two-radial-construction-memory-v1"
+}

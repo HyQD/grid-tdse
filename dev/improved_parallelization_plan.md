@@ -135,10 +135,14 @@ The following limitations remain:
 
 - the two-dimensional process-grid dimensions remain bounded by the available
   FEM-DVR elements in their respective radial directions;
-- rank-local Coulomb data and the principal one-dimensional work arrays are
-  reused, and the two-dimensional Hamiltonian reuses persistent work and
-  communication buffers, while further kernel-level allocation profiling
-  remains useful;
+- rank-local Coulomb data, the principal one-dimensional work arrays, and the
+  two-dimensional Hamiltonian's work and communication buffers are reused,
+  but the element-local construction path still instantiates replicated dense
+  one-body and expanded angular-pair arrays that its action never uses. The
+  2026-11-05 Saga construction-memory audit measured `7.62 GiB` of these
+  arrays per rank and a `10.11 GiB` Slurm `MaxRSS` for the assessment
+  `l_max=16` case. Removing their construction is the highest-priority memory
+  scalability prerequisite for large-radial-grid dynamics;
 - Krylov orthogonalization batches basis projections, but norms and iteration
   diagnostics still require latency-sensitive scalar reductions;
 - distributed velocity-gauge interactions and serial absorbers are complete,
@@ -174,6 +178,58 @@ library-thread availability, not threading of the Numba Coulomb kernel. The
 current production default remains one physical CPU core and one numerical
 thread per MPI rank, but an explicit fixed-core Numba-thread study is required
 before ruling out hybrid execution for the high-angular-cutoff Coulomb action.
+
+### Two-radial construction-memory audit
+
+A controlled Saga audit on 2026-11-05 measured process memory while building
+the global two-radial representation and the element-local Cartesian-MPI
+Hamiltonian. It deliberately performed no Hamiltonian action, eigensolve, or
+propagation. Each job used one real MPI process while emulating rank zero of a
+specified logical process grid. This isolates the per-rank construction cost
+without multiplying a potentially multi-gigabyte replicated allocation across
+the full logical rank count. The reported logical state size is computed for
+that rank's tile but is not allocated.
+
+The production-grid series used `4e11` for `r`, `4e21` for `R`, and a logical
+`2 x 2` process grid:
+
+| `l_max` | radial points | final RSS/rank | process peak/rank | inventoried arrays/rank | arrays unused by the element-local action | logical state/rank | unused/state |
+|---:|:---:|---:|---:|---:|---:|---:|---:|
+| 8 | `39 x 79` | `381.9 MiB` | `394.5 MiB` | `25.4 MiB` | `20.9 MiB` | `3.2 MiB` | `6.5` |
+| 12 | `39 x 79` | `614.5 MiB` | `673.0 MiB` | `101.5 MiB` | `56.6 MiB` | `9.5 MiB` | `6.0` |
+| 16 | `39 x 79` | `1139.4 MiB` | `2166.6 MiB` | `389.1 MiB` | `119.4 MiB` | `20.9 MiB` | `5.7` |
+
+The assessment series increased both radial grids with angular cutoff and
+emulated the process grids proposed in the external performance assessment:
+
+| `l_max` | logical grid | radial points | final RSS/rank | process peak/rank | Slurm `MaxRSS`/rank | inventoried arrays/rank | arrays unused by the element-local action | logical state/rank | unused/state |
+|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|
+| 8 | `16 x 8` | `319 x 159` | `711.4 MiB` | `761.8 MiB` | `806.3 MiB` | `346.5 MiB` | `337.1 MiB` | `1.6 MiB` | `208.4` |
+| 12 | `24 x 12` | `479 x 239` | `2663.0 MiB` | `3001.1 MiB` | `3050.5 MiB` | `2137.7 MiB` | `2073.9 MiB` | `4.7 MiB` | `437.3` |
+| 16 | `32 x 16` | `639 x 319` | `8932.2 MiB` | `10292.8 MiB` | `10356.6 MiB` | `8123.6 MiB` | `7804.2 MiB` | `10.5 MiB` | `746.4` |
+
+Every job completed normally. `py3nj` 0.2.1 was available on the compute node,
+and `grid-lib` selected its `py3nj` Gaunt backend in every case. The Python
+peak-memory measurements and Slurm `MaxRSS` agree within about 2% for the
+assessment `l_max=12` and `16` cases.
+
+The audit therefore confirms that the memory behavior is not specific to the
+assessment author's workstation. At assessment `l_max=16`, approximately 96%
+of inventoried array memory belongs to dense one-body and expanded pair
+operators that the element-local action does not consume. Those arrays occupy
+about 746 times the logical state tile on each rank. `py3nj` improves angular
+coefficient evaluation but does not change this replicated storage design.
+
+Before large-radial-grid production dynamics or a full Phase 11 scaling
+matrix, introduce a lightweight element-local construction path that never
+creates these serial-only arrays. Preserve the existing serial construction
+path as the numerical reference, require action-level equivalence tests, and
+repeat this exact construction-memory audit to quantify both retained and
+transient-memory reductions.
+
+The sanitized manifests, copied workers, Slurm output, accounting records,
+complete allocation inventories, and combined summary are archived under
+[`benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105`](../benchmarks/data/saga_non_bo_diatomic_construction_memory/construction-memory-20261105).
 
 ### Correctness validation
 
