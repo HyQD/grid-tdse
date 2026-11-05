@@ -125,6 +125,16 @@ def calculation(
             if wavefunction_directory is not None
             else None
         ),
+        wavefunction_snapshot_steps=(
+            values.wavefunction_snapshot_steps
+            if wavefunction_directory is not None
+            else None
+        ),
+        wavefunction_snapshot_times=(
+            values.wavefunction_snapshot_times
+            if wavefunction_directory is not None
+            else None
+        ),
         wavefunction_snapshot_initial=True,
         wavefunction_snapshot_final=True,
         wavefunction_snapshot_prefix="wavefunction",

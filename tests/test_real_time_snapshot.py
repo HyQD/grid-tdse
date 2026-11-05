@@ -6,6 +6,7 @@ import pytest
 
 from grid_tdse.real_time import (
     RealTimePropagator,
+    RealTimeSnapshotSelector,
     RealTimeSnapshotWriter,
     RealTimeStateSnapshot,
     load_real_time_checkpoint,
@@ -139,3 +140,57 @@ def test_snapshot_writer_requires_directory_and_checkpoint(tmp_path):
             False,
             True,
         )
+
+
+def test_snapshot_writer_unions_interval_steps_times_and_warns_unmatched(tmp_path):
+    initial = np.array([1.0, 0.2j])
+    propagator = RealTimePropagator(
+        final_time=0.4,
+        time_step=0.1,
+        integrator="sil",
+        progress_interval=None,
+    )
+    writer = RealTimeSnapshotWriter(
+        tmp_path,
+        interval=4,
+        steps=[1, 1],
+        times=[0.2, 0.35],
+        prefix="selected",
+        parent_state_data_id=real_time_state_data_id(initial),
+        inner_product=np.vdot,
+    )
+
+    propagator.propagate(
+        initial,
+        lambda state, time: np.array([0.4, 0.9]) * state,
+        np.vdot,
+        state_observer=writer,
+    )
+    with pytest.warns(RuntimeWarning, match=r"times=\[0\.35\]"):
+        manifest_path = writer.finish()
+
+    assert [record.accepted_step for record in writer.records] == [0, 1, 2, 4]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["selection"] == {
+        "interval": 4,
+        "steps": [1],
+        "times": [0.2, 0.35],
+        "include_initial": True,
+        "include_final": True,
+        "unmatched_steps": [],
+        "unmatched_times": [0.35],
+    }
+
+
+def test_snapshot_selector_uses_global_steps_and_absolute_times():
+    selector = RealTimeSnapshotSelector(
+        steps=[6],
+        times=[1.25],
+        include_initial=False,
+        include_final=False,
+    )
+
+    assert not selector.selected(5, 0, 1.0)
+    assert selector.selected(6, 1, 1.25)
+    assert selector.as_dict()["unmatched_steps"] == []
+    assert selector.as_dict()["unmatched_times"] == []

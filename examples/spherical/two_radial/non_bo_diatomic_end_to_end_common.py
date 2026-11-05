@@ -102,6 +102,21 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         help="optional accepted-step interval in addition to initial/final states",
     )
+    parser.add_argument(
+        "--wavefunction-snapshot-steps",
+        type=int,
+        nargs="+",
+        help="global accepted steps to retain in addition to other selections",
+    )
+    parser.add_argument(
+        "--wavefunction-snapshot-times",
+        type=float,
+        nargs="+",
+        help=(
+            "absolute times to retain when they coincide with accepted "
+            "propagation times"
+        ),
+    )
     parser.add_argument("--no-wavefunction-snapshots", action="store_true")
     parser.add_argument(
         "--figure-path",
@@ -163,6 +178,12 @@ def validate_arguments(parser: argparse.ArgumentParser, arguments) -> None:
     interval = arguments.wavefunction_snapshot_interval
     if interval is not None and interval < 1:
         parser.error("--wavefunction-snapshot-interval must be positive")
+    steps = arguments.wavefunction_snapshot_steps
+    if steps is not None and any(step < 0 for step in steps):
+        parser.error("--wavefunction-snapshot-steps must be nonnegative")
+    times = arguments.wavefunction_snapshot_times
+    if times is not None and any(not isfinite(time) for time in times):
+        parser.error("--wavefunction-snapshot-times must be finite")
     for option, nodes in (
         ("electronic", arguments.electronic_nodes),
         ("internuclear", arguments.internuclear_nodes),
@@ -398,6 +419,16 @@ def configuration_record(arguments, setup) -> dict[str, object]:
             None
             if arguments.no_wavefunction_snapshots
             else arguments.wavefunction_snapshot_interval
+        ),
+        "wavefunction_snapshot_steps": (
+            None
+            if arguments.no_wavefunction_snapshots
+            else list(arguments.wavefunction_snapshot_steps or ())
+        ),
+        "wavefunction_snapshot_times": (
+            None
+            if arguments.no_wavefunction_snapshots
+            else list(arguments.wavefunction_snapshot_times or ())
         ),
     }
 

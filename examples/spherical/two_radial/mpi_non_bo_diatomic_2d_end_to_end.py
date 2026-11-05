@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 from mpi4py import MPI
 
+from grid_tdse.real_time import RealTimeSnapshotSelector
 from grid_tdse.spherical.two_radial import (
     DiatomicIonDynamicsSamplingPolicy,
     TwoRadialDistributed2DLayout,
@@ -214,20 +215,29 @@ if communicator.rank == 0:
 snapshot_records = []
 checkpoint_records = []
 physical_state = physical_state_metadata(setup)
+snapshot_selector = (
+    None
+    if paths["wavefunctions"] is None
+    else RealTimeSnapshotSelector(
+        interval=values.wavefunction_snapshot_interval,
+        steps=values.wavefunction_snapshot_steps,
+        times=values.wavefunction_snapshot_times,
+        include_initial=True,
+        include_final=True,
+    )
+)
 
 
 def retain_state(state, step, time, diagnostics, final):
     del diagnostics
     global_step = step_offset + step
     snapshot_selected = (
-        paths["wavefunctions"] is not None
-        and (
-            step == 0
-            or final
-            or (
-                values.wavefunction_snapshot_interval is not None
-                and global_step % values.wavefunction_snapshot_interval == 0
-            )
+        snapshot_selector is not None
+        and snapshot_selector.selected(
+            global_step,
+            step,
+            time,
+            final=final,
         )
     )
     checkpoint_selected = (
@@ -278,6 +288,8 @@ local_wall_time = MPI.Wtime() - started
 wall_time = communicator.allreduce(local_wall_time, op=MPI.MAX)
 
 if communicator.rank == 0:
+    if snapshot_selector is not None:
+        snapshot_selector.warn_unmatched()
     observables_path = write_json(
         run_directory / "observables.json",
         result.time_series.records(),
@@ -312,6 +324,9 @@ if communicator.rank == 0:
             else str(paths["wavefunctions"])
         ),
         "wavefunction_snapshots": snapshot_records,
+        "wavefunction_snapshot_selection": (
+            None if snapshot_selector is None else snapshot_selector.as_dict()
+        ),
         "checkpoint_directory": (
             None if values.no_checkpoints else str(checkpoint_directory)
         ),
