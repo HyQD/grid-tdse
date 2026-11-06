@@ -1157,8 +1157,11 @@ Complete the work in the following order:
    Davidson diagnostics by default only after confirming that production
    convergence reporting remains sufficient.
 
-**Baseline implementation status:** prepared locally; Saga execution remains.
-The workflow under
+**Baseline implementation status:** completed and archived. The controlled
+Saga matrix ran on 2026-11-06 at grid-tdse commit
+`df482e5f5ab260a1fbd513dd50ba3c13841aaab6`. All 22 jobs completed normally:
+12 fixed-action Hamiltonian jobs, one Davidson seed job, and nine
+production-style SIA jobs. No failure marker was found. The workflow under
 [`examples/spherical/two_radial/Saga/phase9i_baseline`](../examples/spherical/two_radial/Saga/phase9i_baseline/README.md)
 copies immutable workers into each run directory and records the repository
 commit, input checksums, environment, job manifest, fixed-action component
@@ -1167,6 +1170,23 @@ and numerical checks. Its controlled default matrix uses three repetitions of
 H2+ `l_max=8` Hamiltonian actions at 1, 2, 4, and 16 MPI ranks and short H2+
 `l_max=2` production-SIA calculations at 1, 2, and 4 ranks. Jobs are serialized
 by default to avoid benchmark interference.
+
+The `l_max=8` Hamiltonian action decreased from `0.591683 s` at one rank to
+`0.039131 s` at 16 ranks, a `15.12`-fold speedup and approximately 94% parallel
+efficiency. The Coulomb action occupied approximately 89% of the single-rank
+action and itself achieved a `15.9`-fold speedup. The short `l_max=2`
+production-SIA calculation decreased from `50.44 s` at one rank to `24.58 s`
+at four ranks, a `2.05`-fold speedup and approximately 51% efficiency. The
+rank-independent Krylov work was about 4402 Hamiltonian calls with mean Krylov
+dimension 17.76; every one of the 80 requested steps triggered one
+rejection/refinement. The maximum Hamiltonian reference error was
+`9.095e-13`, and the maximum propagated norm loss was below `1.25e-14`.
+
+The sanitized manifests, copied workers, results, time series, Slurm output,
+accounting, and summaries are archived under
+[`benchmarks/data/saga_non_bo_diatomic_phase9i`](../benchmarks/data/saga_non_bo_diatomic_phase9i/README.md).
+These records are the immutable pre-optimization reference for the remaining
+Phase 9i work.
 
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action
