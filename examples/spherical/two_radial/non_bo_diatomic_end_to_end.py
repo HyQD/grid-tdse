@@ -34,6 +34,7 @@ from non_bo_diatomic_end_to_end_common import (
     plot_dynamics,
     prepare_run_directory,
     print_initial_observables,
+    propagation_diagnostics_record,
     resolved_paths,
     validate_arguments,
     write_json,
@@ -237,6 +238,7 @@ summary = {
     "initial_norm": result.initial_norm,
     "final_norm": result.norm,
     "wall_time_seconds": wall_time,
+    "propagation_diagnostics": propagation_diagnostics_record(result),
     "ground_state_path": str(paths["ground_state"]),
     "checkpoint_path": (
         None if paths["checkpoint"] is None else str(paths["checkpoint"])

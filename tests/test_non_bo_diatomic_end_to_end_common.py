@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 
@@ -25,6 +26,7 @@ absorbing_boundaries = COMMON.absorbing_boundaries
 configuration_record = COMMON.configuration_record
 dynamics_representation = COMMON.dynamics_representation
 physical_setup = COMMON.physical_setup
+propagation_diagnostics_record = COMMON.propagation_diagnostics_record
 
 
 def _arguments(**updates):
@@ -115,3 +117,29 @@ def test_phase9h_records_explicit_wavefunction_snapshot_selection():
     assert record["wavefunction_snapshot_interval"] == 100
     assert record["wavefunction_snapshot_steps"] == [0, 7, 25]
     assert record["wavefunction_snapshot_times"] == [0.0, 1.75, 6.25]
+
+
+def test_phase9h_records_propagation_diagnostics():
+    result = SimpleNamespace(
+        krylov_operator_calls=np.asarray([11, 13]),
+        krylov_accepted_substeps=np.asarray([1, 2]),
+        krylov_rejected_substeps=np.asarray([0, 1]),
+        krylov_refinement_depths=np.asarray([0, 1]),
+        krylov_dimensions=np.asarray([8, 10]),
+        krylov_error_estimates=np.asarray([1.0e-12, 2.0e-12]),
+        step_wall_times=np.asarray([0.1, 0.2]),
+    )
+
+    record = propagation_diagnostics_record(result)
+
+    assert record["operator_calls_per_step"] == [11, 13]
+    assert record["operator_calls_total"] == 24
+    assert record["operator_calls_mean"] == 12.0
+    assert record["accepted_substeps_total"] == 3
+    assert record["rejected_substeps_total"] == 1
+    assert record["refinement_depth_maximum"] == 1
+    assert record["krylov_dimension_mean"] == 9.0
+    assert record["krylov_dimension_maximum"] == 10
+    assert record["error_estimate_maximum"] == pytest.approx(2.0e-12)
+    assert record["step_wall_seconds_total"] == pytest.approx(0.3)
+    assert record["step_wall_seconds_mean"] == pytest.approx(0.15)
