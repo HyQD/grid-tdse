@@ -2,7 +2,7 @@ r"""Cartesian-MPI SIL/SIA propagation for two-radial dynamics."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from numbers import Integral
 from typing import Literal, Protocol
@@ -89,6 +89,7 @@ Distributed2DStateObserver = Callable[
     [DistributedTwoRadial2DState, int, float, object | None, bool],
     None,
 ]
+KrylovReductionMode = Literal["scalar", "batched"]
 
 
 class TwoRadialDistributed2DRealTimeSolver:
@@ -99,7 +100,8 @@ class TwoRadialDistributed2DRealTimeSolver:
     Cartesian process directions.  The z-polarized length-gauge interaction
     is point-local, while the velocity-gauge interaction performs the bridge
     exchanges required by its first radial derivatives.  Krylov inner
-    products and observable samples use batched physical MPI reductions.
+    products may use either the scalar reference reductions or batched
+    physical MPI reductions. Observable samples use batched reductions.
     """
 
     def __init__(
@@ -129,6 +131,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         coulomb_kernel: CoulombKernelMode = "reference",
         radial_kernel: RadialKernelMode = "reference",
         dipole_kernel: DipoleKernelMode = "reference",
+        krylov_reduction_mode: KrylovReductionMode = "scalar",
         profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
@@ -137,6 +140,8 @@ class TwoRadialDistributed2DRealTimeSolver:
             raise TypeError("parameters must be a DiatomicIonParameters")
         if integrator not in ("sil", "sia"):
             raise ValueError("integrator must be 'sil' or 'sia'")
+        if krylov_reduction_mode not in ("scalar", "batched"):
+            raise ValueError("krylov_reduction_mode must be 'scalar' or 'batched'")
         if absorbing_boundaries is not None:
             if not isinstance(absorbing_boundaries, TwoRadialAbsorbingBoundaries):
                 raise TypeError(
@@ -164,6 +169,7 @@ class TwoRadialDistributed2DRealTimeSolver:
             )
         self.root = _validated_root(root, size)
         self.integrator = integrator
+        self.krylov_reduction_mode = krylov_reduction_mode
         if field_gauge not in ("length", "velocity"):
             raise ValueError("field_gauge must be 'length' or 'velocity'")
         self.field_gauge = field_gauge
@@ -315,6 +321,12 @@ class TwoRadialDistributed2DRealTimeSolver:
                 local_state(right),
             )
 
+        def inner_products(left: Sequence[np.ndarray], right: np.ndarray):
+            return self.reductions.inner_products(
+                tuple(local_state(values) for values in left),
+                local_state(right),
+            )
+
         def observe(coefficients, step, time, diagnostics, final, checkpoint):
             state = local_state(coefficients)
             sampler.sample_distributed_2d(
@@ -337,6 +349,9 @@ class TwoRadialDistributed2DRealTimeSolver:
             initial_state.coefficients,
             hamiltonian_action,
             inner_product,
+            inner_products=(
+                inner_products if self.krylov_reduction_mode == "batched" else None
+            ),
             state_observer=observe,
             post_step=(
                 post_step

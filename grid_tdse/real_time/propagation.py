@@ -1,6 +1,6 @@
 r"""Representation-independent real-time Schrödinger propagation."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import json
 from os import PathLike
@@ -158,6 +158,10 @@ StateObserver = Callable[
     [np.ndarray, int, float, RealTimePropagationStep | None, bool, bool],
     None,
 ]
+InnerProducts = Callable[
+    [Sequence[np.ndarray], np.ndarray],
+    np.ndarray,
+]
 
 
 class RealTimePropagator:
@@ -281,6 +285,7 @@ class RealTimePropagator:
         hamiltonian: Callable[[np.ndarray, float], np.ndarray],
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
+        inner_products: InnerProducts | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -308,6 +313,11 @@ class RealTimePropagator:
             the state shape. The time is the midpoint of the current step.
         inner_product
             Physical inner product for the representation.
+        inner_products
+            Optional batched physical inner product. It receives a sequence
+            of left states and one right state, and returns one value per left
+            state. SIL and SIA use this callback to batch Krylov projections;
+            it is not accepted by Crank--Nicolson.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
             :class:`integrator_lib.CrankNicolson`. Preconditioners are not
@@ -352,6 +362,7 @@ class RealTimePropagator:
             initial_state,
             hamiltonian,
             inner_product,
+            inner_products=inner_products,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -372,6 +383,7 @@ class RealTimePropagator:
         hamiltonian: Callable[[np.ndarray, float], np.ndarray],
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
+        inner_products: InnerProducts | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -403,6 +415,7 @@ class RealTimePropagator:
             stored.state,
             hamiltonian,
             inner_product,
+            inner_products=inner_products,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -423,6 +436,7 @@ class RealTimePropagator:
         hamiltonian: Callable[[np.ndarray, float], np.ndarray],
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
+        inner_products: InnerProducts | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -453,6 +467,7 @@ class RealTimePropagator:
             stored.state,
             hamiltonian,
             inner_product,
+            inner_products=inner_products,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -473,6 +488,7 @@ class RealTimePropagator:
         hamiltonian,
         inner_product,
         *,
+        inner_products,
         preconditioner,
         samplers,
         state_observer,
@@ -492,6 +508,8 @@ class RealTimePropagator:
             raise TypeError("hamiltonian must be callable")
         if not callable(inner_product):
             raise TypeError("inner_product must be callable")
+        if inner_products is not None and not callable(inner_products):
+            raise TypeError("inner_products must be callable or None")
         if post_step is not None and not callable(post_step):
             raise TypeError("post_step must be callable or None")
         if state_observer is not None and not callable(state_observer):
@@ -597,7 +615,11 @@ class RealTimePropagator:
             checkpoint=False,
         )
 
-        integrator = self._build_integrator(inner_product, preconditioner)
+        integrator = self._build_integrator(
+            inner_product,
+            inner_products,
+            preconditioner,
+        )
 
         def schrodinger_rhs(values, time):
             action = _hamiltonian_action(hamiltonian, values, time, shape)
@@ -679,8 +701,12 @@ class RealTimePropagator:
 
     __call__ = propagate
 
-    def _build_integrator(self, inner_product, preconditioner):
+    def _build_integrator(self, inner_product, inner_products, preconditioner):
         if self.integrator == "crank-nicolson":
+            if inner_products is not None:
+                raise ValueError(
+                    "inner_products is supported only by integrators SIL and SIA"
+                )
             return CrankNicolson(
                 solver=self.linear_solver,
                 rtol=self.linear_rtol,
@@ -703,6 +729,7 @@ class RealTimePropagator:
             max_refinements=self.max_krylov_refinements,
             reorthogonalize=self.krylov_reorthogonalize,
             inner_product=inner_product,
+            inner_products=inner_products,
             breakdown_tolerance=self.krylov_breakdown_tolerance,
         )
 

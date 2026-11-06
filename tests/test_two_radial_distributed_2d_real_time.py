@@ -222,6 +222,7 @@ def _distributed_run(
     process_grid,
     final_time,
     integrator="sil",
+    krylov_reduction_mode="scalar",
 ):
     n_ranks = process_grid[0] * process_grid[1]
     layout = TwoRadialDistributed2DLayout(
@@ -241,6 +242,7 @@ def _distributed_run(
             final_time=final_time,
             time_step=0.01,
             integrator=integrator,
+            krylov_reduction_mode=krylov_reduction_mode,
             max_krylov_dimension=20,
             krylov_rtol=1.0e-11,
             krylov_atol=1.0e-13,
@@ -442,6 +444,66 @@ def test_cartesian_exponential_integrators_match_serial(integrator):
     np.testing.assert_allclose(actual, serial.state, atol=3.0e-11, rtol=3.0e-11)
 
 
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_batched_krylov_reductions_match_scalar_and_use_fewer_collectives(
+    integrator,
+):
+    system, parameters, state = _problem()
+    pulse = _Pulse()
+    layout, _, scalar = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (1, 2),
+        0.01,
+        integrator,
+        "scalar",
+    )
+    _, _, batched = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (1, 2),
+        0.01,
+        integrator,
+        "batched",
+    )
+
+    scalar_state = layout.assemble(tuple(result.state for result in scalar))
+    batched_state = layout.assemble(tuple(result.state for result in batched))
+    np.testing.assert_allclose(
+        batched_state,
+        scalar_state,
+        atol=3.0e-11,
+        rtol=3.0e-11,
+    )
+    for scalar_result, batched_result in zip(scalar, batched, strict=True):
+        assert (
+            batched_result.reduction_profile.collective_calls
+            < scalar_result.reduction_profile.collective_calls
+        )
+        assert (
+            batched_result.reduction_profile.local_inner_product_calls
+            == scalar_result.reduction_profile.local_inner_product_calls
+        )
+
+
+def test_cartesian_real_time_rejects_unknown_krylov_reduction_mode():
+    system, parameters, _ = _problem()
+    layout = TwoRadialDistributed2DLayout(system, 1)
+
+    with pytest.raises(ValueError, match="krylov_reduction_mode"):
+        TwoRadialDistributed2DRealTimeSolver(
+            layout,
+            parameters,
+            final_time=0.01,
+            time_step=0.01,
+            krylov_reduction_mode="unknown",
+        )
+
+
 def test_cartesian_short_time_series_and_final_state_match_serial():
     system, parameters, state = _problem()
     pulse = _Pulse()
@@ -525,9 +587,7 @@ def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
         cap1=cap1,
         cap2=cap2,
     )
-    physical_hamiltonian = system.hamiltonian(
-        radial_operator_mode="element-local"
-    )
+    physical_hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
     dipole = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
         system,
         parameters,
@@ -612,7 +672,9 @@ def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
     expected_energy = sampler.time_series.samples[-1].snapshot.energy_numerator
     for result in distributed:
         assert result.norm < result.propagation.initial_norm
-        assert result.time_series.samples[-1].snapshot.energy_numerator == pytest.approx(
+        assert result.time_series.samples[
+            -1
+        ].snapshot.energy_numerator == pytest.approx(
             expected_energy,
             abs=1.0e-10,
             rel=1.0e-10,

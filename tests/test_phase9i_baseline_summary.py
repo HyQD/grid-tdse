@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-
 SCRIPT_PATH = (
     Path(__file__).parents[1]
     / "benchmarks"
@@ -51,6 +50,7 @@ def test_phase9i_summarizes_hamiltonian_and_dynamics_records(tmp_path):
         "execution": "cartesian-mpi",
         "mpi_ranks": 4,
         "process_grid": [2, 2],
+        "krylov_reduction_mode": "batched",
         "configuration": {
             "system": "H2+",
             "l_max": 2,
@@ -67,6 +67,11 @@ def test_phase9i_summarizes_hamiltonian_and_dynamics_records(tmp_path):
             "krylov_dimension_mean": 9.5,
             "krylov_dimension_maximum": 11,
             "rejected_substeps_total": 1,
+        },
+        "reduction_profile": {
+            "collective_calls": 120,
+            "collective_seconds": 0.25,
+            "collective_values": 480,
         },
     }
     _write(
@@ -89,4 +94,42 @@ def test_phase9i_summarizes_hamiltonian_and_dynamics_records(tmp_path):
     assert dynamics_row["median_seconds_per_step"] == 0.5
     assert dynamics_row["median_seconds_per_operator_call"] == 0.05
     assert dynamics_row["median_krylov_dimension_mean"] == 9.5
+    assert dynamics_row["krylov_reduction_mode"] == "batched"
+    assert dynamics_row["median_collective_calls"] == 120
+    assert dynamics_row["median_collective_seconds"] == 0.25
+    assert dynamics_row["median_collective_values"] == 480
     assert dynamics_row["maximum_norm_loss"] == pytest.approx(0.01)
+
+
+def test_phase9i_legacy_dynamics_records_default_to_scalar_reductions(tmp_path):
+    record = {
+        "phase": "9h",
+        "execution": "cartesian-mpi",
+        "mpi_ranks": 1,
+        "process_grid": [1, 1],
+        "configuration": {
+            "system": "H2+",
+            "l_max": 2,
+            "time_step": 0.25,
+            "final_time": 1.0,
+            "field": {"gauge": "length"},
+        },
+        "accepted_steps_this_segment": 4,
+        "initial_norm": 1.0,
+        "final_norm": 1.0,
+        "wall_time_seconds": 1.0,
+        "propagation_diagnostics": {
+            "operator_calls_total": 40,
+            "krylov_dimension_mean": 9.5,
+            "krylov_dimension_maximum": 11,
+            "rejected_substeps_total": 0,
+        },
+    }
+    _write(
+        tmp_path / "dynamics" / "runs" / "legacy" / "summary.json",
+        record,
+    )
+
+    row = SUMMARY._dynamics_rows(tmp_path)[0]
+
+    assert row["krylov_reduction_mode"] == "scalar"
