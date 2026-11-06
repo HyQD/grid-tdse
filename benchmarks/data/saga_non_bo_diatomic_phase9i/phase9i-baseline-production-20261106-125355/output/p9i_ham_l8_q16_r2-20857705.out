@@ -1,0 +1,110 @@
+Starting job 20857705 on c2-48 on Saga at Fri Nov 6 13:02:53 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:            /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+Repository commit: df482e5f5ab260a1fbd513dd50ba3c13841aaab6
+MPI module:        OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:         16
+CPUs per rank:     1
+Memory per rank:   4096 MiB
+Node list:         c2-48
+Script:            /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-baseline-production-20261106-125355/non_bo_diatomic_2d_execution.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+
+
+Running serial compute-node import and Gaunt-backend preflight
+Python: 3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]
+NumPy: 2.5.2 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/__init__.py
+Numba: 0.67.0 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/__init__.py
+grid-tdse: /cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD/grid-tdse/grid_tdse/__init__.py
+integrator-lib: /cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD/integrator-lib/integrator_lib/__init__.py
+py3nj available: True
+py3nj path: /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Gaunt backend: py3nj
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+Execution kind:             pure-mpi
+MPI ranks:                  16
+Threads per rank:           1
+Total allocated cores:      16
+Process grid:               (4, 4)
+Node placement:             c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48, c2-48
+CPU affinity/rank:          0,40; 1,41; 2,42; 3,43; 4,44; 5,45; 6,46; 7,47; 8,48; 9,49; 10,50; 11,51; 12,52; 13,53; 14,54; 15,55
+System:                     H2+
+l_max:                      8
+Global coefficients:        446745
+Local coefficients:         24795--29000
+Warmup actions:             2
+Timed actions:              50
+Wall time:                  1.953938 s
+Wall time per action:       0.039079 s
+Process CPU time (sum):     31.082485 s
+Allocated-core utilization: 99.42 %
+Peak memory/rank:           342.738 MiB
+Coordinate-1 work (max):   0.117232 s
+Coordinate-2 work (max):   0.116451 s
+Coulomb work (max):        1.650603 s
+Coordinate-1 halo (max):   0.173116 s
+Coordinate-2 halo (max):   0.096541 s
+Coordinate-1 weak (max):   0.031985 s
+Coordinate-2 weak (max):   0.038571 s
+Hamiltonian max error:      9.095e-13
+Thread pools:
+  openblas: 1 threads (0.3.34)
+  openmp: 1 threads (None)
+Result JSON:                /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-baseline-production-20261106-125355/hamiltonian/results/p9i_ham_l8_q16_r2.json
+
+real	0m17.807s
+user	0m0.012s
+sys	0m0.017s
+
+Job 20857705 consumed 0.2 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-06T12:54:05; waited 1.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   40.0 seconds
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20857705          16            0.0 %  2026-11-06T13:02:53   40.0 s  0
+20857705.batch    16      1     2.0 %  2026-11-06T13:02:53   40.0 s  0
+20857705.bash     16     16    54.8 %  2026-11-06T13:03:15   18.0 s  0
+
+Used CPU time:   2.8 CPU minutes
+Unused CPU time: 7.8 CPU minutes
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20857705          64.0
+20857705.batch    64.0     0.4
+20857705.bash     64.0     4.2
+
+Job 20857705 completed at Fri Nov 6 13:03:33 CET 2026
