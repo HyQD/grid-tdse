@@ -47,6 +47,7 @@ from non_bo_diatomic_end_to_end_common import (
     plot_dynamics,
     prepare_run_directory,
     print_initial_observables,
+    propagation_diagnostics_record,
     resolved_paths,
     validate_arguments,
     write_json,
@@ -317,6 +318,9 @@ if communicator.rank == 0:
         "initial_norm": result.propagation.initial_norm,
         "final_norm": result.norm,
         "wall_time_seconds": wall_time,
+        "propagation_diagnostics": propagation_diagnostics_record(
+            result.propagation
+        ),
         "ground_state_path": str(paths["ground_state"]),
         "wavefunction_directory": (
             None

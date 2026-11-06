@@ -17,6 +17,10 @@ For per-rank construction-memory measurements and explicit verification of the
 active `py3nj`/SymPy Gaunt backend, use the dedicated
 [`construction_memory` workflow](construction_memory/README.md).
 
+For the post-construction-memory fixed-action and production-SIA baseline used
+before Phase 9i kernel and Krylov optimization, use the dedicated
+[`phase9i_baseline` workflow](phase9i_baseline/README.md).
+
 Before submitting them:
 
 1. Replace `<project-id>` and `<username>` in each job script.

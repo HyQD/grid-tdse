@@ -567,6 +567,51 @@ def plot_dynamics(
     return destination
 
 
+def propagation_diagnostics_record(result) -> dict[str, object]:
+    """Return JSON-safe per-step and aggregate Krylov diagnostics."""
+
+    operator_calls = np.asarray(result.krylov_operator_calls, dtype=int)
+    accepted_substeps = np.asarray(
+        result.krylov_accepted_substeps,
+        dtype=int,
+    )
+    rejected_substeps = np.asarray(
+        result.krylov_rejected_substeps,
+        dtype=int,
+    )
+    refinement_depths = np.asarray(
+        result.krylov_refinement_depths,
+        dtype=int,
+    )
+    dimensions = np.asarray(result.krylov_dimensions, dtype=int)
+    errors = np.asarray(result.krylov_error_estimates, dtype=float)
+    step_wall_times = np.asarray(result.step_wall_times, dtype=float)
+    if operator_calls.size == 0:
+        raise ValueError("propagation diagnostics require at least one step")
+
+    return {
+        "operator_calls_per_step": operator_calls.tolist(),
+        "operator_calls_total": int(np.sum(operator_calls)),
+        "operator_calls_mean": float(np.mean(operator_calls)),
+        "operator_calls_maximum": int(np.max(operator_calls)),
+        "accepted_substeps_per_step": accepted_substeps.tolist(),
+        "accepted_substeps_total": int(np.sum(accepted_substeps)),
+        "rejected_substeps_per_step": rejected_substeps.tolist(),
+        "rejected_substeps_total": int(np.sum(rejected_substeps)),
+        "refinement_depths": refinement_depths.tolist(),
+        "refinement_depth_maximum": int(np.max(refinement_depths)),
+        "krylov_dimensions": dimensions.tolist(),
+        "krylov_dimension_mean": float(np.mean(dimensions)),
+        "krylov_dimension_maximum": int(np.max(dimensions)),
+        "error_estimates": errors.tolist(),
+        "error_estimate_maximum": float(np.max(errors)),
+        "step_wall_seconds": step_wall_times.tolist(),
+        "step_wall_seconds_total": float(np.sum(step_wall_times)),
+        "step_wall_seconds_mean": float(np.mean(step_wall_times)),
+        "step_wall_seconds_maximum": float(np.max(step_wall_times)),
+    }
+
+
 def ground_state_options() -> dict[str, object]:
     return {
         "max_iterations": 500,

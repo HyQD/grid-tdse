@@ -1157,6 +1157,17 @@ Complete the work in the following order:
    Davidson diagnostics by default only after confirming that production
    convergence reporting remains sufficient.
 
+**Baseline implementation status:** prepared locally; Saga execution remains.
+The workflow under
+[`examples/spherical/two_radial/Saga/phase9i_baseline`](../examples/spherical/two_radial/Saga/phase9i_baseline/README.md)
+copies immutable workers into each run directory and records the repository
+commit, input checksums, environment, job manifest, fixed-action component
+profiles, production-SIA wall time, per-step Krylov diagnostics, resource use,
+and numerical checks. Its controlled default matrix uses three repetitions of
+H2+ `l_max=8` Hamiltonian actions at 1, 2, 4, and 16 MPI ranks and short H2+
+`l_max=2` production-SIA calculations at 1, 2, and 4 ranks. Jobs are serialized
+by default to avoid benchmark interference.
+
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action
 throughput. One-radial sparse construction and Davidson improvements remain a
