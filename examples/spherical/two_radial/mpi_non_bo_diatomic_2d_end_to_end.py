@@ -72,6 +72,15 @@ def arguments() -> argparse.Namespace:
     add_common_arguments(parser)
     parser.add_argument("--process-grid", type=process_grid)
     parser.add_argument(
+        "--krylov-reduction-mode",
+        choices=("scalar", "batched"),
+        default="scalar",
+        help=(
+            "MPI reduction strategy for SIL/SIA Krylov projections "
+            "(default: scalar reference path)"
+        ),
+    )
+    parser.add_argument(
         "--restart-state",
         type=Path,
         help="resume from a gathered Phase 9h MPI checkpoint state",
@@ -201,6 +210,7 @@ solver = TwoRadialDistributed2DRealTimeSolver(
     coulomb_kernel=values.coulomb_kernel,
     radial_kernel=values.radial_kernel,
     dipole_kernel=values.dipole_kernel,
+    krylov_reduction_mode=values.krylov_reduction_mode,
     profile=True,
 )
 initial_snapshot = solver.observable_evaluator.distributed_2d(
@@ -314,6 +324,7 @@ if communicator.rank == 0:
         "execution": "cartesian-mpi",
         "mpi_ranks": communicator.size,
         "process_grid": list(layout.process_grid),
+        "krylov_reduction_mode": values.krylov_reduction_mode,
         "configuration": configuration_record(values, setup),
         "initialization": initialization_metadata,
         "accepted_steps_this_segment": result.n_steps,
@@ -353,6 +364,7 @@ if communicator.rank == 0:
     print(f"System:                  {values.system}")
     print(f"l_max, M_tot:            {values.l_max}, {values.M_tot}")
     print(f"MPI ranks/process grid:  {communicator.size}/{layout.process_grid}")
+    print(f"Krylov reductions:       {values.krylov_reduction_mode}")
     print(f"Field gauge:             {values.field_gauge}")
     print(f"Pulse duration:          {setup['pulse_duration']:.12f} a.u.")
     print(f"Requested final time:    {setup['requested_final_time']:.12f} a.u.")

@@ -1240,6 +1240,25 @@ loss stayed below `9.437e-15`, and the rank-independent Krylov work remained
 retain both row-wise selectors as opt-in experimental paths pending a
 dedicated dipole benchmark or a larger representative dynamics case.
 
+**Phase 9i.3 Krylov status:** local implementation is complete and awaits the
+controlled Saga comparison. `RealTimePropagator` now accepts the batched
+`inner_products` callback already provided by integrator-lib 0.3.0, and the
+Cartesian two-radial real-time solver exposes explicit `scalar` and `batched`
+MPI reduction modes. The scalar reference remains the default. Threaded
+two-rank SIL and SIA tests reproduce the scalar propagated state while the
+batched path performs fewer MPI collectives with the same number of physical
+inner products. The MPI examples and Phase 9i Saga workflow record the
+selected reduction mode in their JSON, manifest, summary CSV, and terminal
+output. In the one-step two-rank local fixture, SIL collectives decreased from
+58 to 37 and SIA collectives from 79 to 37, while the total reduced scalar
+values remained 126 and 147, respectively. Promote the batched path only
+after the Saga smoke and production matrices reproduce the scalar Krylov
+work, norms, and observables and show a measurable collective or wall-time
+improvement. Deferred integrator-internal
+work includes delaying approximate-state construction and using a dedicated
+Hermitian tridiagonal projected solve; those changes belong in integrator-lib
+and should be benchmarked after this reduction-only slice is archived.
+
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action
 throughput. One-radial sparse construction and Davidson improvements remain a

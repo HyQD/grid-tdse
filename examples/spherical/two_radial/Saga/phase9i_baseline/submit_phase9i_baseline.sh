@@ -17,6 +17,7 @@ Options:
   --coulomb-kernel NAME        reference or multipole-grouped (default: reference)
   --radial-kernel NAME         reference or row-wise (default: reference)
   --dipole-kernel NAME         reference or row-wise (default: reference)
+  --krylov-reduction-mode MODE scalar or batched (default: scalar)
   --run-name NAME              run-directory name (default: timestamped)
   --concurrent                 allow independent benchmark jobs to overlap
   -h, --help                   show this message
@@ -39,6 +40,7 @@ dynamics_final_time=20.0
 coulomb_kernel=reference
 radial_kernel=reference
 dipole_kernel=reference
+krylov_reduction_mode=scalar
 run_name=
 concurrent=0
 
@@ -92,6 +94,10 @@ while (( $# > 0 )); do
             dipole_kernel=${2:?--dipole-kernel requires a value}
             shift 2
             ;;
+        --krylov-reduction-mode)
+            krylov_reduction_mode=${2:?--krylov-reduction-mode requires a value}
+            shift 2
+            ;;
         --run-name)
             run_name=${2:?--run-name requires a value}
             shift 2
@@ -137,6 +143,13 @@ case ${coulomb_kernel} in
     reference|multipole-grouped) ;;
     *)
         echo "--coulomb-kernel must be reference or multipole-grouped" >&2
+        exit 2
+        ;;
+esac
+case ${krylov_reduction_mode} in
+    scalar|batched) ;;
+    *)
+        echo "--krylov-reduction-mode must be scalar or batched" >&2
         exit 2
         ;;
 esac
@@ -285,7 +298,7 @@ print(MPI.Get_library_version().rstrip("\x00"))
 PY
 
 manifest="${run_root}/jobs.csv"
-echo "job_id,workload,repetition,l_max,mpi_ranks,process_grid,coulomb_kernel,radial_kernel,dipole_kernel,actions,final_time,dependency,result,output_pattern" > "${manifest}"
+echo "job_id,workload,repetition,l_max,mpi_ranks,process_grid,coulomb_kernel,radial_kernel,dipole_kernel,krylov_reduction_mode,actions,final_time,dependency,result,output_pattern" > "${manifest}"
 
 walltime=${GRID_TDSE_PHASE9I_WALLTIME:-00:30:00}
 mem_per_cpu=${GRID_TDSE_PHASE9I_MEM_PER_CPU:-4G}
@@ -346,7 +359,7 @@ if [[ ${stage} != dynamics ]]; then
                     --result-json "${result_json}"
             )
             job_id=${job_id%%;*}
-            echo "${job_id},hamiltonian,${repetition},8,${ranks},${grid},${coulomb_kernel},${radial_kernel},none,${actions},none,${dependency_record},${result_json},${output_pattern}" >> "${manifest}"
+            echo "${job_id},hamiltonian,${repetition},8,${ranks},${grid},${coulomb_kernel},${radial_kernel},none,none,${actions},none,${dependency_record},${result_json},${output_pattern}" >> "${manifest}"
             echo "Submitted ${job_name}: ${job_id} (${dependency_record})"
             previous_job_id=${job_id}
         done
@@ -384,6 +397,7 @@ if [[ ${stage} != hamiltonian ]]; then
             --coulomb-kernel "${coulomb_kernel}" \
             --radial-kernel "${radial_kernel}" \
             --dipole-kernel "${dipole_kernel}" \
+            --krylov-reduction-mode "${krylov_reduction_mode}" \
             --final-time 0.25 \
             --ground-state-path "${state_path}" \
             --initial-state-policy compute-if-missing \
@@ -394,7 +408,7 @@ if [[ ${stage} != hamiltonian ]]; then
             --progress-interval 1
     )
     seed_id=${seed_id%%;*}
-    echo "${seed_id},seed,0,2,1,1x1,${coulomb_kernel},${radial_kernel},${dipole_kernel},none,0.25,${seed_dependency_record},${seed_directory}/summary.json,${seed_output_pattern}" >> "${manifest}"
+    echo "${seed_id},seed,0,2,1,1x1,${coulomb_kernel},${radial_kernel},${dipole_kernel},${krylov_reduction_mode},none,0.25,${seed_dependency_record},${seed_directory}/summary.json,${seed_output_pattern}" >> "${manifest}"
     echo "Submitted ${seed_name}: ${seed_id} (${seed_dependency_record})"
     previous_job_id=${seed_id}
     first_dynamics=1
@@ -434,6 +448,7 @@ if [[ ${stage} != hamiltonian ]]; then
                     --coulomb-kernel "${coulomb_kernel}" \
                     --radial-kernel "${radial_kernel}" \
                     --dipole-kernel "${dipole_kernel}" \
+                    --krylov-reduction-mode "${krylov_reduction_mode}" \
                     --final-time "${dynamics_final_time}" \
                     --ground-state-path "${state_path}" \
                     --initial-state-policy require \
@@ -444,7 +459,7 @@ if [[ ${stage} != hamiltonian ]]; then
                     --progress-interval 20
             )
             job_id=${job_id%%;*}
-            echo "${job_id},dynamics,${repetition},2,${ranks},${grid},${coulomb_kernel},${radial_kernel},${dipole_kernel},none,${dynamics_final_time},${dependency_record},${result_json},${output_pattern}" >> "${manifest}"
+            echo "${job_id},dynamics,${repetition},2,${ranks},${grid},${coulomb_kernel},${radial_kernel},${dipole_kernel},${krylov_reduction_mode},none,${dynamics_final_time},${dependency_record},${result_json},${output_pattern}" >> "${manifest}"
             echo "Submitted ${job_name}: ${job_id} (${dependency_record})"
             previous_job_id=${job_id}
             first_dynamics=0

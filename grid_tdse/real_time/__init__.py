@@ -7,6 +7,7 @@ from .checkpoint import (
     save_real_time_checkpoint,
 )
 from .propagation import (
+    InnerProducts,
     RealTimePropagationResult,
     RealTimePropagationStep,
     RealTimePropagator,
@@ -25,6 +26,7 @@ from .snapshot import (
 __all__ = [
     "RealTimeCheckpoint",
     "RealTimeCheckpointSegment",
+    "InnerProducts",
     "RealTimePropagationResult",
     "RealTimePropagationStep",
     "RealTimePropagator",

@@ -21,6 +21,11 @@ compiled row-wise element-local radial action and compact length-gauge dipole
 action, respectively. Both also default to `reference`; velocity-gauge dipole
 actions retain their reference contraction because the measured row-wise
 candidate was slower.
+The `--krylov-reduction-mode` selector independently chooses the scalar
+reference reductions or the Phase 9i.3 batched Krylov reductions. It defaults
+to `scalar` until the controlled Saga comparison has passed. The selected mode
+is recorded in `jobs.csv`, every dynamics summary, the summary CSV, and the
+terminal table.
 
 ## 1. Update and verify the Saga checkout
 
@@ -223,3 +228,44 @@ examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
 Keep candidate and reference records in separate run directories. The JSON,
 CSV, terminal summary, and job manifest all record the selected kernels so
 that results cannot be combined accidentally.
+
+## 7. Compare the Phase 9i.3 batched Krylov reductions
+
+First run a reduced scalar/batched pair with identical kernels and dynamics
+settings:
+
+```bash
+examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
+    --stage dynamics \
+    --krylov-reduction-mode scalar \
+    --repetitions 1 \
+    --dynamics-ranks 1 2 4 \
+    --dynamics-final-time 2.0 \
+    --run-name phase9i-krylov-scalar-smoke
+
+examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
+    --stage dynamics \
+    --krylov-reduction-mode batched \
+    --repetitions 1 \
+    --dynamics-ranks 1 2 4 \
+    --dynamics-final-time 2.0 \
+    --run-name phase9i-krylov-batched-smoke
+```
+
+After both smoke runs pass, submit the controlled batched candidate using the
+same production matrix as the archived scalar reference:
+
+```bash
+examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
+    --stage dynamics \
+    --krylov-reduction-mode batched \
+    --run-name phase9i-krylov-batched-production
+```
+
+Compare the archived scalar and batched `dynamics_summary.csv` files at equal
+rank count. Require matching accepted steps, Hamiltonian calls, Krylov
+dimensions, rejected substeps, norms, and observables before evaluating wall
+time. The batched mode should reduce `reduction_profile.collective_calls`;
+record the collective count and time from each raw `summary.json` alongside
+the end-to-end timing. Keep `scalar` as the default until that validation is
+archived.

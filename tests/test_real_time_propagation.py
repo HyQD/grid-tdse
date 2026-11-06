@@ -452,6 +452,55 @@ def test_krylov_integrators_match_exact_hermitian_propagation(integrator):
     assert np.all(result.krylov_error_estimates >= 0.0)
 
 
+@pytest.mark.parametrize("integrator", ["sil", "sia"])
+def test_krylov_integrators_use_batched_inner_products(integrator):
+    hamiltonian = np.array(
+        [[0.4, 0.1 - 0.2j], [0.1 + 0.2j, 1.1]], dtype=complex
+    )
+    initial = np.array([1.0, -0.3j])
+    batch_sizes = []
+
+    def inner_products(left, right):
+        batch_sizes.append(len(left))
+        return np.asarray([np.vdot(values, right) for values in left])
+
+    propagator = RealTimePropagator(
+        final_time=0.2,
+        time_step=0.2,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+        progress_interval=None,
+    )
+
+    result = propagator.propagate(
+        initial,
+        lambda state, time: hamiltonian @ state,
+        np.vdot,
+        inner_products=inner_products,
+    )
+
+    expected = expm(-0.2j * hamiltonian) @ initial
+    np.testing.assert_allclose(result.state, expected, atol=2.0e-13)
+    assert batch_sizes
+    assert max(batch_sizes) > 1
+
+
+def test_crank_nicolson_rejects_batched_inner_products():
+    propagator = RealTimePropagator(final_time=0.1, time_step=0.1)
+
+    with pytest.raises(ValueError, match="supported only by integrators"):
+        propagator.propagate(
+            np.ones(2),
+            lambda state, time: state,
+            np.vdot,
+            inner_products=lambda left, right: np.asarray(
+                [np.vdot(values, right) for values in left]
+            ),
+        )
+
+
 def test_sia_matches_exact_cap_like_propagation():
     hamiltonian = np.array(
         [[0.5 - 0.2j, 0.1], [0.1, 1.0 - 0.4j]], dtype=complex

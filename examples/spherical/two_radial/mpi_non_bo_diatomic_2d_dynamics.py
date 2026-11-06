@@ -48,6 +48,7 @@ from grid_tdse.spherical.two_radial.diatomic import (
     _pair_exchange_parity,
 )
 
+
 def _process_grid(value: str) -> tuple[int, int]:
     try:
         first, second = value.lower().split("x", maxsplit=1)
@@ -82,6 +83,15 @@ def _arguments() -> argparse.Namespace:
         default="require",
     )
     parser.add_argument("--integrator", choices=("sil", "sia"), default="sil")
+    parser.add_argument(
+        "--krylov-reduction-mode",
+        choices=("scalar", "batched"),
+        default="scalar",
+        help=(
+            "MPI reduction strategy for SIL/SIA Krylov projections "
+            "(default: scalar reference path)"
+        ),
+    )
     parser.add_argument("--time-step", type=float, default=0.01)
     parser.add_argument("--final-time", type=float, default=0.04)
     parser.add_argument("--field-strength", type=float, default=0.02)
@@ -180,8 +190,10 @@ def _representation(arguments, electronic_grid, internuclear_grid):
         M_tot=0,
         radial_coulomb_method="poisson",
     )
-    return parameters, pair_parity, specification.build(
-        radial_operator_mode="element-local"
+    return (
+        parameters,
+        pair_parity,
+        specification.build(radial_operator_mode="element-local"),
     )
 
 
@@ -280,6 +292,7 @@ solver = TwoRadialDistributed2DRealTimeSolver(
     krylov_rtol=arguments.krylov_rtol,
     krylov_atol=arguments.krylov_atol,
     max_krylov_refinements=8,
+    krylov_reduction_mode=arguments.krylov_reduction_mode,
     sampling_policy=sampling_policy,
     progress_interval=10,
     profile=True,
@@ -355,6 +368,7 @@ if communicator.rank == 0:
         "mpi_ranks": communicator.size,
         "process_grid": layout.process_grid,
         "integrator": arguments.integrator,
+        "krylov_reduction_mode": arguments.krylov_reduction_mode,
         "field_gauge": arguments.field_gauge,
         "n_steps": distributed.n_steps,
         "norm": distributed.norm,
@@ -378,6 +392,7 @@ if communicator.rank == 0:
     print(f"MPI ranks:                      {communicator.size}")
     print(f"Process grid:                   {layout.process_grid}")
     print(f"Integrator:                     {arguments.integrator}")
+    print("Krylov reduction mode:          " f"{arguments.krylov_reduction_mode}")
     print(f"Field gauge:                    {arguments.field_gauge}")
     print(f"Accepted steps:                 {distributed.n_steps}")
     print(f"Norm:                           {distributed.norm:.12f}")

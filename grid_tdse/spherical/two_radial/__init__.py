@@ -76,6 +76,7 @@ from .distributed_2d_real_time import (
     CartesianRealTimeCommunicator,
     Distributed2DRealTimeResult,
     Distributed2DStateObserver,
+    KrylovReductionMode,
     TwoRadialDistributed2DRealTimeSolver,
 )
 from .distributed_2d_reductions import TwoRadialDistributed2DReductions
@@ -197,6 +198,7 @@ __all__ = [
     "DistributedTwoRadial2DState",
     "DistributedTwoRadialState",
     "FEMDVRGridSpec",
+    "KrylovReductionMode",
     "NBOWavefunctionSizeReport",
     "NonBornOppenheimerDiatomicIonGroundState",
     "NonBornOppenheimerDiatomicIonTDSE",

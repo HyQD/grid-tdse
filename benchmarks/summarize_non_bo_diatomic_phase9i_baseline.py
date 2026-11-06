@@ -161,6 +161,7 @@ def _dynamics_rows(run_root):
             configuration.get("coulomb_kernel", "reference"),
             configuration.get("radial_kernel", "reference"),
             configuration.get("dipole_kernel", "reference"),
+            record.get("krylov_reduction_mode", "scalar"),
             record["mpi_ranks"],
             tuple(record["process_grid"]),
         )
@@ -177,6 +178,7 @@ def _dynamics_rows(run_root):
             coulomb_kernel,
             radial_kernel,
             dipole_kernel,
+            krylov_reduction_mode,
             ranks,
             process_grid,
         ) = key
@@ -194,6 +196,21 @@ def _dynamics_rows(run_root):
             abs(record["initial_norm"] - record["final_norm"])
             for _, record in repetitions
         ]
+        collective_calls = [
+            record["reduction_profile"]["collective_calls"]
+            for _, record in repetitions
+            if "reduction_profile" in record
+        ]
+        collective_seconds = [
+            record["reduction_profile"]["collective_seconds"]
+            for _, record in repetitions
+            if "reduction_profile" in record
+        ]
+        collective_values = [
+            record["reduction_profile"]["collective_values"]
+            for _, record in repetitions
+            if "reduction_profile" in record
+        ]
         rows.append(
             {
                 "workload": "production-sia",
@@ -205,6 +222,7 @@ def _dynamics_rows(run_root):
                 "coulomb_kernel": coulomb_kernel,
                 "radial_kernel": radial_kernel,
                 "dipole_kernel": dipole_kernel,
+                "krylov_reduction_mode": krylov_reduction_mode,
                 "accepted_steps": steps[0],
                 "mpi_ranks": ranks,
                 "process_grid": _format_grid(process_grid),
@@ -227,6 +245,15 @@ def _dynamics_rows(run_root):
                 "maximum_rejected_substeps": max(
                     record["propagation_diagnostics"]["rejected_substeps_total"]
                     for _, record in repetitions
+                ),
+                "median_collective_calls": (
+                    median(collective_calls) if collective_calls else None
+                ),
+                "median_collective_seconds": (
+                    median(collective_seconds) if collective_seconds else None
+                ),
+                "median_collective_values": (
+                    median(collective_values) if collective_values else None
                 ),
                 "maximum_norm_loss": max(norm_losses),
                 "source_files": ";".join(str(path) for path, _ in repetitions),
@@ -275,15 +302,16 @@ def _print_dynamics(rows):
         return
     print("\nProduction-SIA baseline")
     print(
-        "kernels                                            "
+        "kernels/reductions                                 "
         "ranks  grid  reps  wall(s)  step(s)  "
-        "H calls  s/H-call  Krylov  rejected"
+        "H calls  s/H-call  Krylov  rejected  collectives"
     )
     for row in rows:
         kernel_label = _kernel_label(
             row["coulomb_kernel"],
             row["radial_kernel"],
             row["dipole_kernel"],
+            row["krylov_reduction_mode"],
         )
         print(
             f"{kernel_label:<43} "
@@ -294,8 +322,13 @@ def _print_dynamics(rows):
             f"{row['median_operator_calls_total']:7.0f}  "
             f"{row['median_seconds_per_operator_call']:8.5f}  "
             f"{row['median_krylov_dimension_mean']:6.2f}  "
-            f"{row['maximum_rejected_substeps']:8d}"
+            f"{row['maximum_rejected_substeps']:8d}  "
+            f"{_optional_integer(row['median_collective_calls']):>11}"
         )
+
+
+def _optional_integer(value):
+    return "-" if value is None else str(round(value))
 
 
 def main():
