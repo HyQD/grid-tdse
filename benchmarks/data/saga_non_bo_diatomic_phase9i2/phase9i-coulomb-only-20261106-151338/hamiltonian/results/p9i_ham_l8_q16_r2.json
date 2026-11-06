@@ -1,0 +1,1425 @@
+{
+  "correctness": {
+    "maximum_absolute_error": 9.094947017729282e-13,
+    "maximum_relative_error": 1.003781319951978e-16
+  },
+  "execution": {
+    "kind": "pure-mpi",
+    "local_coefficients_maximum": 29000,
+    "local_coefficients_minimum": 24795,
+    "mpi_ranks": 16,
+    "numba_threads": "1",
+    "process_grid": [
+      4,
+      4
+    ],
+    "threads_per_rank": 1,
+    "timed_actions": 50,
+    "total_allocated_cores": 16,
+    "warmup_actions": 2
+  },
+  "mpi_library": "Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026",
+  "problem": {
+    "M_tot": 0,
+    "coulomb_kernel": "multipole-grouped",
+    "electronic_nodes": [
+      0.0,
+      4.0,
+      8.0,
+      12.0,
+      16.0
+    ],
+    "electronic_points_per_element": 11,
+    "global_coefficients": 446745,
+    "global_shape": [
+      145,
+      39,
+      79
+    ],
+    "internuclear_nodes": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0
+    ],
+    "internuclear_points_per_element": 21,
+    "l_max": 8,
+    "lambda_max": 16,
+    "m_max": 8,
+    "mu_max": 16,
+    "radial_coulomb_method": "poisson",
+    "radial_kernel": "reference",
+    "seed": 26031,
+    "system": "H2+",
+    "tile_size": 2048
+  },
+  "profile": {
+    "cap_calls": {
+      "maximum": 0,
+      "minimum": 0
+    },
+    "cap_seconds": {
+      "maximum": 0.0,
+      "minimum": 0.0
+    },
+    "coordinate1_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate1_halo_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate1_halo_seconds": {
+      "maximum": 0.13879095390439034,
+      "minimum": 0.009223679080605507
+    },
+    "coordinate1_seconds": {
+      "maximum": 0.12922747805714607,
+      "minimum": 0.10287356935441494
+    },
+    "coordinate1_weak_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate1_weak_seconds": {
+      "maximum": 0.12140159495174885,
+      "minimum": 0.005553450435400009
+    },
+    "coordinate2_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate2_halo_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate2_halo_seconds": {
+      "maximum": 0.06977175176143646,
+      "minimum": 0.008049918338656425
+    },
+    "coordinate2_seconds": {
+      "maximum": 0.12419113889336586,
+      "minimum": 0.09332506731152534
+    },
+    "coordinate2_weak_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coordinate2_weak_seconds": {
+      "maximum": 0.07711311243474483,
+      "minimum": 0.004748918116092682
+    },
+    "coulomb_calls": {
+      "maximum": 50,
+      "minimum": 50
+    },
+    "coulomb_seconds": {
+      "maximum": 1.098193682730198,
+      "minimum": 0.8683628905564547
+    },
+    "hamiltonian_calls": {
+      "maximum": 50,
+      "minimum": 50
+    }
+  },
+  "runtime_by_rank": [
+    {
+      "cpu": {
+        "affinity": [
+          0,
+          40
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "numpy_build_configuration": {
+        "Build Dependencies": {
+          "blas": {
+            "detection method": "pkgconfig",
+            "found": true,
+            "include directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "lib directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib",
+            "name": "blas",
+            "openblas configuration": "unknown",
+            "pc file directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/pkgconfig",
+            "version": "3.9.0"
+          },
+          "lapack": {
+            "detection method": "pkgconfig",
+            "found": true,
+            "include directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "lib directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib",
+            "name": "lapack",
+            "openblas configuration": "unknown",
+            "pc file directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/pkgconfig",
+            "version": "3.9.0"
+          }
+        },
+        "Compilers": {
+          "c": {
+            "args": "-march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1788129259/work=/usr/local/src/conda/numpy-2.5.2, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "commands": "x86_64-conda-linux-gnu-cc",
+            "linker": "ld.bfd",
+            "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -Wl,-rpath-link,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -L/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1788129259/work=/usr/local/src/conda/numpy-2.5.2, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "name": "gcc",
+            "version": "15.3.0"
+          },
+          "c++": {
+            "args": "-fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1788129259/work=/usr/local/src/conda/numpy-2.5.2, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "commands": "x86_64-conda-linux-gnu-c++",
+            "linker": "ld.bfd",
+            "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -Wl,-rpath-link,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -L/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1788129259/work=/usr/local/src/conda/numpy-2.5.2, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "name": "gcc",
+            "version": "15.3.0"
+          },
+          "cython": {
+            "commands": "cython",
+            "linker": "cython",
+            "name": "cython",
+            "version": "3.3.0"
+          }
+        },
+        "Machine Information": {
+          "build": {
+            "cpu": "x86_64",
+            "endian": "little",
+            "family": "x86_64",
+            "system": "linux"
+          },
+          "host": {
+            "cpu": "x86_64",
+            "endian": "little",
+            "family": "x86_64",
+            "system": "linux"
+          }
+        },
+        "Python Information": {
+          "path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+          "version": "3.14"
+        },
+        "SIMD Extensions": {
+          "baseline": [
+            "X86_V2"
+          ],
+          "found": [
+            "X86_V3",
+            "X86_V4"
+          ],
+          "not found": [
+            "AVX512_ICL",
+            "AVX512_SPR"
+          ]
+        }
+      },
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "scipy_build_configuration": {
+        "Build Dependencies": {
+          "blas": {
+            "cython blas ilp64": false,
+            "detection method": "pkgconfig",
+            "found": true,
+            "has ilp64": false,
+            "include directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "lib directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib",
+            "name": "blas",
+            "openblas configuration": "unknown",
+            "pc file directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/pkgconfig",
+            "version": "3.9.0"
+          },
+          "lapack": {
+            "detection method": "pkgconfig",
+            "found": true,
+            "has ilp64": false,
+            "include directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "lib directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib",
+            "name": "lapack",
+            "openblas configuration": "unknown",
+            "pc file directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/pkgconfig",
+            "version": "3.9.0"
+          },
+          "pybind11": {
+            "detection method": "pkgconfig",
+            "include directory": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "name": "pybind11",
+            "version": "3.0.3"
+          }
+        },
+        "Compilers": {
+          "c": {
+            "args": "-march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "commands": "/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/_build_env/bin/x86_64-conda-linux-gnu-cc",
+            "linker": "ld.bfd",
+            "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -Wl,-rpath-link,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -L/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "name": "gcc",
+            "version": "14.3.0"
+          },
+          "c++": {
+            "args": "-fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "commands": "/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/_build_env/bin/x86_64-conda-linux-gnu-c++",
+            "linker": "ld.bfd",
+            "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -Wl,-rpath-link,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -L/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -fvisibility-inlines-hidden, -fmessage-length=0, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix, -DNDEBUG, -D_FORTIFY_SOURCE=2, -O2, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include",
+            "name": "gcc",
+            "version": "14.3.0"
+          },
+          "cython": {
+            "commands": "cython",
+            "linker": "cython",
+            "name": "cython",
+            "version": "3.2.5"
+          },
+          "fortran": {
+            "args": "-march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -I/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/_build_env/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix",
+            "commands": "/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/_build_env/bin/x86_64-conda-linux-gnu-gfortran",
+            "linker": "ld.bfd",
+            "linker args": "-Wl,-O2, -Wl,--sort-common, -Wl,--as-needed, -Wl,-z,relro, -Wl,-z,now, -Wl,--disable-new-dtags, -Wl,--gc-sections, -Wl,--allow-shlib-undefined, -Wl,-rpath,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -Wl,-rpath-link,/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -L/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib, -march=nocona, -mtune=haswell, -ftree-vectorize, -fPIC, -fstack-protector-strong, -fno-plt, -O2, -ffunction-sections, -pipe, -fno-merge-constants, -isystem, /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/include, -I/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/_build_env/include, -fdebug-prefix-map=/home/conda/feedstock_root/build_artifacts/scipy-split_1781912123961/work=/usr/local/src/conda/scipy-split-1.18.0, -fdebug-prefix-map=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse=/usr/local/src/conda-prefix",
+            "name": "gcc",
+            "version": "14.3.0"
+          },
+          "pythran": {
+            "include directory": "../../_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold/lib/python3.14/site-packages/pythran",
+            "version": "0.18.1"
+          }
+        },
+        "Machine Information": {
+          "build": {
+            "cpu": "x86_64",
+            "endian": "little",
+            "family": "x86_64",
+            "system": "linux"
+          },
+          "cross-compiled": false,
+          "host": {
+            "cpu": "x86_64",
+            "endian": "little",
+            "family": "x86_64",
+            "system": "linux"
+          }
+        },
+        "Python Information": {
+          "path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+          "version": "3.14"
+        }
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.064542+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          1,
+          41
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.045229+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          2,
+          42
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.036564+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          3,
+          43
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.037631+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          4,
+          44
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.075991+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          5,
+          45
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:29.036906+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          20,
+          60
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.947352+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          21,
+          61
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.969937+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          22,
+          62
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.945382+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          23,
+          63
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.947872+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          26,
+          66
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.970367+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          27,
+          67
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.948769+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          28,
+          68
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.948228+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          29,
+          69
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.964955+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          38,
+          78
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        },
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.948400+00:00"
+    },
+    {
+      "cpu": {
+        "affinity": [
+          39,
+          79
+        ],
+        "logical_count": 80,
+        "model": "Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz"
+      },
+      "grid_tdse_commit": "bfcf1a0c228d860f9bbd38c67f31d963aaae8052",
+      "hostname": "c2-53",
+      "packages": {
+        "numpy": "2.5.2",
+        "scipy": "1.18.0"
+      },
+      "platform": "Linux-5.14.0-570.17.1.el9_6.x86_64-x86_64-with-glibc2.34",
+      "python": {
+        "executable": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python",
+        "implementation": "CPython",
+        "version": "3.14.9"
+      },
+      "slurm": {
+        "SLURM_CPUS_ON_NODE": "16",
+        "SLURM_CPUS_PER_TASK": "1",
+        "SLURM_CPU_BIND": "quiet,mask_cpu:0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_LIST": "0x00000000010000000001,0x00000000020000000002,0x00000000040000000004,0x00000000080000000008,0x00000000100000000010,0x00000000200000000020,0x00001000000000100000,0x00002000000000200000,0x00004000000000400000,0x00008000000000800000,0x00040000000004000000,0x00080000000008000000,0x00100000000010000000,0x00200000000020000000,0x40000000004000000000,0x80000000008000000000",
+        "SLURM_CPU_BIND_TYPE": "mask_cpu:",
+        "SLURM_DISTRIBUTION": "block:block",
+        "SLURM_JOB_CPUS_PER_NODE": "16",
+        "SLURM_JOB_ID": "20861176",
+        "SLURM_JOB_NAME": "p9i_ham_l8_q16_r2",
+        "SLURM_JOB_NODELIST": "c2-53",
+        "SLURM_NNODES": "1",
+        "SLURM_NTASKS": "16"
+      },
+      "thread_environment": {
+        "MKL_NUM_THREADS": "1",
+        "NUMBA_NUM_THREADS": "1",
+        "NUMBA_THREADING_LAYER": null,
+        "OMP_NUM_THREADS": "1",
+        "OMP_PLACES": null,
+        "OMP_PROC_BIND": null,
+        "OPENBLAS_NUM_THREADS": "1"
+      },
+      "thread_pools": [
+        {
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libgomp.so.1.0.0",
+          "internal_api": "openmp",
+          "num_threads": 1,
+          "prefix": "libgomp",
+          "user_api": "openmp",
+          "version": null
+        },
+        {
+          "architecture": "SkylakeX",
+          "filepath": "/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/libopenblasp-r0.3.34.so",
+          "internal_api": "openblas",
+          "num_threads": 1,
+          "prefix": "libopenblas",
+          "threading_layer": "pthreads",
+          "user_api": "blas",
+          "version": "0.3.34"
+        }
+      ],
+      "timestamp_utc": "2026-11-06T14:22:28.970073+00:00"
+    }
+  ],
+  "schema": "grid-tdse-non-bo-2d-execution-v1",
+  "thread_environment_variables": [
+    "OMP_NUM_THREADS",
+    "OMP_PLACES",
+    "OMP_PROC_BIND",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "NUMBA_NUM_THREADS",
+    "NUMBA_THREADING_LAYER"
+  ],
+  "timing": {
+    "allocated_core_seconds": 22.60756403207779,
+    "allocated_core_utilization_percent": 99.2627124362391,
+    "peak_resident_mib_by_rank": [
+      357.2578125,
+      346.2734375,
+      334.4296875,
+      338.33203125,
+      344.796875,
+      342.75390625,
+      326.578125,
+      332.37109375,
+      326.30078125,
+      328.9765625,
+      329.14453125,
+      326.91796875,
+      326.71484375,
+      327.9375,
+      326.99609375,
+      331.8984375
+    ],
+    "peak_resident_mib_maximum": 357.2578125,
+    "process_cpu_seconds_by_rank": [
+      1.401473253999999,
+      1.4018728729999985,
+      1.4021922259999986,
+      1.4024519569999985,
+      1.4019948370000002,
+      1.402362247000001,
+      1.4028268760000007,
+      1.4028282170000015,
+      1.402948189,
+      1.4026542650000007,
+      1.4026267709999996,
+      1.402819418,
+      1.4030332790000006,
+      1.4029919480000004,
+      1.402686257000001,
+      1.4031186600000005
+    ],
+    "process_cpu_seconds_sum": 22.440881274,
+    "setup_seconds_maximum": 2.806905521079898,
+    "wall_seconds_by_rank": [
+      1.4129418637603521,
+      1.4129561968147755,
+      1.412954356521368,
+      1.4129727520048618,
+      1.4129390753805637,
+      1.4129586014896631,
+      1.412933660671115,
+      1.4129511900246143,
+      1.4129398837685585,
+      1.4129564482718706,
+      1.412936843931675,
+      1.4129698630422354,
+      1.4129391014575958,
+      1.4129410721361637,
+      1.4129363242536783,
+      1.4129510913044214
+    ],
+    "wall_seconds_maximum": 1.4129727520048618,
+    "wall_seconds_per_action": 0.028259455040097237
+  }
+}

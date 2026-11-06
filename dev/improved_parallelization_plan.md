@@ -1201,8 +1201,7 @@ reduced a one-rank Hamiltonian action from `0.2425 s` to `0.1508 s` and the
 Coulomb portion from `0.2136 s` to `0.1232 s`. A four-rank `2x2` calculation
 decreased from `0.06881 s` to `0.04555 s` per action. In both cases the maximum
 absolute reference difference was `9.095e-13`, approximately `1.0e-16`
-relative to the action scale. Controlled Saga validation is still required
-before changing the default. Compiled row-wise radial and compact-dipole
+relative to the action scale. Compiled row-wise radial and compact-dipole
 kernels preserve the same explicit reference/candidate split. On the same
 one-rank H2+ `l_max=8` problem, the row-wise radial candidate reduced the two
 radial components from `0.493 s` to `0.397 s` over 20 actions and the complete
@@ -1213,8 +1212,33 @@ faster in an isolated one-rank `l_max=8` measurement. Its velocity-gauge
 prototype was slower and is therefore not selected: velocity gauge retains
 the reference contraction even when the opt-in dipole selector is enabled.
 Local parity tests cover compact real-time actions and Cartesian-MPI tiles.
-Controlled Saga comparison of the combined candidates is still required
-before changing any default.
+
+Controlled Saga validation completed on 2026-11-06. With only the
+`multipole-grouped` Coulomb path enabled, median H2+ `l_max=8` Hamiltonian
+times at 1, 2, 4, and 16 ranks were `0.354723`, `0.187445`, `0.103862`, and
+`0.028259 s` per action. Relative to the archived reference, these correspond
+to speedups of `1.67`, `1.54`, `1.45`, and `1.38`, respectively. The combined
+Coulomb/radial/dipole candidate gave `0.362013`, `0.195233`, `0.095502`, and
+`0.027965 s`; the row-wise radial path was slower at one and two ranks and its
+small apparent gains at four and sixteen ranks were within runs whose spreads
+reached approximately 15%. It is therefore retained as experimental rather
+than selected by default. The sanitized run records and comparison tables are
+archived under `benchmarks/data/saga_non_bo_diatomic_phase9i2/`.
+
+The H2+ `l_max=2` production-SIA comparison did not demonstrate a portable
+end-to-end speedup. Coulomb-only wall times at 1, 2, and 4 ranks were `60.07`,
+`32.72`, and `25.50 s`, compared with reference times of `50.44`, `31.83`, and
+`24.58 s`. The one-rank cases ran on different Saga nodes and are strongly
+node-dependent; the two- and four-rank differences were only 3--4%. Adding
+the row-wise radial and compact-dipole selectors changed the two- and
+four-rank times to `33.01` and `26.12 s`, so neither candidate is justified as
+a production default by this workload. Numerical validation passed: the
+combined distributed/serial action differences were at most `2.291e-13`, norm
+loss stayed below `9.437e-15`, and the rank-independent Krylov work remained
+4402--4403 Hamiltonian calls. Keep all three reference defaults. Recommend
+`multipole-grouped` explicitly for high-angular-momentum Hamiltonian work;
+retain both row-wise selectors as opt-in experimental paths pending a
+dedicated dipole benchmark or a larger representative dynamics case.
 
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action
