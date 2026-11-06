@@ -1240,24 +1240,32 @@ loss stayed below `9.437e-15`, and the rank-independent Krylov work remained
 retain both row-wise selectors as opt-in experimental paths pending a
 dedicated dipole benchmark or a larger representative dynamics case.
 
-**Phase 9i.3 Krylov status:** local implementation is complete and awaits the
-controlled Saga comparison. `RealTimePropagator` now accepts the batched
-`inner_products` callback already provided by integrator-lib 0.3.0, and the
+**Phase 9i.3 Krylov status:** the batched-reduction implementation and
+controlled Saga comparison are complete. `RealTimePropagator` accepts the
+batched `inner_products` callback provided by integrator-lib 0.3.0, and the
 Cartesian two-radial real-time solver exposes explicit `scalar` and `batched`
-MPI reduction modes. The scalar reference remains the default. Threaded
-two-rank SIL and SIA tests reproduce the scalar propagated state while the
-batched path performs fewer MPI collectives with the same number of physical
-inner products. The MPI examples and Phase 9i Saga workflow record the
-selected reduction mode in their JSON, manifest, summary CSV, and terminal
-output. In the one-step two-rank local fixture, SIL collectives decreased from
-58 to 37 and SIA collectives from 79 to 37, while the total reduced scalar
-values remained 126 and 147, respectively. Promote the batched path only
-after the Saga smoke and production matrices reproduce the scalar Krylov
-work, norms, and observables and show a measurable collective or wall-time
-improvement. Deferred integrator-internal
-work includes delaying approximate-state construction and using a dedicated
-Hermitian tridiagonal projected solve; those changes belong in integrator-lib
-and should be benchmarked after this reduction-only slice is archived.
+MPI reduction modes. Threaded two-rank SIL and SIA tests reproduce the scalar
+propagated state while using fewer collectives with the same number of
+physical inner products. In the one-step local fixture, SIL collectives
+decreased from 58 to 37 and SIA collectives from 79 to 37.
+
+The Saga production matrix used three repetitions at one, two, and four ranks.
+All nine scalar/batched repetition pairs reproduced norms, propagation
+diagnostics, sampled observables, and complete radial-density time series with
+a maximum difference of `0.000e+00`. At two and four ranks, collective calls
+decreased from 95,256 to 18,176 and from 95,216 to 18,172, respectively,
+without changing the number of reduced scalar values. Median wall time
+decreased from `61.6563` to `50.8875 s` at one rank, `40.0698` to `31.0439 s`
+at two ranks, and `27.3014` to `23.0325 s` at four ranks. These correspond to
+speedups of 1.21, 1.29, and 1.19. The sanitized records are archived under
+[`benchmarks/data/saga_non_bo_diatomic_phase9i3`](../benchmarks/data/saga_non_bo_diatomic_phase9i3/README.md).
+The evidence supports making `batched` the Cartesian-MPI default in a
+follow-up change while retaining `scalar` as the explicit reference mode.
+
+Deferred integrator-internal work includes delaying approximate-state
+construction and using a dedicated Hermitian tridiagonal projected solve;
+those changes belong in integrator-lib and should be benchmarked separately
+against this archived reduction-only result.
 
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action

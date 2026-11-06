@@ -1,0 +1,4 @@
+mpi_ranks,process_grid,scalar_median_wall_seconds,batched_median_wall_seconds,speedup,wall_time_reduction_percent,scalar_collective_calls,batched_collective_calls,collective_call_reduction_percent,collective_call_ratio,scalar_collective_seconds,batched_collective_seconds,collective_time_reduction_percent,collective_values,operator_calls,mean_krylov_dimension,rejected_substeps,maximum_physical_difference
+1,1x1,61.656279942,50.887462561999996,1.211620,17.465889,0,0,0.000000,0.000000,0.0,0.0,0.000000,0,4402,17.7625,80,0.000e+00
+2,1x2,40.069823053,31.043932644999998,1.290746,22.525406,95256,18176,80.918787,5.240757,2.0575515273958445,0.686558099463582,66.632277,103356,4403,17.7625,80,0.000e+00
+4,2x2,27.301363818999995,23.032518324999998,1.185340,15.636016,95216,18172,80.914972,5.239709,5.019628617912531,3.389204952865839,32.480962,103316,4402,17.775,80,0.000e+00
