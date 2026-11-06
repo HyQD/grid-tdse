@@ -1,0 +1,122 @@
+Starting job 20860847 on c5-43 on Saga at Fri Nov 6 15:01:22 CET 2026
+
+PROJECT_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER
+ENV_PREFIX=/cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse
+SRC_ROOT=/cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD
+Python:            /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/bin/python
+Repository commit: bfcf1a0c228d860f9bbd38c67f31d963aaae8052
+MPI module:        OpenMPI/5.0.10-GCC-15.2.0
+MPI ranks:         1
+CPUs per rank:     1
+Memory per rank:   4096 MiB
+Node list:         c5-43
+Script:            /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/mpi_non_bo_diatomic_2d_end_to_end.py
+
+Currently Loaded Modules:
+  1) StdEnv                           (S)
+  2) Miniconda3/25.7.0-2
+  3) GCCcore/15.2.0
+  4) zlib/2.3.2-GCCcore-15.2.0        (H)
+  5) binutils/2.45-GCCcore-15.2.0     (H)
+  6) GCC/15.2.0
+  7) CUDA/13.3.0
+  8) numactl/2.0.19-GCCcore-15.2.0    (H)
+  9) libxml2/2.15.1-GCCcore-15.2.0    (H)
+ 10) libpciaccess/0.19-GCCcore-15.2.0 (H)
+ 11) ncurses/6.6-GCCcore-15.2.0       (H)
+ 12) hwloc/2.13.0-GCCcore-15.2.0      (H)
+ 13) OpenSSL/3                        (H)
+ 14) libevent/2.1.12-GCCcore-15.2.0   (H)
+ 15) hpcx/2.21
+ 16) PMIx/6.1.0-GCCcore-15.2.0        (H)
+ 17) PRRTE/4.1.0-GCCcore-15.2.0       (H)
+ 18) OpenMPI/5.0.10-GCC-15.2.0
+
+  Where:
+   H:  Hidden Module
+   S:  Module is Sticky, requires --force to unload or purge
+
+
+
+Running serial compute-node import and Gaunt-backend preflight
+Python: 3.14.9 | packaged by conda-forge | (main, Oct 22 2026, 10:21:21) [GCC 15.3.0]
+NumPy: 2.5.2 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numpy/__init__.py
+Numba: 0.67.0 /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/numba/__init__.py
+grid-tdse: /cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD/grid-tdse/grid_tdse/__init__.py
+integrator-lib: /cluster/projects/SAGA_PROJECT/SAGA_USER/src/HyQD/integrator-lib/integrator_lib/__init__.py
+py3nj available: True
+py3nj path: /cluster/projects/SAGA_PROJECT/SAGA_USER/.conda-envs/grid_tdse/lib/python3.14/site-packages/py3nj/__init__.py
+Gaunt backend: py3nj
+Open MPI v5.0.10, package: Open MPI vegarde@login-1 Distribution, ident: 5.0.10, repo rev: v5.0.10, Feb 23, 2026
+
+Initial physical observables
+CODATA set:               2018
+Electronic grid nodes:    [0, 4, 8, 12, 16, 20]
+Electronic points/element: 11
+Internuclear grid nodes:  [0, 5, 10]
+Internuclear points/element: 15
+Energy:                   -0.577662424203 Eh
+<L^2>:                    0.000000000000
+<L_z>:                    0.000000000000
+<cos^2(theta_R)>:         0.333333333333
+<cos(theta_R)>:           0.000000000000
+<R^2>:                    3.881012792048 a0^2
+<cos^4(theta_R)>:         0.200000000000
+<cos^6(theta_R)>:         0.142857142857
+<cos^8(theta_R)>:         0.111111111111
+<R cos^2(theta_R)>:     0.654931378380 a0
+<I>:                      1.000000000000
+<P>:                      1.000000000000
+Electronic dipole:        (-0.000000000000, -0.000000000000, -0.000000000000) ea0
+Protonic dipole:          (0.000000000000, 0.000000000000, 0.000000000000) ea0
+Total dipole:             (0.000000000000, 0.000000000000, 0.000000000000) ea0
+TDSE     20/80: t=5.00000000  norm=1.000000000000  operator_calls=54  krylov_dimension=17  krylov_error=8.599e-12
+TDSE     40/80: t=10.00000000  norm=1.000000000000  operator_calls=56  krylov_dimension=18  krylov_error=9.897e-12
+TDSE     60/80: t=15.00000000  norm=1.000000000000  operator_calls=58  krylov_dimension=19  krylov_error=6.609e-12
+TDSE     80/80: t=20.00000000  norm=1.000000000000  operator_calls=56  krylov_dimension=18  krylov_error=8.336e-12
+
+Phase 9h Cartesian-MPI end-to-end dynamics
+System:                  H2+
+l_max, M_tot:            2, 0
+MPI ranks/process grid:  1/(1, 1)
+Field gauge:             length
+Pulse duration:          330.959946979177 a.u.
+Requested final time:    20.000000000000 a.u.
+Actual final time:       20.000000000000 a.u.
+Requested/effective dt:  0.250000000000 a.u.
+Accepted steps:          80
+Final norm:              1.000000000000
+Wall time:               43.286518 s
+Wavefunction directory:  None
+Diagnostic figure:       /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/runs/p9i_sia_l2_q1_r3/dynamics.png
+Summary JSON:            /cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/runs/p9i_sia_l2_q1_r3/summary.json
+
+real	0m55.161s
+user	0m0.015s
+sys	0m0.016s
+
+Job 20860847 consumed 0.0 billing hours from project SAGA_PROJECT.
+
+Submitted 2026-11-06T14:47:38; waited 0.0 seconds in the queue after becoming eligible to run.
+
+Requested wallclock time: 30.0 minutes
+Elapsed wallclock time:   1.3 minutes
+
+Job exited normally.
+
+Task and CPU statistics:
+ID              CPUs  Tasks  CPU util                Start  Elapsed  Exit status
+20860847           1            0.0 %  2026-11-06T15:01:22   77.0 s  0
+20860847.batch     1      1    18.1 %  2026-11-06T15:01:22   77.0 s  0
+20860847.bash      1      1    91.8 %  2026-11-06T15:01:44   55.0 s  0
+
+Used CPU time:   1.1 CPU minutes
+Unused CPU time: 12.6 CPU seconds
+
+Memory statistics, in GiB:
+ID               Alloc   Usage
+20860847           4.0
+20860847.batch     4.0     0.4
+20860847.bash      4.0     0.5
+
+Job 20860847 completed at Fri Nov 6 15:02:39 CET 2026

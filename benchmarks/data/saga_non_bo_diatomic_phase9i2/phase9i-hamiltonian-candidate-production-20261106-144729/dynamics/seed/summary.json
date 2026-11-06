@@ -1,0 +1,148 @@
+{
+  "phase": "9h",
+  "execution": "cartesian-mpi",
+  "mpi_ranks": 1,
+  "process_grid": [
+    1,
+    1
+  ],
+  "configuration": {
+    "system": "H2+",
+    "l_max": 2,
+    "m_max": 2,
+    "M_tot": 0,
+    "ground_state_symmetry": {
+      "inversion_parity": 1,
+      "pair_exchange_parity": 1,
+      "symmetry_adapted_basis": true
+    },
+    "codata_set": "2018",
+    "electronic_nodes": [
+      0.0,
+      4.0,
+      8.0,
+      12.0,
+      16.0,
+      20.0
+    ],
+    "electronic_points_per_element": 11,
+    "internuclear_nodes": [
+      0.0,
+      5.0,
+      10.0
+    ],
+    "internuclear_points_per_element": 15,
+    "field": {
+      "type": "SineSquareLaser",
+      "gauge": "length",
+      "intensity_wcm2": 30000000000000.0,
+      "field_strength_au": 0.04134817757227558,
+      "wavelength_nm": 800.0,
+      "omega_au": 0.05695419066139966,
+      "carrier_cycles": 3.0,
+      "pulse_duration_au": 330.95994697917683
+    },
+    "absorber": {
+      "type": "CubicCAP",
+      "alpha": 0.8,
+      "eta_r": 1.0,
+      "eta_R": 1.0
+    },
+    "integrator": "sia",
+    "coulomb_kernel": "multipole-grouped",
+    "radial_kernel": "row-wise",
+    "dipole_kernel": "row-wise",
+    "time_step": 0.25,
+    "requested_final_time": 0.25,
+    "final_time": 0.25,
+    "sample_interval": 1,
+    "checkpoint_interval": null,
+    "wavefunction_snapshot_interval": null,
+    "wavefunction_snapshot_steps": null,
+    "wavefunction_snapshot_times": null
+  },
+  "initialization": {
+    "source": "computed",
+    "archive_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/states/H2p_phase9i_l2_codata2018.npz",
+    "state_data_id": "e1365699c16a09bc864dc9f87b91afd5f75c60c907fd0f6143af2f57dbf5cce1",
+    "representation_id": "8b7b5ecbe5481ecbd9d2cec5528cca97750423d0ef172f4d7a20055aa5ac600a",
+    "setup_wall_time": 9.801249973475933,
+    "ground_state_wall_time": 9.781665546819568
+  },
+  "accepted_steps_this_segment": 1,
+  "accepted_step_offset": 0,
+  "initial_norm": 1.0000000000000004,
+  "final_norm": 0.999999999999999,
+  "wall_time_seconds": 2.575831073,
+  "propagation_diagnostics": {
+    "operator_calls_per_step": [
+      48
+    ],
+    "operator_calls_total": 48,
+    "operator_calls_mean": 48.0,
+    "operator_calls_maximum": 48,
+    "accepted_substeps_per_step": [
+      2
+    ],
+    "accepted_substeps_total": 2,
+    "rejected_substeps_per_step": [
+      1
+    ],
+    "rejected_substeps_total": 1,
+    "refinement_depths": [
+      1
+    ],
+    "refinement_depth_maximum": 1,
+    "krylov_dimensions": [
+      15
+    ],
+    "krylov_dimension_mean": 15.0,
+    "krylov_dimension_maximum": 15,
+    "error_estimates": [
+      7.450628542825591e-12
+    ],
+    "error_estimate_maximum": 7.450628542825591e-12,
+    "step_wall_seconds": [
+      1.1910583954304457
+    ],
+    "step_wall_seconds_total": 1.1910583954304457,
+    "step_wall_seconds_mean": 1.1910583954304457,
+    "step_wall_seconds_maximum": 1.1910583954304457
+  },
+  "ground_state_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/states/H2p_phase9i_l2_codata2018.npz",
+  "wavefunction_directory": null,
+  "wavefunction_snapshots": [],
+  "wavefunction_snapshot_selection": null,
+  "checkpoint_directory": null,
+  "checkpoint_states": [],
+  "observables_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/seed/observables.json",
+  "radial_density_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/seed/radial-densities.npz",
+  "figure_path": "/cluster/projects/SAGA_PROJECT/SAGA_USER/jobs/grid-tdse/phase9i-baseline/phase9i-hamiltonian-candidate-production-20261106-144729/dynamics/seed/dynamics.png",
+  "hamiltonian_profile": {
+    "hamiltonian_calls": 50,
+    "coordinate1_calls": 50,
+    "coordinate1_seconds": 0.04534999094903469,
+    "coordinate2_calls": 50,
+    "coordinate2_seconds": 0.05251620151102543,
+    "coulomb_calls": 50,
+    "coulomb_seconds": 1.3746244236826897,
+    "cap_calls": 48,
+    "cap_seconds": 0.0024555642157793045,
+    "coordinate1_halo_calls": 0,
+    "coordinate1_halo_seconds": 0.0,
+    "coordinate2_halo_calls": 0,
+    "coordinate2_halo_seconds": 0.0,
+    "coordinate1_weak_calls": 0,
+    "coordinate1_weak_seconds": 0.0,
+    "coordinate2_weak_calls": 0,
+    "coordinate2_weak_seconds": 0.0
+  },
+  "reduction_profile": {
+    "local_inner_product_calls": 945,
+    "local_inner_product_seconds": 0.06266162171959877,
+    "collective_calls": 0,
+    "collective_values": 0,
+    "collective_seconds": 0.0
+  },
+  "io_note": "Phase 9h snapshots/checkpoints gather the state to rank zero; scalable distributed I/O is Phase 10."
+}

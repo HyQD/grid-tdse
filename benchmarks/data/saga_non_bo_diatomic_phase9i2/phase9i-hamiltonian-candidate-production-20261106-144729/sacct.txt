@@ -1,0 +1,24 @@
+JobID                                   JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     ReqMem     MaxRSS        NodeList
+------------ ---------------------------------- ---------- -------- ---------- ---------- ---------- ---------- ---------- ---------------
+20860832                       p9i_ham_l8_q1_r1  COMPLETED      0:0   00:00:57   00:00:00          1         4G                      c5-47
+20860833                       p9i_ham_l8_q1_r2  COMPLETED      0:0   00:00:56   00:00:00          1         4G                      c5-47
+20860834                       p9i_ham_l8_q1_r3  COMPLETED      0:0   00:00:58   00:00:00          1         4G                      c5-52
+20860835                       p9i_ham_l8_q2_r1  COMPLETED      0:0   00:00:50   00:00:00          2         8G                      c5-32
+20860836                       p9i_ham_l8_q2_r2  COMPLETED      0:0   00:00:50   00:00:00          2         8G                      c5-32
+20860837                       p9i_ham_l8_q2_r3  COMPLETED      0:0   00:00:49   00:00:00          2         8G                      c5-32
+20860838                       p9i_ham_l8_q4_r1  COMPLETED      0:0   00:00:45   00:00:00          4        16G                      c5-34
+20860839                       p9i_ham_l8_q4_r2  COMPLETED      0:0   00:00:45   00:00:00          4        16G                      c5-34
+20860840                       p9i_ham_l8_q4_r3  COMPLETED      0:0   00:00:45   00:00:00          4        16G                      c5-34
+20860841                      p9i_ham_l8_q16_r1  COMPLETED      0:0   00:00:48   00:00:00         16        64G                      c2-53
+20860842                      p9i_ham_l8_q16_r2  COMPLETED      0:0   00:00:47   00:00:00         16        64G                      c2-53
+20860843                      p9i_ham_l8_q16_r3  COMPLETED      0:0   00:00:47   00:00:00         16        64G                      c2-53
+20860844                            p9i_seed_l2  COMPLETED      0:0   00:00:46   00:00:00          1         4G                      c5-36
+20860845                       p9i_sia_l2_q1_r1  COMPLETED      0:0   00:01:18   00:00:00          1         4G                      c5-43
+20860846                       p9i_sia_l2_q1_r2  COMPLETED      0:0   00:01:16   00:00:00          1         4G                      c5-43
+20860847                       p9i_sia_l2_q1_r3  COMPLETED      0:0   00:01:17   00:00:00          1         4G                      c5-43
+20860848                       p9i_sia_l2_q2_r1  COMPLETED      0:0   00:01:09   00:00:00          2         8G                      c5-32
+20860849                       p9i_sia_l2_q2_r2  COMPLETED      0:0   00:01:10   00:00:00          2         8G                      c5-32
+20860850                       p9i_sia_l2_q2_r3  COMPLETED      0:0   00:01:09   00:00:00          2         8G                      c5-32
+20860851                       p9i_sia_l2_q4_r1  COMPLETED      0:0   00:01:02   00:00:00          4        16G                      c5-32
+20860852                       p9i_sia_l2_q4_r2  COMPLETED      0:0   00:01:06   00:00:00          4        16G                      c5-31
+20860853                       p9i_sia_l2_q4_r3  COMPLETED      0:0   00:01:06   00:00:00          4        16G                      c5-31
