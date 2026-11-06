@@ -77,6 +77,8 @@ def _problem_key(record):
             "tile_size",
         )
     }
+    retained["coulomb_kernel"] = problem.get("coulomb_kernel", "reference")
+    retained["radial_kernel"] = problem.get("radial_kernel", "reference")
     retained["timed_actions"] = record["execution"]["timed_actions"]
     return json.dumps(retained, sort_keys=True, separators=(",", ":"))
 

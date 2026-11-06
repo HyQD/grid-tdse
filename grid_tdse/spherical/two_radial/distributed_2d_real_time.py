@@ -13,7 +13,7 @@ from grid_tdse.real_time import RealTimePropagationResult, RealTimePropagator
 
 from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .diatomic import DiatomicIonParameters
-from .dipole import DipoleGauge
+from .dipole import DipoleGauge, DipoleKernelMode
 from .distributed_2d_dipole import (
     TwoRadialDistributed2DLengthGaugeInteraction,
     TwoRadialDistributed2DVelocityGaugeInteraction,
@@ -34,6 +34,7 @@ from .dynamics_sampling import (
     DiatomicIonDynamicsSamplingPolicy,
     DiatomicIonDynamicsTimeSeries,
 )
+from .system import CoulombKernelMode, RadialKernelMode
 
 
 class CartesianRealTimeCommunicator(Protocol):
@@ -125,6 +126,9 @@ class TwoRadialDistributed2DRealTimeSolver:
         root: int = 0,
         progress_interval: int | None = 10,
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
+        dipole_kernel: DipoleKernelMode = "reference",
         profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
@@ -181,6 +185,8 @@ class TwoRadialDistributed2DRealTimeSolver:
             layout,
             communicator,
             tile_size=tile_size,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
             absorbing_boundaries=absorbing_boundaries,
             profile=profile,
         )
@@ -197,6 +203,7 @@ class TwoRadialDistributed2DRealTimeSolver:
                     layout,
                     parameters,
                     fields=self.fields,
+                    dipole_kernel=dipole_kernel,
                 )
             )
         else:
@@ -207,6 +214,7 @@ class TwoRadialDistributed2DRealTimeSolver:
                     parameters,
                     self.hamiltonian,
                     fields=interaction_fields,
+                    dipole_kernel=dipole_kernel,
                 )
             )
         velocity_action = (

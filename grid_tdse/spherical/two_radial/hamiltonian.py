@@ -7,7 +7,7 @@ from .angular import AngularPairBasis
 from .couplings import CoulombCouplings
 from .coulomb import RadialCoulombMultipoles
 from .grids import RadialGrid
-from .system import RadialOperatorMode
+from .system import CoulombKernelMode, RadialKernelMode, RadialOperatorMode
 
 
 class TwoRadialHamiltonian:
@@ -29,6 +29,8 @@ class TwoRadialHamiltonian:
         h2_diagonal: np.ndarray | None = None,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
     ) -> None:
         self.h1 = None if h1 is None else np.ascontiguousarray(h1)
         self.h2 = None if h2 is None else np.ascontiguousarray(h2)
@@ -54,10 +56,26 @@ class TwoRadialHamiltonian:
         self.tile_size = int(tile_size)
         if self.tile_size < 1:
             raise ValueError("tile_size must be positive")
+        if coulomb_kernel not in {"reference", "multipole-grouped"}:
+            raise ValueError(
+                "coulomb_kernel must be 'reference' or 'multipole-grouped'"
+            )
+        self.coulomb_kernel = coulomb_kernel
+        if radial_kernel not in {"reference", "row-wise"}:
+            raise ValueError("radial_kernel must be 'reference' or 'row-wise'")
+        self.radial_kernel = radial_kernel
         self._validate_shapes()
         self._radial_flat = np.ascontiguousarray(
             radial_multipoles.values.reshape(radial_multipoles.values.shape[0], -1)
         )
+        if (
+            self.radial_operator_mode == "element-local"
+            and self.radial_kernel == "row-wise"
+        ):
+            self._local_radial_arrays = (
+                _element_local_radial_arrays(self.grid1),
+                _element_local_radial_arrays(self.grid2),
+            )
         if self._uses_compact_storage:
             self._pair_channels1 = np.asarray(
                 [i for i, _ in self.angular_pairs.pairs], dtype=np.int32
@@ -69,6 +87,11 @@ class TwoRadialHamiltonian:
                 couplings,
                 self.angular_pairs,
             )
+            if self.coulomb_kernel == "multipole-grouped":
+                self._compact_multipole_blocks = _multipole_block_arrays(
+                    self._compact_couplings[1],
+                    self._compact_couplings[3],
+                )
             if self.radial_operator_mode == "global":
                 self._h1_pairs = np.ascontiguousarray(
                     self.h1[self._pair_channels1]
@@ -84,6 +107,11 @@ class TwoRadialHamiltonian:
                 self._h2_diagonal_pairs = np.ascontiguousarray(
                     self.h2_diagonal[self._pair_channels2]
                 )
+        elif self.coulomb_kernel == "multipole-grouped":
+            self._multipole_blocks = _multipole_block_arrays(
+                couplings.offsets,
+                couplings.radial_index,
+            )
 
     @property
     def _uses_compact_storage(self) -> bool:
@@ -120,9 +148,27 @@ class TwoRadialHamiltonian:
                 return np.matmul(self._h1_pairs, psi)
             return np.matmul(self.h1[:, None], psi)
 
-        result = self.kinetic_prefactor1 * self.grid1.apply_local_second_derivative(
-            psi, axis=-2
-        )
+        if self.radial_kernel == "reference":
+            result = self.kinetic_prefactor1 * (
+                self.grid1.apply_local_second_derivative(psi, axis=-2)
+            )
+        else:
+            matrices, maps, sizes = self._local_radial_arrays[0]
+            result = np.empty(
+                psi.shape,
+                dtype=np.result_type(psi.dtype, matrices.dtype, float),
+            )
+            flattened = psi.reshape((-1, psi.shape[-2], psi.shape[-1]))
+            flattened_result = result.reshape(flattened.shape)
+            _apply_local_radial_coordinate1_kernel(
+                flattened_result,
+                flattened,
+                matrices,
+                maps,
+                sizes,
+                self.grid1.weights,
+                self.kinetic_prefactor1,
+            )
         if self._uses_compact_storage:
             result += self._h1_diagonal_pairs[:, :, np.newaxis] * psi
         else:
@@ -138,9 +184,27 @@ class TwoRadialHamiltonian:
                 return np.matmul(psi, self._h2_pairs_transpose)
             return np.matmul(psi, self.h2_transpose)
 
-        result = self.kinetic_prefactor2 * self.grid2.apply_local_second_derivative(
-            psi, axis=-1
-        )
+        if self.radial_kernel == "reference":
+            result = self.kinetic_prefactor2 * (
+                self.grid2.apply_local_second_derivative(psi, axis=-1)
+            )
+        else:
+            matrices, maps, sizes = self._local_radial_arrays[1]
+            result = np.empty(
+                psi.shape,
+                dtype=np.result_type(psi.dtype, matrices.dtype, float),
+            )
+            flattened = psi.reshape((-1, psi.shape[-2], psi.shape[-1]))
+            flattened_result = result.reshape(flattened.shape)
+            _apply_local_radial_coordinate2_kernel(
+                flattened_result,
+                flattened,
+                matrices,
+                maps,
+                sizes,
+                self.grid2.weights,
+                self.kinetic_prefactor2,
+            )
         if self._uses_compact_storage:
             result += self._h2_diagonal_pairs[:, np.newaxis, :] * psi
         else:
@@ -220,34 +284,100 @@ class TwoRadialHamiltonian:
             output_pair, offsets, input_pair, radial_index, coefficient = (
                 self._compact_couplings
             )
-            _apply_compact_coulomb_kernel(
-                output,
-                wavefunction,
-                radial_flat,
-                output_pair,
-                offsets,
-                input_pair,
-                radial_index,
-                coefficient,
-                self.tile_size,
-            )
+            if self.coulomb_kernel == "reference":
+                _apply_compact_coulomb_kernel(
+                    output,
+                    wavefunction,
+                    radial_flat,
+                    output_pair,
+                    offsets,
+                    input_pair,
+                    radial_index,
+                    coefficient,
+                    self.tile_size,
+                )
+            else:
+                group_block_offsets, block_pair_offsets, block_radial_index = (
+                    self._compact_multipole_blocks
+                )
+                if np.iscomplexobj(wavefunction):
+                    _apply_compact_multipole_grouped_complex_kernel(
+                        output,
+                        wavefunction,
+                        radial_flat,
+                        output_pair,
+                        group_block_offsets,
+                        block_pair_offsets,
+                        block_radial_index,
+                        input_pair,
+                        coefficient,
+                        self.tile_size,
+                    )
+                else:
+                    _apply_compact_multipole_grouped_real_kernel(
+                        output,
+                        wavefunction,
+                        radial_flat,
+                        output_pair,
+                        group_block_offsets,
+                        block_pair_offsets,
+                        block_radial_index,
+                        input_pair,
+                        coefficient,
+                        self.tile_size,
+                    )
         else:
             output = out.reshape(expected_shape[0], expected_shape[1], -1)
             wavefunction = psi.reshape(expected_shape[0], expected_shape[1], -1)
             c = self.couplings
-            _apply_coulomb_kernel(
-                output,
-                wavefunction,
-                radial_flat,
-                c.output_1,
-                c.output_2,
-                c.offsets,
-                c.input_1,
-                c.input_2,
-                c.radial_index,
-                c.coefficient,
-                self.tile_size,
-            )
+            if self.coulomb_kernel == "reference":
+                _apply_coulomb_kernel(
+                    output,
+                    wavefunction,
+                    radial_flat,
+                    c.output_1,
+                    c.output_2,
+                    c.offsets,
+                    c.input_1,
+                    c.input_2,
+                    c.radial_index,
+                    c.coefficient,
+                    self.tile_size,
+                )
+            else:
+                group_block_offsets, block_pair_offsets, block_radial_index = (
+                    self._multipole_blocks
+                )
+                if np.iscomplexobj(wavefunction):
+                    _apply_multipole_grouped_complex_kernel(
+                        output,
+                        wavefunction,
+                        radial_flat,
+                        c.output_1,
+                        c.output_2,
+                        group_block_offsets,
+                        block_pair_offsets,
+                        block_radial_index,
+                        c.input_1,
+                        c.input_2,
+                        c.coefficient,
+                        self.tile_size,
+                    )
+                else:
+                    _apply_multipole_grouped_real_kernel(
+                        output,
+                        wavefunction,
+                        radial_flat,
+                        c.output_1,
+                        c.output_2,
+                        group_block_offsets,
+                        block_pair_offsets,
+                        block_radial_index,
+                        c.input_1,
+                        c.input_2,
+                        c.coefficient,
+                        self.tile_size,
+                    )
         return output.reshape(expected_shape)
 
     def _validate_shapes(self) -> None:
@@ -270,6 +400,17 @@ class TwoRadialHamiltonian:
             )
         if c.n_pairs and c.radial_index.max() >= expected[0]:
             raise ValueError("Coulomb coupling references a missing radial multipole")
+        if self.coulomb_kernel == "multipole-grouped":
+            if np.iscomplexobj(self.radial_multipoles.values):
+                raise TypeError(
+                    "multipole-grouped Coulomb kernel requires real radial "
+                    "multipoles"
+                )
+            if np.iscomplexobj(c.coefficient):
+                raise TypeError(
+                    "multipole-grouped Coulomb kernel requires real coupling "
+                    "coefficients"
+                )
         if self.radial_operator_mode == "global":
             if self.h1 is None or self.h2 is None:
                 raise ValueError(
@@ -370,6 +511,129 @@ def _compact_coupling_arrays(
     )
 
 
+def _element_local_radial_arrays(grid):
+    dvr = grid.dvr
+    retained_maps = []
+    retained_matrices = []
+    for full_map, stiffness in zip(
+        dvr.element_dof_maps,
+        dvr.local_stiffness_matrices,
+        strict=True,
+    ):
+        retained = (full_map > 0) & (full_map < dvr.r.size - 1)
+        retained_maps.append(np.asarray(full_map[retained] - 1, dtype=np.int32))
+        retained_matrices.append(
+            np.ascontiguousarray(-stiffness[np.ix_(retained, retained)])
+        )
+    maximum_size = max(map_.size for map_ in retained_maps)
+    matrices = np.zeros(
+        (len(retained_maps), maximum_size, maximum_size),
+        dtype=np.result_type(*[matrix.dtype for matrix in retained_matrices]),
+    )
+    maps = np.full((len(retained_maps), maximum_size), -1, dtype=np.int32)
+    sizes = np.empty(len(retained_maps), dtype=np.int32)
+    for element, (map_, matrix) in enumerate(
+        zip(retained_maps, retained_matrices, strict=True)
+    ):
+        size = map_.size
+        maps[element, :size] = map_
+        matrices[element, :size, :size] = matrix
+        sizes[element] = size
+    return (
+        np.ascontiguousarray(matrices),
+        np.ascontiguousarray(maps),
+        np.ascontiguousarray(sizes),
+    )
+
+
+def _multipole_block_arrays(offsets, radial_index):
+    """Group each output block's contiguous couplings by radial multipole."""
+
+    group_block_offsets = [0]
+    block_pair_offsets = [0]
+    block_radial_index = []
+    for group in range(len(offsets) - 1):
+        start = int(offsets[group])
+        stop = int(offsets[group + 1])
+        if start < stop:
+            block_radial_index.append(radial_index[start])
+            for pair in range(start + 1, stop):
+                if radial_index[pair] != radial_index[pair - 1]:
+                    block_pair_offsets.append(pair)
+                    block_radial_index.append(radial_index[pair])
+            block_pair_offsets.append(stop)
+        group_block_offsets.append(len(block_radial_index))
+    return (
+        np.ascontiguousarray(group_block_offsets, dtype=np.int64),
+        np.ascontiguousarray(block_pair_offsets, dtype=np.int64),
+        np.ascontiguousarray(block_radial_index, dtype=np.int32),
+    )
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_local_radial_coordinate1_kernel(
+    out,
+    values,
+    element_matrices,
+    element_maps,
+    element_sizes,
+    weights,
+    prefactor,
+):
+    n_channels, n_radial1, n_radial2 = values.shape
+    for row in prange(n_channels * n_radial2):
+        channel = row // n_radial2
+        radial2 = row - channel * n_radial2
+        for radial1 in range(n_radial1):
+            out[channel, radial1, radial2] = 0
+        for element in range(element_sizes.size):
+            size = element_sizes[element]
+            for local_output in range(size):
+                radial1 = element_maps[element, local_output]
+                action = 0
+                for local_input in range(size):
+                    input_radial1 = element_maps[element, local_input]
+                    action += (
+                        element_matrices[element, local_output, local_input]
+                        * values[channel, input_radial1, radial2]
+                    )
+                out[channel, radial1, radial2] += action
+        for radial1 in range(n_radial1):
+            out[channel, radial1, radial2] *= prefactor / weights[radial1]
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_local_radial_coordinate2_kernel(
+    out,
+    values,
+    element_matrices,
+    element_maps,
+    element_sizes,
+    weights,
+    prefactor,
+):
+    n_channels, n_radial1, n_radial2 = values.shape
+    for row in prange(n_channels * n_radial1):
+        channel = row // n_radial1
+        radial1 = row - channel * n_radial1
+        for radial2 in range(n_radial2):
+            out[channel, radial1, radial2] = 0
+        for element in range(element_sizes.size):
+            size = element_sizes[element]
+            for local_output in range(size):
+                radial2 = element_maps[element, local_output]
+                action = 0
+                for local_input in range(size):
+                    input_radial2 = element_maps[element, local_input]
+                    action += (
+                        element_matrices[element, local_output, local_input]
+                        * values[channel, radial1, input_radial2]
+                    )
+                out[channel, radial1, radial2] += action
+        for radial2 in range(n_radial2):
+            out[channel, radial1, radial2] *= prefactor / weights[radial2]
+
+
 @njit(cache=True, fastmath=True, parallel=True)
 def _apply_coulomb_kernel(
     out,
@@ -444,3 +708,215 @@ def _apply_compact_coulomb_kernel(
                     )
             for point in range(length):
                 out[output, start + point] += scratch[point]
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_multipole_grouped_real_kernel(
+    out,
+    psi,
+    radial,
+    output_1,
+    output_2,
+    group_block_offsets,
+    block_pair_offsets,
+    block_radial_index,
+    input_1,
+    input_2,
+    coefficient,
+    tile_size,
+):
+    n_radial = psi.shape[2]
+    for group in prange(output_1.size):
+        i = output_1[group]
+        j = output_2[group]
+        total = np.empty(tile_size, dtype=out.dtype)
+        angular = np.empty(tile_size, dtype=out.dtype)
+        for start in range(0, n_radial, tile_size):
+            stop = min(start + tile_size, n_radial)
+            length = stop - start
+            for point in range(length):
+                total[point] = 0
+            for block in range(
+                group_block_offsets[group], group_block_offsets[group + 1]
+            ):
+                pair_start = block_pair_offsets[block]
+                pair_stop = block_pair_offsets[block + 1]
+                k = input_1[pair_start]
+                l = input_2[pair_start]
+                value = coefficient[pair_start]
+                for point in range(length):
+                    angular[point] = value * psi[k, l, start + point]
+                for pair in range(pair_start + 1, pair_stop):
+                    k = input_1[pair]
+                    l = input_2[pair]
+                    value = coefficient[pair]
+                    for point in range(length):
+                        angular[point] += value * psi[k, l, start + point]
+                radial_row = block_radial_index[block]
+                for point in range(length):
+                    flat_index = start + point
+                    total[point] += radial[radial_row, flat_index] * angular[point]
+            for point in range(length):
+                out[i, j, start + point] += total[point]
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_multipole_grouped_complex_kernel(
+    out,
+    psi,
+    radial,
+    output_1,
+    output_2,
+    group_block_offsets,
+    block_pair_offsets,
+    block_radial_index,
+    input_1,
+    input_2,
+    coefficient,
+    tile_size,
+):
+    n_radial = psi.shape[2]
+    for group in prange(output_1.size):
+        i = output_1[group]
+        j = output_2[group]
+        total_real = np.empty(tile_size, dtype=out.real.dtype)
+        total_imag = np.empty(tile_size, dtype=out.real.dtype)
+        angular_real = np.empty(tile_size, dtype=out.real.dtype)
+        angular_imag = np.empty(tile_size, dtype=out.real.dtype)
+        for start in range(0, n_radial, tile_size):
+            stop = min(start + tile_size, n_radial)
+            length = stop - start
+            for point in range(length):
+                total_real[point] = 0
+                total_imag[point] = 0
+            for block in range(
+                group_block_offsets[group], group_block_offsets[group + 1]
+            ):
+                pair_start = block_pair_offsets[block]
+                pair_stop = block_pair_offsets[block + 1]
+                k = input_1[pair_start]
+                l = input_2[pair_start]
+                value = coefficient[pair_start]
+                for point in range(length):
+                    state = psi[k, l, start + point]
+                    angular_real[point] = value * state.real
+                    angular_imag[point] = value * state.imag
+                for pair in range(pair_start + 1, pair_stop):
+                    k = input_1[pair]
+                    l = input_2[pair]
+                    value = coefficient[pair]
+                    for point in range(length):
+                        state = psi[k, l, start + point]
+                        angular_real[point] += value * state.real
+                        angular_imag[point] += value * state.imag
+                radial_row = block_radial_index[block]
+                for point in range(length):
+                    flat_index = start + point
+                    radial_value = radial[radial_row, flat_index]
+                    total_real[point] += radial_value * angular_real[point]
+                    total_imag[point] += radial_value * angular_imag[point]
+            for point in range(length):
+                out[i, j, start + point] += (
+                    total_real[point] + 1j * total_imag[point]
+                )
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_compact_multipole_grouped_real_kernel(
+    out,
+    psi,
+    radial,
+    output_pair,
+    group_block_offsets,
+    block_pair_offsets,
+    block_radial_index,
+    input_pair,
+    coefficient,
+    tile_size,
+):
+    n_radial = psi.shape[1]
+    for group in prange(output_pair.size):
+        output = output_pair[group]
+        total = np.empty(tile_size, dtype=out.dtype)
+        angular = np.empty(tile_size, dtype=out.dtype)
+        for start in range(0, n_radial, tile_size):
+            stop = min(start + tile_size, n_radial)
+            length = stop - start
+            for point in range(length):
+                total[point] = 0
+            for block in range(
+                group_block_offsets[group], group_block_offsets[group + 1]
+            ):
+                pair_start = block_pair_offsets[block]
+                pair_stop = block_pair_offsets[block + 1]
+                input_ = input_pair[pair_start]
+                value = coefficient[pair_start]
+                for point in range(length):
+                    angular[point] = value * psi[input_, start + point]
+                for pair in range(pair_start + 1, pair_stop):
+                    input_ = input_pair[pair]
+                    value = coefficient[pair]
+                    for point in range(length):
+                        angular[point] += value * psi[input_, start + point]
+                radial_row = block_radial_index[block]
+                for point in range(length):
+                    flat_index = start + point
+                    total[point] += radial[radial_row, flat_index] * angular[point]
+            for point in range(length):
+                out[output, start + point] += total[point]
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _apply_compact_multipole_grouped_complex_kernel(
+    out,
+    psi,
+    radial,
+    output_pair,
+    group_block_offsets,
+    block_pair_offsets,
+    block_radial_index,
+    input_pair,
+    coefficient,
+    tile_size,
+):
+    n_radial = psi.shape[1]
+    for group in prange(output_pair.size):
+        output = output_pair[group]
+        total_real = np.empty(tile_size, dtype=out.real.dtype)
+        total_imag = np.empty(tile_size, dtype=out.real.dtype)
+        angular_real = np.empty(tile_size, dtype=out.real.dtype)
+        angular_imag = np.empty(tile_size, dtype=out.real.dtype)
+        for start in range(0, n_radial, tile_size):
+            stop = min(start + tile_size, n_radial)
+            length = stop - start
+            for point in range(length):
+                total_real[point] = 0
+                total_imag[point] = 0
+            for block in range(
+                group_block_offsets[group], group_block_offsets[group + 1]
+            ):
+                pair_start = block_pair_offsets[block]
+                pair_stop = block_pair_offsets[block + 1]
+                input_ = input_pair[pair_start]
+                value = coefficient[pair_start]
+                for point in range(length):
+                    state = psi[input_, start + point]
+                    angular_real[point] = value * state.real
+                    angular_imag[point] = value * state.imag
+                for pair in range(pair_start + 1, pair_stop):
+                    input_ = input_pair[pair]
+                    value = coefficient[pair]
+                    for point in range(length):
+                        state = psi[input_, start + point]
+                        angular_real[point] += value * state.real
+                        angular_imag[point] += value * state.imag
+                radial_row = block_radial_index[block]
+                for point in range(length):
+                    flat_index = start + point
+                    radial_value = radial[radial_row, flat_index]
+                    total_real[point] += radial_value * angular_real[point]
+                    total_imag[point] += radial_value * angular_imag[point]
+            for point in range(length):
+                out[output, start + point] += (
+                    total_real[point] + 1j * total_imag[point]
+                )

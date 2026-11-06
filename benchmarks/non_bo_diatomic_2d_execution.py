@@ -90,6 +90,18 @@ def parse_arguments():
         default="poisson",
     )
     parser.add_argument("--tile-size", type=int, default=2048)
+    parser.add_argument(
+        "--coulomb-kernel",
+        choices=("reference", "multipole-grouped"),
+        default="reference",
+        help="Coulomb action kernel (default: reference)",
+    )
+    parser.add_argument(
+        "--radial-kernel",
+        choices=("reference", "row-wise"),
+        default="reference",
+        help="element-local radial action kernel (default: reference)",
+    )
     parser.add_argument("--seed", type=int, default=26031)
     parser.add_argument("--warmup-actions", type=int, default=2)
     parser.add_argument("--actions", type=int, default=20)
@@ -205,6 +217,8 @@ def _calculation(arguments):
         sample_interval=None,
         use_preconditioner=False,
         tile_size=arguments.tile_size,
+        coulomb_kernel=arguments.coulomb_kernel,
+        radial_kernel=arguments.radial_kernel,
     )
 
 
@@ -296,6 +310,8 @@ def main():
         layout,
         communicator,
         tile_size=arguments.tile_size,
+        coulomb_kernel=arguments.coulomb_kernel,
+        radial_kernel=arguments.radial_kernel,
         profile=True,
     )
     setup_seconds = perf_counter() - setup_started
@@ -343,6 +359,8 @@ def main():
         serial = representation.hamiltonian(
             tile_size=arguments.tile_size,
             radial_operator_mode="element-local",
+            coulomb_kernel=arguments.coulomb_kernel,
+            radial_kernel=arguments.radial_kernel,
         )
         reference = serial(global_state)
         difference = gathered_action - reference
@@ -371,6 +389,8 @@ def main():
             "global_coefficients": int(np.prod(representation.psi_shape)),
             "seed": arguments.seed,
             "tile_size": arguments.tile_size,
+            "coulomb_kernel": arguments.coulomb_kernel,
+            "radial_kernel": arguments.radial_kernel,
         },
         "execution": {
             "kind": _configuration_kind(ranks, threads),
@@ -425,6 +445,8 @@ def main():
     )
     print(f"System:                     {arguments.system}")
     print(f"l_max:                      {arguments.l_max}")
+    print(f"Coulomb kernel:             {arguments.coulomb_kernel}")
+    print(f"Radial kernel:              {arguments.radial_kernel}")
     print(f"Global coefficients:        {result['problem']['global_coefficients']}")
     print(
         "Local coefficients:         "

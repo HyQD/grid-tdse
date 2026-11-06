@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable
 import numpy as np
 
 from .diatomic import DiatomicIonParameters
-from .dipole import TwoRadialAxialDipoleInteraction
+from .dipole import DipoleKernelMode, TwoRadialAxialDipoleInteraction
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadialDistributed2DLayout,
@@ -33,6 +33,7 @@ class TwoRadialDistributed2DLengthGaugeInteraction:
         parameters: DiatomicIonParameters,
         *,
         fields: Callable[[float], float] | Iterable[Callable[[float], float]],
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
             raise TypeError("layout must be a TwoRadialDistributed2DLayout")
@@ -47,6 +48,7 @@ class TwoRadialDistributed2DLengthGaugeInteraction:
             gauge="length",
             fields=fields,
             radial_operator_mode="element-local",
+            dipole_kernel=dipole_kernel,
         )
         self.fields = self.serial_interaction.fields
         self.coordinate_operators = self.serial_interaction.coordinate_operators
@@ -124,6 +126,7 @@ class TwoRadialDistributed2DVelocityGaugeInteraction:
         derivative_operator: TwoRadialDistributed2DHamiltonian,
         *,
         fields: Callable[[float], float] | Iterable[Callable[[float], float]],
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
             raise TypeError("layout must be a TwoRadialDistributed2DLayout")
@@ -149,6 +152,7 @@ class TwoRadialDistributed2DVelocityGaugeInteraction:
             gauge="velocity",
             fields=fields,
             radial_operator_mode="element-local",
+            dipole_kernel=dipole_kernel,
         )
         self.fields = self.serial_interaction.fields
         self.coordinate_operators = self.serial_interaction.coordinate_operators

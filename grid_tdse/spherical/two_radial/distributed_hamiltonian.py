@@ -12,6 +12,7 @@ from .distributed_state import (
     DistributedTwoRadialState,
     TwoRadialDistributedLayout,
 )
+from .system import CoulombKernelMode, RadialKernelMode
 
 
 _STATE_HALO_TAG = 27101
@@ -115,6 +116,8 @@ class TwoRadialDistributedHamiltonian:
         communicator: DistributedOperatorCommunicator | None = None,
         *,
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
         profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributedLayout):
@@ -136,6 +139,8 @@ class TwoRadialDistributedHamiltonian:
         self.serial_hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode="element-local",
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
         if communicator is not None:
             rank, size = _communicator_rank_size(communicator)

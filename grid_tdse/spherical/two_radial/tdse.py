@@ -30,7 +30,11 @@ from .diatomic import (
     _diatomic_parameters,
     _pair_exchange_parity,
 )
-from .dipole import DipoleGauge, TwoRadialAxialDipoleInteraction
+from .dipole import (
+    DipoleGauge,
+    DipoleKernelMode,
+    TwoRadialAxialDipoleInteraction,
+)
 from .dynamics_initialization import (
     DiatomicDynamicsInitialStatePolicy,
     prepare_non_bo_diatomic_dynamics_initial_state,
@@ -46,6 +50,8 @@ from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
 from .system import (
     CoordinateSpec,
+    CoulombKernelMode,
+    RadialKernelMode,
     RadialOperatorMode,
     TwoRadialSystemSpec,
     radial_potential,
@@ -132,6 +138,9 @@ class _TwoRadialTDSE:
         progress_interval: int | None,
         radial_operator_mode: RadialOperatorMode,
         tile_size: int,
+        coulomb_kernel: CoulombKernelMode,
+        radial_kernel: RadialKernelMode,
+        dipole_kernel: DipoleKernelMode,
     ) -> None:
         if integrator not in self._INTEGRATOR_OPTIONS:
             choices = ", ".join(sorted(self._INTEGRATOR_OPTIONS))
@@ -156,8 +165,11 @@ class _TwoRadialTDSE:
         self.field_free_hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
         self.radial_operator_mode = radial_operator_mode
+        self.dipole_kernel = dipole_kernel
         self.dipole_interaction = (
             self._build_dipole_interaction(self.fields) if self.fields else None
         )
@@ -271,6 +283,9 @@ class _TwoRadialTDSE:
             "integrator_options": _json_value(self.integrator_options),
             "absorbing_boundaries": self.absorbing_boundaries.metadata,
             "radial_operator_mode": self.radial_operator_mode,
+            "coulomb_kernel": coulomb_kernel,
+            "radial_kernel": radial_kernel,
+            "dipole_kernel": dipole_kernel,
         }
         self.samplers = self._prepare_samplers(observables, samplers)
 
@@ -561,6 +576,9 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         progress_interval: int | None = 10,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         _validate_absorber_pair(mask, cap, "atomic radial coordinate")
         if not isinstance(grid, FEMDVRGridSpec):
@@ -642,6 +660,9 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             progress_interval=progress_interval,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
+            dipole_kernel=dipole_kernel,
         )
 
     @property
@@ -655,6 +676,7 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
             gauge=self.field_gauge if gauge is None else gauge,
             fields=fields,
             radial_operator_mode=self.radial_operator_mode,
+            dipole_kernel=self.dipole_kernel,
         )
 
     def _physical_state_metadata(self):
@@ -718,6 +740,9 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         progress_interval: int | None = 10,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         _validate_absorber_pair(mask_r, cap_r, "electronic coordinate r")
         _validate_absorber_pair(mask_R, cap_R, "internuclear coordinate R")
@@ -882,6 +907,9 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             progress_interval=progress_interval,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
+            dipole_kernel=dipole_kernel,
         )
         self.dynamics_metadata["initial_state"] = (
             {"source": "provided"}
@@ -915,6 +943,7 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
             gauge=self.field_gauge if gauge is None else gauge,
             fields=fields,
             radial_operator_mode=self.radial_operator_mode,
+            dipole_kernel=self.dipole_kernel,
         )
 
     def _build_state_observer(self):
