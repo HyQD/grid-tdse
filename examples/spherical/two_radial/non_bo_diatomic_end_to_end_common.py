@@ -77,6 +77,24 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--time-step", type=float, default=0.25)
     parser.add_argument(
+        "--coulomb-kernel",
+        choices=("reference", "multipole-grouped"),
+        default="reference",
+        help="Coulomb action kernel (default: reference)",
+    )
+    parser.add_argument(
+        "--radial-kernel",
+        choices=("reference", "row-wise"),
+        default="reference",
+        help="element-local radial action kernel (default: reference)",
+    )
+    parser.add_argument(
+        "--dipole-kernel",
+        choices=("reference", "row-wise"),
+        default="reference",
+        help="compact dipole action kernel (default: reference)",
+    )
+    parser.add_argument(
         "--final-time",
         type=float,
         required=True,
@@ -408,6 +426,9 @@ def configuration_record(arguments, setup) -> dict[str, object]:
             "eta_R": arguments.cap_eta_R,
         },
         "integrator": "sia",
+        "coulomb_kernel": getattr(arguments, "coulomb_kernel", "reference"),
+        "radial_kernel": getattr(arguments, "radial_kernel", "reference"),
+        "dipole_kernel": getattr(arguments, "dipole_kernel", "reference"),
         "time_step": arguments.time_step,
         "requested_final_time": setup["requested_final_time"],
         "final_time": setup["final_time"],

@@ -9,11 +9,13 @@ from typing import Literal
 
 import numpy as np
 from grid_lib.spherical_coordinates.momentum_operators import MomentumOperators
+from numba import njit, prange
 
 from .system import RadialOperatorMode, TwoRadialSystem
 
 
 DipoleGauge = Literal["length", "velocity"]
+DipoleKernelMode = Literal["reference", "row-wise"]
 
 
 @dataclass(frozen=True)
@@ -92,6 +94,7 @@ class AxialCoordinateDipole:
         gauge: DipoleGauge,
         coupling: float,
         radial_operator_mode: RadialOperatorMode = "global",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         if coordinate not in (1, 2):
             raise ValueError("coordinate must be 1 or 2")
@@ -100,6 +103,7 @@ class AxialCoordinateDipole:
         self.gauge = _gauge(gauge)
         self.coupling = _finite_real(coupling, "coupling")
         self.radial_operator_mode = _radial_operator_mode(radial_operator_mode)
+        self.dipole_kernel = _dipole_kernel_mode(dipole_kernel)
 
         if coordinate == 1:
             grid = representation.grid1
@@ -138,6 +142,12 @@ class AxialCoordinateDipole:
         self._compact_transitions = (
             self._build_compact_transitions()
             if representation.uses_compact_angular_storage
+            else None
+        )
+        self._compact_transition_arrays = (
+            _compact_transition_arrays(self._compact_transitions)
+            if self._compact_transitions is not None
+            and self.dipole_kernel == "row-wise"
             else None
         )
 
@@ -185,9 +195,22 @@ class AxialCoordinateDipole:
 
         if self.representation.uses_compact_angular_storage:
             result = np.zeros(values.shape, dtype=np.result_type(values.dtype, float))
+            if self.dipole_kernel == "row-wise":
+                offsets, inputs, angular1, _ = self._compact_transition_arrays
+                _apply_compact_length_tile_row_wise(
+                    values,
+                    radial,
+                    offsets,
+                    inputs,
+                    angular1,
+                    self.coordinate,
+                    self.coupling,
+                    result,
+                )
+                return result
             for output, transitions in enumerate(self._compact_transitions):
-                for input_, angular1, _ in transitions:
-                    result[output] += angular1 * values[input_]
+                for input_, angular1_value, _ in transitions:
+                    result[output] += angular1_value * values[input_]
         elif self.coordinate == 1:
             result = np.einsum(
                 "oa,abij->obij",
@@ -355,6 +378,20 @@ class AxialCoordinateDipole:
         )
         result = np.zeros(values.shape, dtype=dtype)
         if self.gauge == "length":
+            if self.dipole_kernel == "row-wise":
+                radial = self.grid.r
+                offsets, inputs, angular1, _ = self._compact_transition_arrays
+                _apply_compact_length_tile_row_wise(
+                    values,
+                    radial,
+                    offsets,
+                    inputs,
+                    angular1,
+                    self.coordinate,
+                    self.coupling,
+                    result,
+                )
+                return result
             for output, transitions in enumerate(self._compact_transitions):
                 for input_, angular1, _ in transitions:
                     result[output] += angular1 * values[input_]
@@ -423,6 +460,7 @@ class TwoRadialAxialDipoleInteraction:
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
         couplings: AxialDipoleCouplings,
         radial_operator_mode: RadialOperatorMode = "global",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
         self.representation = representation
         self.gauge = _gauge(gauge)
@@ -430,6 +468,7 @@ class TwoRadialAxialDipoleInteraction:
             raise TypeError("couplings must be an AxialDipoleCouplings")
         self.couplings = couplings
         self.radial_operator_mode = _radial_operator_mode(radial_operator_mode)
+        self.dipole_kernel = _dipole_kernel_mode(dipole_kernel)
         self.fields = _field_profiles(fields, self.gauge)
         coordinate_operators = []
         for coordinate, coupling in (
@@ -444,6 +483,7 @@ class TwoRadialAxialDipoleInteraction:
                         gauge=self.gauge,
                         coupling=coupling,
                         radial_operator_mode=self.radial_operator_mode,
+                        dipole_kernel=self.dipole_kernel,
                     )
                 )
         if not coordinate_operators:
@@ -459,6 +499,7 @@ class TwoRadialAxialDipoleInteraction:
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
         radial_operator_mode: RadialOperatorMode = "global",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> "TwoRadialAxialDipoleInteraction":
         """Construct the interaction for an infinite-mass two-electron atom."""
 
@@ -470,6 +511,7 @@ class TwoRadialAxialDipoleInteraction:
                 parameters, gauge
             ),
             radial_operator_mode=radial_operator_mode,
+            dipole_kernel=dipole_kernel,
         )
 
     @classmethod
@@ -481,6 +523,7 @@ class TwoRadialAxialDipoleInteraction:
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
         radial_operator_mode: RadialOperatorMode = "global",
+        dipole_kernel: DipoleKernelMode = "reference",
     ) -> "TwoRadialAxialDipoleInteraction":
         """Construct the interaction for non-BO diatomic Jacobi coordinates."""
 
@@ -490,6 +533,7 @@ class TwoRadialAxialDipoleInteraction:
             fields=fields,
             couplings=AxialDipoleCouplings.for_diatomic_ion(parameters, gauge),
             radial_operator_mode=radial_operator_mode,
+            dipole_kernel=dipole_kernel,
         )
 
     def field_amplitude(self, time: float) -> float:
@@ -528,6 +572,49 @@ class TwoRadialAxialDipoleInteraction:
         return amplitude * result
 
     __call__ = apply
+
+
+def _compact_transition_arrays(transitions):
+    offsets = np.empty(len(transitions) + 1, dtype=np.int64)
+    offsets[0] = 0
+    inputs = []
+    angular1 = []
+    angular2 = []
+    for output, row in enumerate(transitions):
+        for input_, coefficient1, coefficient2 in row:
+            inputs.append(input_)
+            angular1.append(coefficient1)
+            angular2.append(coefficient2)
+        offsets[output + 1] = len(inputs)
+    return (
+        offsets,
+        np.ascontiguousarray(inputs, dtype=np.int64),
+        np.ascontiguousarray(angular1, dtype=float),
+        np.ascontiguousarray(angular2, dtype=float),
+    )
+
+
+@njit(cache=True, parallel=True)
+def _apply_compact_length_tile_row_wise(
+    values,
+    radial,
+    offsets,
+    inputs,
+    angular1,
+    coordinate,
+    coupling,
+    result,
+):
+    n_outputs, n1, n2 = values.shape
+    for flat_index in prange(n_outputs * n1):
+        output = flat_index // n1
+        i = flat_index - output * n1
+        for j in range(n2):
+            value = values[output, i, j] * 0.0
+            for transition in range(offsets[output], offsets[output + 1]):
+                value += angular1[transition] * values[inputs[transition], i, j]
+            radial_value = radial[i] if coordinate == 1 else radial[j]
+            result[output, i, j] = -coupling * radial_value * value
 
 
 def _field_profiles(fields, gauge: DipoleGauge) -> tuple[Callable, ...]:
@@ -571,6 +658,12 @@ def _radial_operator_mode(value: str) -> RadialOperatorMode:
         raise ValueError(
             "radial_operator_mode must be 'global' or 'element-local'"
         )
+    return value
+
+
+def _dipole_kernel_mode(value: str) -> DipoleKernelMode:
+    if value not in ("reference", "row-wise"):
+        raise ValueError("dipole_kernel must be 'reference' or 'row-wise'")
     return value
 
 

@@ -464,3 +464,27 @@ def test_compact_M_tot_dipole_action_matches_full_representation(gauge, coordina
         atol=3.0e-13,
         rtol=3.0e-13,
     )
+
+
+@pytest.mark.parametrize("gauge", ["length", "velocity"])
+@pytest.mark.parametrize("coordinate", [1, 2])
+def test_row_wise_compact_dipole_action_matches_reference(gauge, coordinate):
+    system = _system(M_tot=0)
+    state = _random_state(system, seed=41)
+    keywords = dict(
+        representation=system,
+        coordinate=coordinate,
+        gauge=gauge,
+        coupling=-0.83,
+        radial_operator_mode="element-local",
+    )
+    reference = AxialCoordinateDipole(
+        **keywords,
+        dipole_kernel="reference",
+    )(state)
+    candidate = AxialCoordinateDipole(
+        **keywords,
+        dipole_kernel="row-wise",
+    )(state)
+
+    np.testing.assert_allclose(candidate, reference, atol=3.0e-13, rtol=3.0e-13)

@@ -260,8 +260,9 @@ def _distributed_run(
     return layout, solvers, results
 
 
+@pytest.mark.parametrize("dipole_kernel", ["reference", "row-wise"])
 @pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
-def test_cartesian_length_gauge_action_matches_serial(process_grid):
+def test_cartesian_length_gauge_action_matches_serial(process_grid, dipole_kernel):
     system, parameters, state = _problem()
     pulse = _Pulse()
     layout = TwoRadialDistributed2DLayout(
@@ -273,6 +274,7 @@ def test_cartesian_length_gauge_action_matches_serial(process_grid):
         layout,
         parameters,
         fields=(pulse,),
+        dipole_kernel=dipole_kernel,
     )
     serial = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
         system,
@@ -280,6 +282,7 @@ def test_cartesian_length_gauge_action_matches_serial(process_grid):
         gauge="length",
         fields=(pulse,),
         radial_operator_mode="element-local",
+        dipole_kernel=dipole_kernel,
     )
 
     actual = layout.assemble(
@@ -295,8 +298,11 @@ def test_cartesian_length_gauge_action_matches_serial(process_grid):
 
 
 @pytest.mark.parametrize("M_tot", [None, 0])
+@pytest.mark.parametrize("dipole_kernel", ["reference", "row-wise"])
 @pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
-def test_cartesian_velocity_gauge_action_matches_serial(process_grid, M_tot):
+def test_cartesian_velocity_gauge_action_matches_serial(
+    process_grid, M_tot, dipole_kernel
+):
     system, parameters, state = _problem(M_tot=M_tot)
     pulse = _VelocityPulse()
     n_ranks = process_grid[0] * process_grid[1]
@@ -320,6 +326,7 @@ def test_cartesian_velocity_gauge_action_matches_serial(process_grid, M_tot):
             parameters,
             hamiltonians[rank],
             fields=(pulse,),
+            dipole_kernel=dipole_kernel,
         )
         for rank in range(n_ranks)
     ]
@@ -329,6 +336,7 @@ def test_cartesian_velocity_gauge_action_matches_serial(process_grid, M_tot):
         gauge="velocity",
         fields=(pulse,),
         radial_operator_mode="element-local",
+        dipole_kernel=dipole_kernel,
     )
 
     with ThreadPoolExecutor(max_workers=n_ranks) as executor:

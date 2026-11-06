@@ -1188,6 +1188,34 @@ accounting, and summaries are archived under
 These records are the immutable pre-optimization reference for the remaining
 Phase 9i work.
 
+**Phase 9i.2 Hamiltonian-kernel status:** opt-in `multipole-grouped` Coulomb,
+`row-wise` radial, and `row-wise` compact-dipole candidates have been
+implemented alongside unchanged `reference` defaults. The Coulomb candidate
+groups each output block's contiguous angular couplings by radial multipole,
+accumulates the angular combination before loading the radial row, and uses
+separate real and imaginary work arrays while preserving the complete complex
+state. The selector is propagated through serial, one-dimensional MPI,
+Cartesian-MPI, ground-state, real-time, benchmark, and end-to-end interfaces.
+Local H2+ `l_max=8` measurements on the production `4e11` by `4e21` grid
+reduced a one-rank Hamiltonian action from `0.2425 s` to `0.1508 s` and the
+Coulomb portion from `0.2136 s` to `0.1232 s`. A four-rank `2x2` calculation
+decreased from `0.06881 s` to `0.04555 s` per action. In both cases the maximum
+absolute reference difference was `9.095e-13`, approximately `1.0e-16`
+relative to the action scale. Controlled Saga validation is still required
+before changing the default. Compiled row-wise radial and compact-dipole
+kernels preserve the same explicit reference/candidate split. On the same
+one-rank H2+ `l_max=8` problem, the row-wise radial candidate reduced the two
+radial components from `0.493 s` to `0.397 s` over 20 actions and the complete
+action by approximately 2.5%. On a local four-rank `2x2` layout it reduced
+the radial components from `0.176 s` to `0.129 s` and the complete action by
+approximately 5.5%. The compact length-gauge dipole candidate was about 23%
+faster in an isolated one-rank `l_max=8` measurement. Its velocity-gauge
+prototype was slower and is therefore not selected: velocity gauge retains
+the reference contraction even when the opt-in dipole selector is enabled.
+Local parity tests cover compact real-time actions and Cartesian-MPI tiles.
+Controlled Saga comparison of the combined candidates is still required
+before changing any default.
+
 Scalable distributed snapshots and checkpoints remain Phase 10 because they
 address production memory and I/O scalability rather than Hamiltonian-action
 throughput. One-radial sparse construction and Davidson improvements remain a

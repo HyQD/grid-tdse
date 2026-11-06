@@ -93,6 +93,9 @@ def calculation(
         codata_set=values.codata_set,
         radial_coulomb_method="poisson",
         radial_operator_mode="element-local",
+        coulomb_kernel=values.coulomb_kernel,
+        radial_kernel=values.radial_kernel,
+        dipole_kernel=values.dipole_kernel,
         integrator="sia",
         integrator_options={
             "max_krylov_dimension": 20,

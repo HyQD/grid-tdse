@@ -47,6 +47,8 @@ from .preconditioner import (
 from .state_archive import TwoRadialState, load_two_radial_state
 from .system import (
     CoordinateSpec,
+    CoulombKernelMode,
+    RadialKernelMode,
     RadialOperatorMode,
     TwoRadialSystem,
     TwoRadialSystemSpec,
@@ -350,6 +352,8 @@ class NonBornOppenheimerDiatomicIonGroundState:
         use_preconditioner: bool = True,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
     ) -> None:
         self.parameters = _diatomic_parameters(system, codata_set)
         self.inversion_parity = _parity(inversion_parity, "inversion_parity")
@@ -494,6 +498,8 @@ class NonBornOppenheimerDiatomicIonGroundState:
         self.hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
 
         common_eigensolver_options = {

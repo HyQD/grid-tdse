@@ -14,6 +14,13 @@ The default matrix uses three repetitions, Hamiltonian rank counts
 `1 2 4 16`, and dynamics rank counts `1 2 4`. Jobs are serialized by Slurm
 dependencies to avoid interference between benchmark cases. Pass
 `--concurrent` only for workflow testing, not for the archived baseline.
+The `--coulomb-kernel` option selects either the immutable `reference` path
+or the Phase 9i.2 `multipole-grouped` candidate. It defaults to `reference`.
+The independent `--radial-kernel` and `--dipole-kernel` selectors choose the
+compiled row-wise element-local radial action and compact length-gauge dipole
+action, respectively. Both also default to `reference`; velocity-gauge dipole
+actions retain their reference contraction because the measured row-wise
+candidate was slower.
 
 ## 1. Update and verify the Saga checkout
 
@@ -181,3 +188,38 @@ cat "${run_root}/sacct.txt"
 
 Do not begin Phase 9i kernel changes until this run has been checked for
 failures, summarized, copied locally, and archived with its checksums.
+
+## 6. Compare the Phase 9i.2 Hamiltonian candidate
+
+After the candidate branch has passed local parity and MPI tests, run the
+same controlled matrix with the candidate selected explicitly:
+
+```bash
+examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
+    --stage all \
+    --coulomb-kernel multipole-grouped \
+    --radial-kernel row-wise \
+    --dipole-kernel row-wise \
+    --run-name phase9i-hamiltonian-candidate-production
+```
+
+For a reduced workflow check before the production matrix:
+
+```bash
+examples/spherical/two_radial/Saga/phase9i_baseline/submit_phase9i_baseline.sh \
+    --stage all \
+    --coulomb-kernel multipole-grouped \
+    --radial-kernel row-wise \
+    --dipole-kernel row-wise \
+    --repetitions 1 \
+    --hamiltonian-ranks 1 4 \
+    --dynamics-ranks 1 4 \
+    --actions 5 \
+    --warmup-actions 1 \
+    --dynamics-final-time 2.0 \
+    --run-name phase9i-hamiltonian-candidate-smoke
+```
+
+Keep candidate and reference records in separate run directories. The JSON,
+CSV, terminal summary, and job manifest all record the selected kernels so
+that results cannot be combined accidentally.

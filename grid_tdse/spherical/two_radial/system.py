@@ -17,6 +17,8 @@ from .grids import RadialGrid, RadialGridSpec, require_same_grid_family
 
 
 RadialOperatorMode = Literal["global", "element-local"]
+CoulombKernelMode = Literal["reference", "multipole-grouped"]
+RadialKernelMode = Literal["reference", "row-wise"]
 
 
 class RadialDiagonalTerm(Protocol):
@@ -355,6 +357,8 @@ class TwoRadialSystem:
         *,
         tile_size: int = 2048,
         radial_operator_mode: RadialOperatorMode | None = None,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
     ):
         from .hamiltonian import TwoRadialHamiltonian
 
@@ -383,6 +387,8 @@ class TwoRadialSystem:
             h2_diagonal=self.h2_diagonal,
             radial_operator_mode=radial_operator_mode,
             tile_size=tile_size,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
 
     def inner_product(self, left: np.ndarray, right: np.ndarray) -> complex:

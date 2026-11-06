@@ -78,3 +78,61 @@ def test_coulomb_R_slice_matches_selected_full_action(parity):
     actual = hamiltonian.apply_coulomb_R_slice(psi[..., indices], indices)
 
     np.testing.assert_allclose(actual, expected, atol=1.0e-13, rtol=1.0e-13)
+
+
+@pytest.mark.parametrize("dtype", [np.float64, np.complex128])
+@pytest.mark.parametrize("tile_size", [1, 4, 64])
+def test_multipole_grouped_coulomb_matches_reference(dtype, tile_size):
+    basis1 = AngularBasisSpec(2, 2)
+    basis2 = AngularBasisSpec(2, 1)
+    multipoles = CoulombMultipoleSpec(3, 2)
+    couplings = build_coulomb_couplings(basis1, basis2, multipoles)
+    rng = np.random.default_rng(1729)
+    radial = rng.normal(size=(len(multipoles.lambdas), 2, 3))
+    psi = rng.normal(size=(basis1.n_channels, basis2.n_channels, 2, 3))
+    if np.issubdtype(dtype, np.complexfloating):
+        psi = psi + 1j * rng.normal(size=psi.shape)
+    psi = psi.astype(dtype)
+    radial_data = RadialCoulombMultipoles(radial, multipoles.lambdas, "test")
+    arguments = (
+        np.zeros((basis1.n_channels, 2, 2)),
+        np.zeros((basis2.n_channels, 3, 3)),
+        radial_data,
+        couplings,
+    )
+    reference = TwoRadialHamiltonian(
+        *arguments,
+        tile_size=tile_size,
+        coulomb_kernel="reference",
+    )
+    candidate = TwoRadialHamiltonian(
+        *arguments,
+        tile_size=tile_size,
+        coulomb_kernel="multipole-grouped",
+    )
+    initial = np.full(psi.shape, 0.125, dtype=dtype)
+
+    expected = reference.apply_coulomb(psi, out=initial.copy())
+    actual = candidate.apply_coulomb(psi, out=initial.copy())
+
+    np.testing.assert_allclose(actual, expected, atol=2.0e-13, rtol=2.0e-13)
+
+
+def test_rejects_unknown_coulomb_kernel():
+    basis = AngularBasisSpec(0, 0)
+    multipoles = CoulombMultipoleSpec(0, 0)
+    couplings = build_coulomb_couplings(basis, basis, multipoles)
+    radial = RadialCoulombMultipoles(
+        np.ones((1, 2, 2)),
+        multipoles.lambdas,
+        "test",
+    )
+
+    with pytest.raises(ValueError, match="coulomb_kernel"):
+        TwoRadialHamiltonian(
+            np.zeros((1, 2, 2)),
+            np.zeros((1, 2, 2)),
+            radial,
+            couplings,
+            coulomb_kernel="unknown",
+        )

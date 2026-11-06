@@ -25,6 +25,7 @@ from .dipole import (
     AxialCoordinateDipole,
     AxialDipoleCouplings,
     DipoleGauge,
+    DipoleKernelMode,
     TwoRadialAxialDipoleInteraction,
 )
 from .dynamics_initialization import (
@@ -135,6 +136,8 @@ from .storage import (
 from .system import (
     AngularRadialPotential,
     CoordinateSpec,
+    CoulombKernelMode,
+    RadialKernelMode,
     RadialOperatorMode,
     RadialPotential,
     TwoRadialSystem,
@@ -158,6 +161,7 @@ __all__ = [
     "CoulombCouplings",
     "CoulombMultipoleSpec",
     "CoulombTerm",
+    "CoulombKernelMode",
     "CartesianRealTimeCommunicator",
     "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
@@ -179,6 +183,7 @@ __all__ = [
     "DiatomicIonPropagationDiagnostics",
     "DiatomicIonRadialDensities",
     "DipoleGauge",
+    "DipoleKernelMode",
     "Distributed2DHamiltonianComponents",
     "Distributed2DHamiltonianProfile",
     "Distributed2DGroundStateResult",
@@ -199,6 +204,7 @@ __all__ = [
     "RadialCoulombMethod",
     "RadialGrid",
     "RadialOperatorMode",
+    "RadialKernelMode",
     "RadialPotential",
     "RadialSincDVRGridSpec",
     "RealTimePreconditionerName",

@@ -7,12 +7,14 @@ from time import perf_counter
 from typing import Protocol, Sequence
 
 import numpy as np
+from numba import njit, prange
 
 from .absorbing_boundaries import TwoRadialAbsorbingBoundaries
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadialDistributed2DLayout,
 )
+from .system import CoulombKernelMode, RadialKernelMode
 
 
 _STATE_HALO_TAG = {1: 28201, 2: 28202}
@@ -102,6 +104,8 @@ class TwoRadialDistributed2DHamiltonian:
         communicator: CartesianOperatorCommunicator | None = None,
         *,
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
         absorbing_boundaries: TwoRadialAbsorbingBoundaries | None = None,
         profile: bool = False,
     ) -> None:
@@ -124,9 +128,14 @@ class TwoRadialDistributed2DHamiltonian:
         self.communicator = communicator
         self.absorbing_boundaries = absorbing_boundaries
         self.profile_enabled = bool(profile)
+        if radial_kernel not in {"reference", "row-wise"}:
+            raise ValueError("radial_kernel must be 'reference' or 'row-wise'")
+        self.radial_kernel = radial_kernel
         self.serial_hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode="element-local",
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
         if communicator is not None:
             rank, size = _communicator_rank_size(communicator)
@@ -153,6 +162,7 @@ class TwoRadialDistributed2DHamiltonian:
                 self.representation.grid2
             ),
         }
+        self._row_wise_element_data = {}
         self._working_buffers = {}
         self._weak_buffers = {}
         self._owned_weak_buffers = {}
@@ -722,14 +732,65 @@ class TwoRadialDistributed2DHamiltonian:
         axis = _coordinate_axis(coordinate)
         partition = _coordinate_partition(self.layout.partition(rank), coordinate)
         elements = tuple(partition.element_indices)
+        offsets = tuple(offsets)
+        if self.radial_kernel == "row-wise" and offsets:
+            matrix_kind = (
+                "second"
+                if element_matrices is self._element_matrices
+                else "first"
+            )
+            key = (rank, coordinate, matrix_kind, offsets)
+            packed = self._row_wise_element_data.get(key)
+            if packed is None:
+                maps = [
+                    np.asarray(
+                        partition.element_local_dof_maps[offset],
+                        dtype=np.int32,
+                    )
+                    for offset in offsets
+                ]
+                matrices = [
+                    element_matrices[coordinate][elements[offset]]
+                    for offset in offsets
+                ]
+                packed = _pack_element_actions(matrices, maps)
+                self._row_wise_element_data[key] = packed
+            matrices, maps, sizes = packed
+            flattened_working = working.reshape(
+                (-1, working.shape[-2], working.shape[-1])
+            )
+            flattened_weak = weak.reshape(
+                (-1, weak.shape[-2], weak.shape[-1])
+            )
+            if coordinate == 1:
+                _accumulate_element_coordinate1_kernel(
+                    flattened_weak,
+                    flattened_working,
+                    matrices,
+                    maps,
+                    sizes,
+                )
+            else:
+                _accumulate_element_coordinate2_kernel(
+                    flattened_weak,
+                    flattened_working,
+                    matrices,
+                    maps,
+                    sizes,
+                )
+            return
         for offset in offsets:
             element = elements[offset]
-            local_map = partition.element_local_dof_maps[offset]
+            local_map = np.ascontiguousarray(
+                partition.element_local_dof_maps[offset],
+                dtype=np.int32,
+            )
+            matrix = element_matrices[coordinate][element]
             local_values = np.take(working, local_map, axis=axis)
             local_values = np.moveaxis(local_values, axis, -1)
             local_action = np.einsum(
                 "ij,...j->...i",
-                element_matrices[coordinate][element],
+                matrix,
                 local_values,
                 optimize=True,
             )
@@ -1145,6 +1206,70 @@ def _coordinate_partition(partition, coordinate: int):
 
 def _coordinate_axis(coordinate: int) -> int:
     return -2 if coordinate == 1 else -1
+
+
+def _pack_element_actions(matrices, maps):
+    maximum_size = max(map_.size for map_ in maps)
+    packed_matrices = np.zeros(
+        (len(maps), maximum_size, maximum_size),
+        dtype=np.result_type(*[matrix.dtype for matrix in matrices]),
+    )
+    packed_maps = np.full((len(maps), maximum_size), -1, dtype=np.int32)
+    sizes = np.empty(len(maps), dtype=np.int32)
+    for element, (matrix, map_) in enumerate(zip(matrices, maps, strict=True)):
+        size = map_.size
+        packed_matrices[element, :size, :size] = matrix
+        packed_maps[element, :size] = map_
+        sizes[element] = size
+    return (
+        np.ascontiguousarray(packed_matrices),
+        np.ascontiguousarray(packed_maps),
+        np.ascontiguousarray(sizes),
+    )
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _accumulate_element_coordinate1_kernel(
+    weak, values, element_matrices, element_maps, element_sizes
+):
+    n_channels, _, n_radial2 = values.shape
+    for row in prange(n_channels * n_radial2):
+        channel = row // n_radial2
+        radial2 = row - channel * n_radial2
+        for element in range(element_sizes.size):
+            size = element_sizes[element]
+            for local_output in range(size):
+                radial1 = element_maps[element, local_output]
+                action = 0
+                for local_input in range(size):
+                    input_radial1 = element_maps[element, local_input]
+                    action += (
+                        element_matrices[element, local_output, local_input]
+                        * values[channel, input_radial1, radial2]
+                    )
+                weak[channel, radial1, radial2] += action
+
+
+@njit(cache=True, fastmath=True, parallel=True)
+def _accumulate_element_coordinate2_kernel(
+    weak, values, element_matrices, element_maps, element_sizes
+):
+    n_channels, n_radial1, _ = values.shape
+    for row in prange(n_channels * n_radial1):
+        channel = row // n_radial1
+        radial1 = row - channel * n_radial1
+        for element in range(element_sizes.size):
+            size = element_sizes[element]
+            for local_output in range(size):
+                radial2 = element_maps[element, local_output]
+                action = 0
+                for local_input in range(size):
+                    input_radial2 = element_maps[element, local_input]
+                    action += (
+                        element_matrices[element, local_output, local_input]
+                        * values[channel, radial1, input_radial2]
+                    )
+                weak[channel, radial1, radial2] += action
 
 
 def _coordinate_element_matrices(grid) -> tuple[np.ndarray, ...]:

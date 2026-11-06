@@ -108,6 +108,10 @@ def test_element_local_femdvr_hamiltonian_matches_global_action(M_tot):
     ).build()
     global_hamiltonian = system.hamiltonian(radial_operator_mode="global")
     local_hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
+    row_wise_hamiltonian = system.hamiltonian(
+        radial_operator_mode="element-local",
+        radial_kernel="row-wise",
+    )
     rng = np.random.default_rng(414)
     state = rng.normal(size=system.psi_shape) + 1j * rng.normal(
         size=system.psi_shape
@@ -130,6 +134,18 @@ def test_element_local_femdvr_hamiltonian_matches_global_action(M_tot):
         global_hamiltonian(state),
         atol=8.0e-12,
         rtol=8.0e-13,
+    )
+    np.testing.assert_allclose(
+        row_wise_hamiltonian.apply_one_body_coordinate1(state),
+        local_hamiltonian.apply_one_body_coordinate1(state),
+        atol=4.0e-12,
+        rtol=4.0e-13,
+    )
+    np.testing.assert_allclose(
+        row_wise_hamiltonian.apply_one_body_coordinate2(state),
+        local_hamiltonian.apply_one_body_coordinate2(state),
+        atol=4.0e-12,
+        rtol=4.0e-13,
     )
 
 
@@ -283,5 +299,30 @@ def test_compact_M_tot_hamiltonian_matches_full_representation():
         compact.inner_product(compact_state, compact_action),
         full.inner_product(full_state, full_action),
         atol=2.0e-12,
+        rtol=2.0e-13,
+    )
+
+
+@pytest.mark.parametrize("dtype", [np.float64, np.complex128])
+def test_compact_multipole_grouped_coulomb_matches_reference(dtype):
+    system = _magnetic_sector_system(0)
+    rng = np.random.default_rng(903)
+    state = rng.normal(size=system.psi_shape)
+    if np.issubdtype(dtype, np.complexfloating):
+        state = state + 1j * rng.normal(size=state.shape)
+    state = state.astype(dtype)
+    reference = system.hamiltonian(
+        tile_size=7,
+        coulomb_kernel="reference",
+    )
+    candidate = system.hamiltonian(
+        tile_size=7,
+        coulomb_kernel="multipole-grouped",
+    )
+
+    np.testing.assert_allclose(
+        candidate.apply_coulomb(state),
+        reference.apply_coulomb(state),
+        atol=2.0e-13,
         rtol=2.0e-13,
     )

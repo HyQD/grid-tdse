@@ -28,6 +28,7 @@ from .ground_state_sampling import (
     DiatomicIonGroundStateSample,
 )
 from .observables import DiatomicIonObservableEvaluator
+from .system import CoulombKernelMode, RadialKernelMode
 
 
 class CartesianGroundStateCommunicator(Protocol):
@@ -166,6 +167,8 @@ class TwoRadialDistributed2DGroundStateSolver:
         log_path: str | PathLike[str] | None = None,
         log_overwrite: bool = False,
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
         profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):
@@ -208,6 +211,8 @@ class TwoRadialDistributed2DGroundStateSolver:
             layout,
             communicator,
             tile_size=tile_size,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
             profile=profile,
         )
         self.reductions = TwoRadialDistributed2DReductions(

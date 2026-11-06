@@ -22,6 +22,8 @@ from .observables import (
 from .preconditioner import TwoRadialOneBodyPreconditioner, weighted_eigenstates
 from .system import (
     CoordinateSpec,
+    CoulombKernelMode,
+    RadialKernelMode,
     RadialOperatorMode,
     TwoRadialSystem,
     TwoRadialSystemSpec,
@@ -204,6 +206,8 @@ class TwoElectronAtomGroundState:
         use_preconditioner: bool = True,
         radial_operator_mode: RadialOperatorMode = "global",
         tile_size: int = 2048,
+        coulomb_kernel: CoulombKernelMode = "reference",
+        radial_kernel: RadialKernelMode = "reference",
     ) -> None:
         self.parameters = _atomic_parameters(atom)
         self.inversion_parity = _parity(inversion_parity, "inversion_parity")
@@ -287,6 +291,8 @@ class TwoElectronAtomGroundState:
         self.hamiltonian = self.representation.hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
+            coulomb_kernel=coulomb_kernel,
+            radial_kernel=radial_kernel,
         )
         self.solver = ImaginaryTimeGroundStateSolver(
             time_step=time_step,

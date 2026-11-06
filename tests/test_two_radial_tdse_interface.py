@@ -197,6 +197,59 @@ def test_diatomic_interface_embeds_field_free_symmetry_archive(tmp_path):
     ).real == pytest.approx(1.0)
 
 
+def test_diatomic_sia_phase9i2_kernels_match_reference(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+
+    class ElectricField:
+        gauge = "length"
+
+        def __call__(self, time):
+            return 0.02 + 0.1 * time
+
+    common = {
+        "electronic_grid": GRID,
+        "internuclear_grid": GRID,
+        "initial_state": archived,
+        "pair_exchange_parity": 1,
+        "fields": (ElectricField(),),
+        "field_gauge": "length",
+        "l_max": 1,
+        "m_max": 1,
+        "lambda_max": 2,
+        "mu_max": 2,
+        "M_tot": 0,
+        "codata_set": "2022",
+        "integrator": "sia",
+        "integrator_options": {
+            "max_krylov_dimension": 20,
+            "rtol": 1.0e-12,
+            "atol": 1.0e-14,
+        },
+        "radial_operator_mode": "element-local",
+        "final_time": 0.01,
+        "time_step": 0.01,
+    }
+    reference = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        **common,
+        coulomb_kernel="reference",
+    ).run(progress=False)
+    candidate = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        **common,
+        coulomb_kernel="multipole-grouped",
+        radial_kernel="row-wise",
+        dipole_kernel="row-wise",
+    ).run(progress=False)
+
+    np.testing.assert_allclose(
+        candidate.state,
+        reference.state,
+        atol=2.0e-13,
+        rtol=2.0e-13,
+    )
+
+
 def test_diatomic_tdse_exposes_gauge_covariant_velocity_energy_sampler(
     tmp_path,
 ):

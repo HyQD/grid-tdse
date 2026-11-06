@@ -198,6 +198,9 @@ solver = TwoRadialDistributed2DRealTimeSolver(
     ),
     absorbing_boundaries=boundaries,
     progress_interval=values.progress_interval,
+    coulomb_kernel=values.coulomb_kernel,
+    radial_kernel=values.radial_kernel,
+    dipole_kernel=values.dipole_kernel,
     profile=True,
 )
 initial_snapshot = solver.observable_evaluator.distributed_2d(

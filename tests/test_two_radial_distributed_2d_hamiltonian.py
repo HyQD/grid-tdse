@@ -49,6 +49,52 @@ def _complex_state(system, seed=947):
     )
 
 
+def test_multipole_grouped_distributed_action_matches_reference():
+    system = _system(M_tot=0)
+    layout = TwoRadialDistributed2DLayout(system, 4, process_grid=(2, 2))
+    state = _complex_state(system, seed=948)
+    local = layout.distribute(state)
+    reference = TwoRadialDistributed2DHamiltonian(
+        layout,
+        tile_size=7,
+        coulomb_kernel="reference",
+    )
+    candidate = TwoRadialDistributed2DHamiltonian(
+        layout,
+        tile_size=7,
+        coulomb_kernel="multipole-grouped",
+    )
+
+    np.testing.assert_allclose(
+        layout.assemble(candidate.apply_all(local)),
+        layout.assemble(reference.apply_all(local)),
+        atol=2.0e-12,
+        rtol=2.0e-12,
+    )
+
+
+def test_row_wise_radial_distributed_action_matches_reference():
+    system = _system(M_tot=0)
+    layout = TwoRadialDistributed2DLayout(system, 4, process_grid=(2, 2))
+    state = _complex_state(system, seed=949)
+    local = layout.distribute(state)
+    reference = TwoRadialDistributed2DHamiltonian(
+        layout,
+        radial_kernel="reference",
+    )
+    candidate = TwoRadialDistributed2DHamiltonian(
+        layout,
+        radial_kernel="row-wise",
+    )
+
+    np.testing.assert_allclose(
+        layout.assemble(candidate.apply_all(local)),
+        layout.assemble(reference.apply_all(local)),
+        atol=4.0e-12,
+        rtol=4.0e-12,
+    )
+
+
 class _CompletedRequest:
     def Wait(self):
         return None
