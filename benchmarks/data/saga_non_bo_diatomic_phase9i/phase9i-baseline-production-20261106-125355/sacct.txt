@@ -1,0 +1,90 @@
+JobID                                   JobName      State ExitCode    Elapsed   TotalCPU  AllocCPUS     ReqMem     MaxRSS        NodeList
+------------ ---------------------------------- ---------- -------- ---------- ---------- ---------- ---------- ---------- ---------------
+20857695                       p9i_ham_l8_q1_r1  COMPLETED      0:0   00:01:05  00:51.686          1         4G                      c5-58
+20857695.ba+                              batch  COMPLETED      0:0   00:01:05  00:13.514          1               417612K           c5-58
+20857695.ex+                             extern  COMPLETED      0:0   00:01:05   00:00:00          1                                 c5-58
+20857695.0                                 bash  COMPLETED      0:0   00:00:42  00:38.171          1               583088K           c5-58
+20857696                       p9i_ham_l8_q1_r2  COMPLETED      0:0   00:01:04  00:51.627          1         4G                      c5-58
+20857696.ba+                              batch  COMPLETED      0:0   00:01:04  00:13.414          1               419524K           c5-58
+20857696.ex+                             extern  COMPLETED      0:0   00:01:04   00:00:00          1                                 c5-58
+20857696.0                                 bash  COMPLETED      0:0   00:00:43  00:38.213          1               584976K           c5-58
+20857697                       p9i_ham_l8_q1_r3  COMPLETED      0:0   00:01:06  00:54.513          1         4G                      c5-58
+20857697.ba+                              batch  COMPLETED      0:0   00:01:06  00:14.527          1               417196K           c5-58
+20857697.ex+                             extern  COMPLETED      0:0   00:01:06   00:00:00          1                                 c5-58
+20857697.0                                 bash  COMPLETED      0:0   00:00:43  00:39.986          1               583060K           c5-58
+20857698                       p9i_ham_l8_q2_r1  COMPLETED      0:0   00:00:53  00:58.105          2         8G                      c2-30
+20857698.ba+                              batch  COMPLETED      0:0   00:00:53  00:13.753          2               449956K           c2-30
+20857698.ex+                             extern  COMPLETED      0:0   00:00:53   00:00:00          2                                 c2-30
+20857698.0                                 bash  COMPLETED      0:0   00:00:28  00:44.351          2               484916K           c2-30
+20857699                       p9i_ham_l8_q2_r2  COMPLETED      0:0   00:00:50  00:59.176          2         8G                      c2-30
+20857699.ba+                              batch  COMPLETED      0:0   00:00:50  00:13.514          2               417556K           c2-30
+20857699.ex+                             extern  COMPLETED      0:0   00:00:50   00:00:00          2                                 c2-30
+20857699.0                                 bash  COMPLETED      0:0   00:00:28  00:45.662          2               486952K           c2-30
+20857700                       p9i_ham_l8_q2_r3  COMPLETED      0:0   00:00:50  00:59.951          2         8G                      c2-30
+20857700.ba+                              batch  COMPLETED      0:0   00:00:50  00:13.426          2               417276K           c2-30
+20857700.ex+                             extern  COMPLETED      0:0   00:00:50   00:00:00          2                                 c2-30
+20857700.0                                 bash  COMPLETED      0:0   00:00:28  00:46.525          2               486744K           c2-30
+20857701                       p9i_ham_l8_q4_r1  COMPLETED      0:0   00:00:42  01:12.910          4        16G                      c2-30
+20857701.ba+                              batch  COMPLETED      0:0   00:00:42  00:13.449          4               417868K           c2-30
+20857701.ex+                             extern  COMPLETED      0:0   00:00:42   00:00:00          4                                 c2-30
+20857701.0                                 bash  COMPLETED      0:0   00:00:20  00:59.460          4               358628K           c2-30
+20857702                       p9i_ham_l8_q4_r2  COMPLETED      0:0   00:00:43  01:13.956          4        16G                      c2-30
+20857702.ba+                              batch  COMPLETED      0:0   00:00:43  00:13.496          4               417688K           c2-30
+20857702.ex+                             extern  COMPLETED      0:0   00:00:43   00:00:00          4                                 c2-30
+20857702.0                                 bash  COMPLETED      0:0   00:00:21  01:00.460          4               364292K           c2-30
+20857703                       p9i_ham_l8_q4_r3  COMPLETED      0:0   00:00:42  01:15.227          4        16G                      c2-30
+20857703.ba+                              batch  COMPLETED      0:0   00:00:42  00:13.426          4               418376K           c2-30
+20857703.ex+                             extern  COMPLETED      0:0   00:00:42   00:00:00          4                                 c2-30
+20857703.0                                 bash  COMPLETED      0:0   00:00:21  01:01.800          4               364712K           c2-30
+20857704                      p9i_ham_l8_q16_r1  COMPLETED      0:0   00:00:40  02:51.622         16        64G                      c2-48
+20857704.ba+                              batch  COMPLETED      0:0   00:00:40  00:12.982         16               432752K           c2-48
+20857704.ex+                             extern  COMPLETED      0:0   00:00:40   00:00:00         16                                 c2-48
+20857704.0                                 bash  COMPLETED      0:0   00:00:18  02:38.639         16               324552K           c2-48
+20857705                      p9i_ham_l8_q16_r2  COMPLETED      0:0   00:00:40  02:50.689         16        64G                      c2-48
+20857705.ba+                              batch  COMPLETED      0:0   00:00:40  00:12.844         16               418744K           c2-48
+20857705.ex+                             extern  COMPLETED      0:0   00:00:40   00:00:00         16                                 c2-48
+20857705.0                                 bash  COMPLETED      0:0   00:00:18  02:37.844         16               328628K           c2-48
+20857706                      p9i_ham_l8_q16_r3  COMPLETED      0:0   00:00:40  02:49.860         16        64G                      c2-48
+20857706.ba+                              batch  COMPLETED      0:0   00:00:40  00:12.872         16               419200K           c2-48
+20857706.ex+                             extern  COMPLETED      0:0   00:00:40   00:00:00         16                                 c2-48
+20857706.0                                 bash  COMPLETED      0:0   00:00:17  02:36.988         16               338384K           c2-48
+20857707                            p9i_seed_l2  COMPLETED      0:0   00:00:46  00:32.809          1         4G                      c5-58
+20857707.ba+                              batch  COMPLETED      0:0   00:00:46  00:14.955          1               417440K           c5-58
+20857707.ex+                             extern  COMPLETED      0:0   00:00:46   00:00:00          1                                 c5-58
+20857707.0                                 bash  COMPLETED      0:0   00:00:22  00:17.854          1               494800K           c5-58
+20857708                       p9i_sia_l2_q1_r1  COMPLETED      0:0   00:01:24  01:11.106          1         4G                      c5-58
+20857708.ba+                              batch  COMPLETED      0:0   00:01:24  00:15.116          1               417424K           c5-58
+20857708.ex+                             extern  COMPLETED      0:0   00:01:24   00:00:00          1                                 c5-58
+20857708.0                                 bash  COMPLETED      0:0   00:01:01  00:55.990          1               493296K           c5-58
+20857709                       p9i_sia_l2_q1_r2  COMPLETED      0:0   00:01:24  01:11.753          1         4G                      c5-58
+20857709.ba+                              batch  COMPLETED      0:0   00:01:24  00:15.033          1               417272K           c5-58
+20857709.ex+                             extern  COMPLETED      0:0   00:01:24   00:00:00          1                                 c5-58
+20857709.0                                 bash  COMPLETED      0:0   00:01:02  00:56.719          1               489420K           c5-58
+20857710                       p9i_sia_l2_q1_r3  COMPLETED      0:0   00:01:26  01:11.496          1         4G                      c5-58
+20857710.ba+                              batch  COMPLETED      0:0   00:01:26  00:15.017          1               417212K           c5-58
+20857710.ex+                             extern  COMPLETED      0:0   00:01:26   00:00:00          1                                 c5-58
+20857710.0                                 bash  COMPLETED      0:0   00:01:02  00:56.478          1               489368K           c5-58
+20857711                       p9i_sia_l2_q2_r1  COMPLETED      0:0   00:01:06  01:27.613          2         8G                      c2-30
+20857711.ba+                              batch  COMPLETED      0:0   00:01:06  00:13.605          2               417744K           c2-30
+20857711.ex+                             extern  COMPLETED      0:0   00:01:06   00:00:00          2                                 c2-30
+20857711.0                                 bash  COMPLETED      0:0   00:00:43  01:14.007          2               413712K           c2-30
+20857712                       p9i_sia_l2_q2_r2  COMPLETED      0:0   00:01:05  01:27.531          2         8G                      c2-30
+20857712.ba+                              batch  COMPLETED      0:0   00:01:05  00:13.434          2               417448K           c2-30
+20857712.ex+                             extern  COMPLETED      0:0   00:01:05   00:00:00          2                                 c2-30
+20857712.0                                 bash  COMPLETED      0:0   00:00:43  01:14.097          2               412884K           c2-30
+20857713                       p9i_sia_l2_q2_r3  COMPLETED      0:0   00:01:05  01:27.161          2         8G                      c2-30
+20857713.ba+                              batch  COMPLETED      0:0   00:01:05  00:13.477          2               417316K           c2-30
+20857713.ex+                             extern  COMPLETED      0:0   00:01:05   00:00:00          2                                 c2-30
+20857713.0                                 bash  COMPLETED      0:0   00:00:43  01:13.683          2               418124K           c2-30
+20857714                       p9i_sia_l2_q4_r1  COMPLETED      0:0   00:00:59  02:11.783          4        16G                      c2-30
+20857714.ba+                              batch  COMPLETED      0:0   00:00:59  00:13.489          4               418088K           c2-30
+20857714.ex+                             extern  COMPLETED      0:0   00:00:59   00:00:00          4                                 c2-30
+20857714.0                                 bash  COMPLETED      0:0   00:00:37  01:58.294          4               304920K           c2-30
+20857715                       p9i_sia_l2_q4_r2  COMPLETED      0:0   00:00:57  02:11.333          4        16G                      c2-30
+20857715.ba+                              batch  COMPLETED      0:0   00:00:57  00:13.656          4               418504K           c2-30
+20857715.ex+                             extern  COMPLETED      0:0   00:00:57   00:00:00          4                                 c2-30
+20857715.0                                 bash  COMPLETED      0:0   00:00:35  01:57.677          4               310416K           c2-30
+20857716                       p9i_sia_l2_q4_r3  COMPLETED      0:0   00:00:57  02:12.317          4        16G                      c2-30
+20857716.ba+                              batch  COMPLETED      0:0   00:00:57  00:13.349          4               417540K           c2-30
+20857716.ex+                             extern  COMPLETED      0:0   00:00:57   00:00:00          4                                 c2-30
+20857716.0                                 bash  COMPLETED      0:0   00:00:36  01:58.968          4               307916K           c2-30
