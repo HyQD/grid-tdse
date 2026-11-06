@@ -150,10 +150,11 @@ The following limitations remain:
 - distributed CN lacks an MPI-aware linear solver;
 - the atomic parallel path has not been validated.
 
-The non-BO roadmap is complete through Phase 8 and Phase 9a--9g. Serial
+The non-BO roadmap is complete through Phase 8 and Phase 9a--9h. Serial
 Davidson has removed ground-state preparation from the critical path, so
-distributed Davidson and further ITP optimization are deferred. Phase 9h, the
-end-to-end dynamics example and acceptance matrix, is next.
+distributed Davidson and further ITP optimization are deferred. Phase 9i now
+targets the remaining dynamics-performance opportunities identified by the
+external performance assessment before scalable I/O and full Saga scaling.
 
 ## Saga findings to date
 
@@ -413,7 +414,7 @@ The non-BO path must be completed before atomic parallel development begins.
 | 6 | compare serial, threaded, pure-MPI, and hybrid execution | complete |
 | 7 | complete distributed SIL/SIA ground-state propagation | complete |
 | 8 | stress-test and archive production ground states | complete |
-| 9 | complete distributed SIL/SIA dynamics | in progress; 9a--9d complete |
+| 9 | complete and optimize distributed SIL/SIA dynamics | in progress; 9a--9h complete, 9i pending |
 | 10 | implement scalable distributed state I/O | pending |
 | 11 | benchmark the complete SIL/SIA path on Saga | pending |
 | 12 | deploy and benchmark on Olivia and Betzy | pending |
@@ -1094,9 +1095,86 @@ uninterrupted final state exactly. Cartesian CAP/SIA unit tests also compare
 against serial propagation and verify that sampled energy excludes the
 nonphysical CAP term.
 
-**Phase 9 completion gate:** the end-to-end example passes field-free,
+**Phase 9h completion gate:** the end-to-end example passes field-free,
 length-gauge, absorber, restart, and gauge-comparison acceptance tests with
 documented tolerances.
+
+#### Phase 9i: optimize the production dynamics path
+
+Use the findings in
+[`dev/two_radial_performance_assessment.pdf`](two_radial_performance_assessment.pdf)
+as hypotheses to test on the current code and on Saga. The assessment used
+workstation prototypes and an earlier repository revision, so its reported
+speedups are not acceptance results. Preserve the current implementation as a
+numerical and performance baseline, change one optimization family at a time,
+and record Hamiltonian calls, collective counts, wall time, CPU utilization,
+memory, and allocation cost.
+
+Complete the work in the following order:
+
+1. Establish a post-construction-memory baseline using the Phase 9h
+   production problem and fixed-iteration Hamiltonian pilots. Include one-,
+   two-, and four-rank local checks and representative Saga process grids.
+   Archive raw timings and commit provenance before changing kernels.
+2. Optimize the existing uncoupled-basis Hamiltonian without changing its
+   mathematical action. Reorganize the Numba Coulomb kernel around radial
+   tiles and multipole groups, use contiguous row slices, and exploit the real
+   coupling coefficients and radial multipoles without discarding complex
+   state information. Replace Python/NumPy orchestration in the radial kinetic
+   and compact dipole actions with compiled row-wise kernels where benchmarks
+   demonstrate a benefit.
+3. Streamline real-time SIA/SIL. Wire the existing batched
+   `inner_products` operation into the real-time integrator, batch Krylov
+   projections and MPI reductions, avoid constructing the full approximate
+   state until convergence or exit, use the Hermitian tridiagonal projected
+   problem, and remove redundant state wrapping, finiteness scans, and scalar
+   multiplications. Retain reorthogonalization until long-Krylov validation
+   establishes that any weaker policy is safe.
+4. Add a commutator-free fourth-order Magnus propagator as an optional
+   real-time method. Validate the two exponential orderings explicitly and
+   compare it with exponential midpoint/SIA at equal physical error and equal
+   Hamiltonian-call budgets. Cover length and velocity gauges, CAP-free and
+   CAP calculations, pulse turn-on and turn-off, restart, and MPI execution.
+5. Perform a configuration-only convergence study using more, lower-order
+   FEM-DVR elements at fixed or comparable total radial point counts. Measure
+   spectral width, Krylov dimension, Hamiltonian calls per step, time per step,
+   and the increased process-grid rank ceiling. Require convergence of
+   ground-state energy, dipole response, ionization, dissociation, radial
+   marginals, and CAP absorption before adopting new defaults.
+6. Treat the coupled angular basis as a separate major subproject. Keeping all
+   allowed total-angular-momentum sectors is an exact basis transformation
+   within the retained uncoupled space and should be implemented before
+   considering sector truncation. Validate Coulomb blocks, field couplings,
+   symmetry adaptation, observables, CAPs, archives, and MPI distribution.
+   Any restriction of total angular momentum is an optional physical
+   approximation with its own convergence study, never an implicit
+   performance setting.
+7. Remove remaining setup and portability overhead where measurements justify
+   it: build immutable coupling tables once and broadcast them, make SymPy and
+   Matplotlib imports lazy, warn about poorly divisible process grids, compare
+   archived radial grids with a tight floating-point tolerance, and honor
+   `sample_initial=False` independently of periodic sampling. Disable costly
+   Davidson diagnostics by default only after confirming that production
+   convergence reporting remains sufficient.
+
+Scalable distributed snapshots and checkpoints remain Phase 10 because they
+address production memory and I/O scalability rather than Hamiltonian-action
+throughput. One-radial sparse construction and Davidson improvements remain a
+separate one-radial project. Do not prioritize a C kernel rewrite, further
+tile-size tuning in isolation, centrifugal capping, GPU execution, or angular
+screening until the steps above are measured: the assessment did not establish
+a better risk-to-reward ratio for those alternatives.
+
+**Phase 9i completion gate:** the optimized uncoupled-basis Hamiltonian and
+Krylov path reproduce serial and Cartesian-MPI reference actions, propagated
+states, norms, gauge-covariant energies, observables, CAP loss, snapshots, and
+restarts within documented tolerances. Saga measurements demonstrate the
+speedup and communication reduction independently of the completed memory
+optimization. CF4 and lower-order radial grids are either accepted with
+documented accuracy/cost envelopes or retained as optional experimental
+paths. The all-sector coupled-angular implementation, if undertaken in this
+phase, is accepted only after exact-equivalence and MPI tests; angular-sector
+truncation is not required for completion.
 
 ### Phase 10: implement scalable distributed state I/O
 
@@ -1318,6 +1396,8 @@ The parallel two-radial program is complete when:
 
 ## Reference
 
+- *Performance assessment of grid-tdse* (2026), archived as
+  [`dev/two_radial_performance_assessment.pdf`](two_radial_performance_assessment.pdf).
 - Johannes Feist, *Two-photon double ionization of helium*, sections 5.5 and
   5.6.
 - Einar Aurbakken et al., "Transient spectroscopy from time-dependent
