@@ -100,8 +100,9 @@ class TwoRadialDistributed2DRealTimeSolver:
     Cartesian process directions.  The z-polarized length-gauge interaction
     is point-local, while the velocity-gauge interaction performs the bridge
     exchanges required by its first radial derivatives.  Krylov inner
-    products may use either the scalar reference reductions or batched
-    physical MPI reductions. Observable samples use batched reductions.
+    products use batched physical MPI reductions by default, while the scalar
+    reduction path remains available as an explicit reference mode. Observable
+    samples use batched reductions.
     """
 
     def __init__(
@@ -131,7 +132,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         coulomb_kernel: CoulombKernelMode = "reference",
         radial_kernel: RadialKernelMode = "reference",
         dipole_kernel: DipoleKernelMode = "reference",
-        krylov_reduction_mode: KrylovReductionMode = "scalar",
+        krylov_reduction_mode: KrylovReductionMode = "batched",
         profile: bool = False,
     ) -> None:
         if not isinstance(layout, TwoRadialDistributed2DLayout):

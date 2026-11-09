@@ -1259,8 +1259,8 @@ decreased from `61.6563` to `50.8875 s` at one rank, `40.0698` to `31.0439 s`
 at two ranks, and `27.3014` to `23.0325 s` at four ranks. These correspond to
 speedups of 1.21, 1.29, and 1.19. The sanitized records are archived under
 [`benchmarks/data/saga_non_bo_diatomic_phase9i3`](../benchmarks/data/saga_non_bo_diatomic_phase9i3/README.md).
-The evidence supports making `batched` the Cartesian-MPI default in a
-follow-up change while retaining `scalar` as the explicit reference mode.
+The validated `batched` path is now the Cartesian-MPI default, while `scalar`
+remains available as the explicit reference mode.
 
 Deferred integrator-internal work includes delaying approximate-state
 construction and using a dedicated Hermitian tridiagonal projected solve;

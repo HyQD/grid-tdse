@@ -23,9 +23,9 @@ actions retain their reference contraction because the measured row-wise
 candidate was slower.
 The `--krylov-reduction-mode` selector independently chooses the scalar
 reference reductions or the Phase 9i.3 batched Krylov reductions. It defaults
-to `scalar` until the controlled Saga comparison has passed. The selected mode
-is recorded in `jobs.csv`, every dynamics summary, the summary CSV, and the
-terminal table.
+to the validated `batched` path; pass `--krylov-reduction-mode scalar` to run
+the reference path explicitly. The selected mode is recorded in `jobs.csv`,
+every dynamics summary, the summary CSV, and the terminal table.
 
 ## 1. Update and verify the Saga checkout
 
@@ -267,5 +267,6 @@ rank count. Require matching accepted steps, Hamiltonian calls, Krylov
 dimensions, rejected substeps, norms, and observables before evaluating wall
 time. The batched mode should reduce `reduction_profile.collective_calls`;
 record the collective count and time from each raw `summary.json` alongside
-the end-to-end timing. Keep `scalar` as the default until that validation is
-archived.
+the end-to-end timing. The completed comparison is archived under
+`benchmarks/data/saga_non_bo_diatomic_phase9i3`; the validated `batched` mode
+is now the default and `scalar` remains the explicit reference mode.
