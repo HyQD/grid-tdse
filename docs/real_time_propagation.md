@@ -8,11 +8,12 @@ three objects:
 - a Hamiltonian action `hamiltonian(state, time)`;
 - the physical inner product for that representation.
 
-The propagator advances the equation `i dPsi/dt = H(t) Psi` using one of three
-matrix-free methods from `integrator-lib`: Crank--Nicolson, short-iterative
-Lanczos (SIL), or short-iterative Arnoldi (SIA). The Hamiltonian is evaluated
-at the midpoint of every time step, which is required when fields make it
-explicitly time dependent.
+The propagator advances the equation `i dPsi/dt = H(t) Psi` using matrix-free
+methods from `integrator-lib`: Crank--Nicolson, short-iterative Lanczos (SIL),
+short-iterative Arnoldi (SIA), or fourth-order commutator-free Magnus (CF4)
+with either exponential backend. CN, SIL, and SIA evaluate the Hamiltonian at
+the midpoint of every time step. CF4 evaluates it at two Gauss--Legendre
+nodes and applies two exponentials.
 
 ## Propagation interval
 
@@ -148,7 +149,21 @@ SIA uses an Arnoldi projection and supports the non-Hermitian Hamiltonian
 created by a CAP. SIA may also be used without a CAP, although SIL is the more
 specialized method for a Hermitian problem.
 
-Both exponential propagators increase the Krylov dimension up to
+Use `integrator="cf4-sil"` for fourth-order commutator-free Magnus
+propagation of a Hermitian Hamiltonian, or `integrator="cf4-sia"` when the
+Hamiltonian is general or contains a CAP. Both choices use the same Krylov
+options as their second-order exponential counterparts. Each requested CF4
+step applies two exponentials and reports diagnostics aggregated over both.
+
+The serial and Cartesian-MPI two-radial interfaces exploit the structure
+`H(t) = H_static + f(t) D`. They combine the two field amplitudes before each
+Krylov action, so the field-free Hamiltonian, CAP, and field-independent
+dipole operator are each applied only once per combined action. Generic
+`RealTimePropagator` callers may provide the same optimization through
+`linear_combination_factory`; without it, CF4 remains matrix-free but samples
+the complete supplied Hamiltonian at both quadrature nodes for every action.
+
+All exponential backends increase the Krylov dimension up to
 `max_krylov_dimension`. If the requested tolerance is not reached, they bisect
 the requested interval recursively up to `max_krylov_refinements`. Every
 accepted or refined substep evaluates the Hamiltonian at its own temporal
@@ -165,10 +180,11 @@ midpoint.
 - one diagnostic record for every accepted step.
 
 The `times` and `norm_history` properties include the initial point. CN records
-linear iteration counts and residual norms for every step. SIL and SIA instead
-record Hamiltonian calls, accepted and rejected Krylov substeps, maximum
-refinement depth, maximum accepted Krylov dimension, and an accumulated error
-estimate. Non-applicable CN or Krylov diagnostics are zero. The norm is
+linear iteration counts and residual norms for every step. The exponential
+methods instead record combined-generator calls, accepted and rejected Krylov
+substeps, maximum refinement depth, maximum accepted Krylov dimension, and an
+accumulated error estimate. For CF4 these values are aggregated over both
+exponentials. Non-applicable CN or Krylov diagnostics are zero. The norm is
 computed as `inner_product(state, state)`, following the established dynamics
 convention in which the norm is the total represented probability rather than
 its square root. This is also the denominator needed to form conditional

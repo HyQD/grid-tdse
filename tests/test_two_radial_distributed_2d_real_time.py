@@ -358,7 +358,11 @@ def test_cartesian_velocity_gauge_action_matches_serial(
 
 
 @pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
-def test_cartesian_velocity_gauge_one_step_matches_serial(process_grid):
+@pytest.mark.parametrize("integrator", ["sil", "cf4-sil"])
+def test_cartesian_velocity_gauge_one_step_matches_serial(
+    process_grid,
+    integrator,
+):
     system, parameters, state = _problem()
     pulse = _VelocityPulse()
     serial, serial_series, _ = _serial_run(
@@ -367,6 +371,7 @@ def test_cartesian_velocity_gauge_one_step_matches_serial(process_grid):
         state,
         pulse,
         0.01,
+        integrator,
     )
     layout, _, distributed = _distributed_run(
         system,
@@ -375,6 +380,7 @@ def test_cartesian_velocity_gauge_one_step_matches_serial(process_grid):
         pulse,
         process_grid,
         0.01,
+        integrator,
     )
 
     actual = layout.assemble(tuple(result.state for result in distributed))
@@ -418,7 +424,10 @@ def test_cartesian_one_step_matches_serial(process_grid):
         assert result.reduction_profile.collective_calls > 0
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_cartesian_exponential_integrators_match_serial(integrator):
     system, parameters, state = _problem()
     pulse = _Pulse()
@@ -444,7 +453,10 @@ def test_cartesian_exponential_integrators_match_serial(integrator):
     np.testing.assert_allclose(actual, serial.state, atol=3.0e-11, rtol=3.0e-11)
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_batched_krylov_reductions_match_scalar_and_use_fewer_collectives(
     integrator,
 ):
@@ -591,7 +603,10 @@ def test_cartesian_short_time_series_and_final_state_match_serial():
             )
 
 
-def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
+@pytest.mark.parametrize("integrator", ["sia", "cf4-sia"])
+def test_cartesian_cap_arnoldi_matches_serial_and_samples_physical_energy(
+    integrator,
+):
     system, parameters, state = _problem()
     pulse = _Pulse()
     cap1 = -0.02j * (system.grid1.r / system.grid1.r[-1]) ** 3
@@ -639,7 +654,7 @@ def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
             checkpoint=checkpoint,
         )
 
-    serial = _propagator(0.02, "sia").propagate(
+    serial = _propagator(0.02, integrator).propagate(
         state,
         serial_action,
         system.inner_product,
@@ -663,7 +678,7 @@ def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
             field_gauge="length",
             final_time=0.02,
             time_step=0.01,
-            integrator="sia",
+            integrator=integrator,
             max_krylov_dimension=20,
             krylov_rtol=1.0e-11,
             krylov_atol=1.0e-13,
@@ -695,7 +710,8 @@ def test_cartesian_cap_sia_matches_serial_and_samples_physical_energy():
         )
 
 
-def test_cartesian_sil_rejects_cap():
+@pytest.mark.parametrize("integrator", ["sil", "cf4-sil"])
+def test_cartesian_lanczos_integrator_rejects_cap(integrator):
     system, parameters, _ = _problem()
     boundaries = TwoRadialAbsorbingBoundaries(
         system,
@@ -709,6 +725,6 @@ def test_cartesian_sil_rejects_cap():
             parameters,
             final_time=0.01,
             time_step=0.01,
-            integrator="sil",
+            integrator=integrator,
             absorbing_boundaries=boundaries,
         )

@@ -27,12 +27,17 @@ def _propagator(initial_time=0.0, final_time=0.6, time_step=0.1):
     )
 
 
-def _sia_propagator(initial_time=0.0, final_time=0.6, time_step=0.1):
+def _sia_propagator(
+    initial_time=0.0,
+    final_time=0.6,
+    time_step=0.1,
+    integrator="sia",
+):
     return RealTimePropagator(
         initial_time=initial_time,
         final_time=final_time,
         time_step=time_step,
-        integrator="sia",
+        integrator=integrator,
         max_krylov_dimension=2,
         krylov_rtol=1.0e-13,
         krylov_atol=1.0e-15,
@@ -320,7 +325,18 @@ def test_checkpoint_metadata_must_be_json_serializable(tmp_path):
         )
 
 
-def test_sia_checkpoint_preserves_diagnostics_and_resumes_exactly(tmp_path):
+@pytest.mark.parametrize(
+    ("integrator", "method"),
+    [
+        ("sia", "short_iterative_arnoldi"),
+        ("cf4-sia", "commutator_free_magnus4_arnoldi"),
+    ],
+)
+def test_arnoldi_checkpoint_preserves_diagnostics_and_resumes_exactly(
+    tmp_path,
+    integrator,
+    method,
+):
     path = tmp_path / "sia-interrupted.chkpt"
     initial = np.array([1.0, -0.3j])
 
@@ -330,7 +346,7 @@ def test_sia_checkpoint_preserves_diagnostics_and_resumes_exactly(tmp_path):
         return np.sum(state)
 
     with pytest.raises(RuntimeError, match="simulated interruption"):
-        _sia_propagator(final_time=0.4).propagate(
+        _sia_propagator(final_time=0.4, integrator=integrator).propagate(
             initial,
             _hamiltonian,
             np.vdot,
@@ -343,13 +359,17 @@ def test_sia_checkpoint_preserves_diagnostics_and_resumes_exactly(tmp_path):
 
     checkpoint = load_real_time_checkpoint(path)
     segment = checkpoint.latest_segment
-    assert segment.integrator["method"] == "short_iterative_arnoldi"
+    assert segment.integrator["method"] == method
     assert np.all(segment.krylov_operator_calls > 0)
     assert np.all(segment.krylov_accepted_substeps > 0)
     assert np.all(segment.krylov_dimensions == 2)
     assert np.all(segment.linear_iterations == 0)
 
-    resumed = _sia_propagator(initial_time=0.1, final_time=0.4).resume(
+    resumed = _sia_propagator(
+        initial_time=0.1,
+        final_time=0.4,
+        integrator=integrator,
+    ).resume(
         checkpoint,
         _hamiltonian,
         np.vdot,
@@ -358,7 +378,10 @@ def test_sia_checkpoint_preserves_diagnostics_and_resumes_exactly(tmp_path):
         compatibility_metadata=COMPATIBILITY,
         dynamics_metadata=DYNAMICS,
     )
-    uninterrupted = _sia_propagator(final_time=0.4).propagate(
+    uninterrupted = _sia_propagator(
+        final_time=0.4,
+        integrator=integrator,
+    ).propagate(
         initial,
         _hamiltonian,
         np.vdot,

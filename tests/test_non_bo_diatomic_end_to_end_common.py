@@ -43,6 +43,7 @@ def _arguments(**updates):
         "wavelength_nm": 800.0,
         "carrier_cycles": 3.0,
         "field_gauge": "length",
+        "integrator": "sia",
         "time_step": 0.25,
         "final_time": 200.0,
         "cap_alpha": 0.8,

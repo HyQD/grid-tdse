@@ -58,7 +58,13 @@ from .system import (
 )
 
 
-IntegratorName = Literal["crank-nicolson", "sil", "sia"]
+IntegratorName = Literal[
+    "crank-nicolson",
+    "sil",
+    "sia",
+    "cf4-sil",
+    "cf4-sia",
+]
 InitialState = np.ndarray | TwoRadialState
 Sampler = Callable[[np.ndarray, float], np.ndarray | complex | float]
 
@@ -99,6 +105,24 @@ class _TwoRadialTDSE:
             "reality_tolerance",
         },
         "sia": {
+            "max_krylov_dimension",
+            "rtol",
+            "atol",
+            "max_refinements",
+            "reorthogonalize",
+            "breakdown_tolerance",
+            "reality_tolerance",
+        },
+        "cf4-sil": {
+            "max_krylov_dimension",
+            "rtol",
+            "atol",
+            "max_refinements",
+            "reorthogonalize",
+            "breakdown_tolerance",
+            "reality_tolerance",
+        },
+        "cf4-sia": {
             "max_krylov_dimension",
             "rtol",
             "atol",
@@ -173,10 +197,14 @@ class _TwoRadialTDSE:
         self.dipole_interaction = (
             self._build_dipole_interaction(self.fields) if self.fields else None
         )
-        if integrator == "sil" and self.absorbing_boundaries.has_cap:
+        if (
+            integrator in {"sil", "cf4-sil"}
+            and self.absorbing_boundaries.has_cap
+        ):
             raise ValueError(
-                "integrator 'sil' requires a Hermitian Hamiltonian and cannot "
-                "be used with a CAP; use 'sia' or 'crank-nicolson'"
+                f"integrator {integrator!r} requires a Hermitian Hamiltonian "
+                "and cannot be used with a CAP; use 'sia', 'cf4-sia', or "
+                "'crank-nicolson'"
             )
 
         self.propagator = RealTimePropagator(
@@ -354,6 +382,11 @@ class _TwoRadialTDSE:
         )
         try:
             propagation_arguments = dict(
+                linear_combination_factory=(
+                    self._cf4_linear_combination_factory
+                    if self.integrator in {"cf4-sil", "cf4-sia"}
+                    else None
+                ),
                 preconditioner=self.preconditioner,
                 samplers=self.samplers,
                 state_observer=self._build_state_observer(),
@@ -400,12 +433,40 @@ class _TwoRadialTDSE:
     def hamiltonian(self, state: np.ndarray, time: float) -> np.ndarray:
         """Apply the field-free Hamiltonian and all configured axial fields."""
 
-        result = self.field_free_hamiltonian(state)
+        result = self.static_hamiltonian(state)
         if self.dipole_interaction is not None:
             result += self.dipole_interaction(state, time)
+        return result
+
+    def static_hamiltonian(self, state: np.ndarray) -> np.ndarray:
+        """Apply all time-independent propagation-Hamiltonian terms."""
+
+        result = self.field_free_hamiltonian(state)
         if self.absorbing_boundaries.has_cap:
             result += self.absorbing_boundaries.cap_action(state)
         return result
+
+    def _cf4_linear_combination_factory(self, linear_rhs, nodes, weights):
+        """Build one structured CF4 generator without duplicate static work."""
+
+        del linear_rhs
+        static_weight = float(sum(weights))
+        field_weight = 0.0
+        if self.dipole_interaction is not None:
+            field_weight = sum(
+                weight * self.dipole_interaction.field_amplitude(node)
+                for node, weight in zip(nodes, weights, strict=True)
+            )
+
+        def action(state):
+            result = static_weight * self.static_hamiltonian(state)
+            if self.dipole_interaction is not None and field_weight != 0.0:
+                result += field_weight * self.dipole_interaction.spatial_action(
+                    state
+                )
+            return -1j * result
+
+        return action
 
     def _prepare_initial_state(self, initial_state: InitialState) -> np.ndarray:
         if isinstance(initial_state, TwoRadialState):

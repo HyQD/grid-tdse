@@ -75,6 +75,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         choices=("length", "velocity"),
         default="length",
     )
+    parser.add_argument(
+        "--integrator",
+        choices=("sil", "sia", "cf4-sil", "cf4-sia"),
+        default="sia",
+        help="real-time exponential integrator (default: sia)",
+    )
     parser.add_argument("--time-step", type=float, default=0.25)
     parser.add_argument(
         "--coulomb-kernel",
@@ -425,7 +431,7 @@ def configuration_record(arguments, setup) -> dict[str, object]:
             "eta_r": arguments.cap_eta_r,
             "eta_R": arguments.cap_eta_R,
         },
-        "integrator": "sia",
+        "integrator": arguments.integrator,
         "coulomb_kernel": getattr(arguments, "coulomb_kernel", "reference"),
         "radial_kernel": getattr(arguments, "radial_kernel", "reference"),
         "dipole_kernel": getattr(arguments, "dipole_kernel", "reference"),

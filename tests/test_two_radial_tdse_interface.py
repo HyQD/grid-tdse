@@ -534,7 +534,11 @@ def test_atomic_interface_exposes_sil_with_krylov_diagnostics():
     assert result.linear_iterations[0] == 0
 
 
-def test_diatomic_interface_exposes_sia_with_a_cap(tmp_path):
+@pytest.mark.parametrize("integrator", ["sia", "cf4-sia"])
+def test_diatomic_interface_exposes_arnoldi_integrator_with_a_cap(
+    tmp_path,
+    integrator,
+):
     archived = _archived_h2p_state(tmp_path)
     calculation = NonBornOppenheimerDiatomicIonTDSE(
         "H2+",
@@ -546,7 +550,7 @@ def test_diatomic_interface_exposes_sia_with_a_cap(tmp_path):
         M_tot=0,
         cap_R=-0.1j * np.ones(2),
         radial_operator_mode="element-local",
-        integrator="sia",
+        integrator=integrator,
         integrator_options={
             "max_krylov_dimension": 12,
             "rtol": 1.0e-9,
@@ -561,14 +565,15 @@ def test_diatomic_interface_exposes_sia_with_a_cap(tmp_path):
 
     result = calculation.run(progress=False)
 
-    assert calculation.integrator == "sia"
+    assert calculation.integrator == integrator
     assert calculation.radial_operator_mode == "element-local"
     assert calculation.preconditioner is None
     assert result.krylov_operator_calls[0] > 0
     assert result.norm < result.initial_norm
 
 
-def test_sil_rejects_a_cap():
+@pytest.mark.parametrize("integrator", ["sil", "cf4-sil"])
+def test_lanczos_integrator_rejects_a_cap(integrator):
     initial = _atomic_initial_state()
 
     with pytest.raises(ValueError, match="sil.*Hermitian.*CAP"):
@@ -579,13 +584,16 @@ def test_sil_rejects_a_cap():
             l_max=1,
             M_tot=0,
             cap=-0.1j * np.ones(2),
-            integrator="sil",
+            integrator=integrator,
             final_time=0.01,
             time_step=0.01,
         )
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_krylov_interface_rejects_cn_only_options(integrator):
     initial = _atomic_initial_state()
 
@@ -601,3 +609,50 @@ def test_krylov_interface_rejects_cn_only_options(integrator):
             final_time=0.01,
             time_step=0.01,
         )
+
+
+def test_cf4_high_level_path_combines_field_coefficients_before_actions():
+    class Field:
+        gauge = "length"
+
+        def __call__(self, time):
+            return 0.02 * (1.0 + time)
+
+    calculation = TwoElectronAtomTDSE(
+        "He",
+        grid=GRID,
+        initial_state=_atomic_initial_state(),
+        fields=(Field(),),
+        l_max=1,
+        M_tot=0,
+        integrator="cf4-sil",
+        integrator_options={
+            "max_krylov_dimension": 8,
+            "rtol": 1.0e-10,
+            "atol": 1.0e-12,
+        },
+        final_time=0.001,
+        time_step=0.001,
+    )
+    counts = {"static": 0, "dipole": 0}
+    field_free = calculation.field_free_hamiltonian
+    spatial_action = calculation.dipole_interaction.spatial_action
+
+    def counted_field_free(state):
+        counts["static"] += 1
+        return field_free(state)
+
+    def counted_spatial_action(state):
+        counts["dipole"] += 1
+        return spatial_action(state)
+
+    calculation.field_free_hamiltonian = counted_field_free
+    calculation.dipole_interaction.spatial_action = counted_spatial_action
+
+    result = calculation.run(progress=False)
+
+    assert counts["static"] == result.krylov_operator_calls[0]
+    assert counts["dipole"] == result.krylov_operator_calls[0]
+    assert calculation.propagator.integrator_metadata["method"] == (
+        "commutator_free_magnus4_lanczos"
+    )

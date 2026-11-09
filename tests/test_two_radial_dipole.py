@@ -342,6 +342,25 @@ def test_temporal_profiles_are_summed_and_input_is_not_modified():
 
 
 @pytest.mark.parametrize("gauge", ["length", "velocity"])
+def test_spatial_action_excludes_only_the_field_amplitude(gauge):
+    system = _system()
+    state = _random_state(system)
+    interaction = TwoRadialAxialDipoleInteraction(
+        system,
+        gauge=gauge,
+        fields=lambda time: 0.4 + time,
+        couplings=AxialDipoleCouplings(-1.0, 0.2),
+    )
+    time = 0.3
+
+    np.testing.assert_allclose(
+        interaction(state, time),
+        interaction.field_amplitude(time) * interaction.spatial_action(state),
+        atol=5.0e-14,
+    )
+
+
+@pytest.mark.parametrize("gauge", ["length", "velocity"])
 def test_electromagnetic_fields_profile_is_accepted(gauge):
     system = _system()
     pulse = SineSquareLaser(

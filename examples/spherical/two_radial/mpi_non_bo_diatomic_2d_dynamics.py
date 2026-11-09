@@ -82,13 +82,17 @@ def _arguments() -> argparse.Namespace:
         choices=("require", "compute-if-missing", "recompute"),
         default="require",
     )
-    parser.add_argument("--integrator", choices=("sil", "sia"), default="sil")
+    parser.add_argument(
+        "--integrator",
+        choices=("sil", "sia", "cf4-sil", "cf4-sia"),
+        default="sil",
+    )
     parser.add_argument(
         "--krylov-reduction-mode",
         choices=("scalar", "batched"),
         default="batched",
         help=(
-            "MPI reduction strategy for SIL/SIA Krylov projections "
+            "MPI reduction strategy for Krylov projections "
             "(default: batched; scalar retains the reference path)"
         ),
     )
