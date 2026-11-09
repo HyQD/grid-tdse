@@ -17,7 +17,7 @@ Options:
   --coulomb-kernel NAME        reference or multipole-grouped (default: reference)
   --radial-kernel NAME         reference or row-wise (default: reference)
   --dipole-kernel NAME         reference or row-wise (default: reference)
-  --krylov-reduction-mode MODE scalar or batched (default: scalar)
+  --krylov-reduction-mode MODE scalar or batched (default: batched)
   --run-name NAME              run-directory name (default: timestamped)
   --concurrent                 allow independent benchmark jobs to overlap
   -h, --help                   show this message
@@ -40,7 +40,7 @@ dynamics_final_time=20.0
 coulomb_kernel=reference
 radial_kernel=reference
 dipole_kernel=reference
-krylov_reduction_mode=scalar
+krylov_reduction_mode=batched
 run_name=
 concurrent=0
 

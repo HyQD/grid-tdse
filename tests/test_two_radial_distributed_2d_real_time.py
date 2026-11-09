@@ -222,7 +222,7 @@ def _distributed_run(
     process_grid,
     final_time,
     integrator="sil",
-    krylov_reduction_mode="scalar",
+    krylov_reduction_mode="batched",
 ):
     n_ranks = process_grid[0] * process_grid[1]
     layout = TwoRadialDistributed2DLayout(
@@ -488,6 +488,20 @@ def test_batched_krylov_reductions_match_scalar_and_use_fewer_collectives(
             batched_result.reduction_profile.local_inner_product_calls
             == scalar_result.reduction_profile.local_inner_product_calls
         )
+
+
+def test_cartesian_real_time_defaults_to_batched_krylov_reductions():
+    system, parameters, _ = _problem()
+    layout = TwoRadialDistributed2DLayout(system, 1)
+
+    solver = TwoRadialDistributed2DRealTimeSolver(
+        layout,
+        parameters,
+        final_time=0.01,
+        time_step=0.01,
+    )
+
+    assert solver.krylov_reduction_mode == "batched"
 
 
 def test_cartesian_real_time_rejects_unknown_krylov_reduction_mode():

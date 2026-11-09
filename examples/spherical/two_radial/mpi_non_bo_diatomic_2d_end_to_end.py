@@ -74,10 +74,10 @@ def arguments() -> argparse.Namespace:
     parser.add_argument(
         "--krylov-reduction-mode",
         choices=("scalar", "batched"),
-        default="scalar",
+        default="batched",
         help=(
             "MPI reduction strategy for SIL/SIA Krylov projections "
-            "(default: scalar reference path)"
+            "(default: batched; scalar retains the reference path)"
         ),
     )
     parser.add_argument(
