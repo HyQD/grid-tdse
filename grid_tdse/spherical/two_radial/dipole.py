@@ -564,12 +564,29 @@ class TwoRadialAxialDipoleInteraction:
         )
         if amplitude == 0.0:
             return np.zeros(self.representation.psi_shape, dtype=dtype)
+        return amplitude * self._spatial_action_values(values, dtype)
+
+    def spatial_action(self, state: np.ndarray) -> np.ndarray:
+        """Return the field-independent dipole action.
+
+        This operation lets higher-order time integrators combine field
+        amplitudes at several quadrature nodes before applying the expensive
+        spatial operator.
+        """
+
+        values = _state_array(state, self.representation.psi_shape)
+        dtype = np.result_type(
+            values.dtype, complex if self.gauge == "velocity" else float
+        )
+        return self._spatial_action_values(values, dtype)
+
+    def _spatial_action_values(self, values, dtype):
         result = self.coordinate_operators[0]._apply_values(values).astype(
             dtype, copy=False
         )
         for operator in self.coordinate_operators[1:]:
             result += operator._apply_values(values)
-        return amplitude * result
+        return result
 
     __call__ = apply
 

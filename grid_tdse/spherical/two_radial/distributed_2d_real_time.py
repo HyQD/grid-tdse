@@ -1,4 +1,4 @@
-r"""Cartesian-MPI SIL/SIA propagation for two-radial dynamics."""
+r"""Cartesian-MPI exponential propagation for two-radial dynamics."""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ KrylovReductionMode = Literal["scalar", "batched"]
 
 
 class TwoRadialDistributed2DRealTimeSolver:
-    """Propagate a Cartesian two-radial state with collective SIL or SIA.
+    """Propagate a Cartesian two-radial state with collective Krylov actions.
 
     Every rank retains only its permanently owned radial tile.  The
     field-free Hamiltonian exchanges FEM-DVR bridge values along the two
@@ -116,7 +116,7 @@ class TwoRadialDistributed2DRealTimeSolver:
         initial_time: float = 0.0,
         final_time: float,
         time_step: float,
-        integrator: Literal["sil", "sia"] = "sil",
+        integrator: Literal["sil", "sia", "cf4-sil", "cf4-sia"] = "sil",
         max_krylov_dimension: int = 20,
         krylov_rtol: float = 1.0e-10,
         krylov_atol: float = 0.0,
@@ -139,8 +139,10 @@ class TwoRadialDistributed2DRealTimeSolver:
             raise TypeError("layout must be a TwoRadialDistributed2DLayout")
         if not isinstance(parameters, DiatomicIonParameters):
             raise TypeError("parameters must be a DiatomicIonParameters")
-        if integrator not in ("sil", "sia"):
-            raise ValueError("integrator must be 'sil' or 'sia'")
+        if integrator not in ("sil", "sia", "cf4-sil", "cf4-sia"):
+            raise ValueError(
+                "integrator must be 'sil', 'sia', 'cf4-sil', or 'cf4-sia'"
+            )
         if krylov_reduction_mode not in ("scalar", "batched"):
             raise ValueError("krylov_reduction_mode must be 'scalar' or 'batched'")
         if absorbing_boundaries is not None:
@@ -152,10 +154,14 @@ class TwoRadialDistributed2DRealTimeSolver:
                 raise ValueError(
                     "absorbing boundaries belong to a different representation"
                 )
-            if integrator == "sil" and absorbing_boundaries.has_cap:
+            if (
+                integrator in {"sil", "cf4-sil"}
+                and absorbing_boundaries.has_cap
+            ):
                 raise ValueError(
-                    "integrator 'sil' requires a Hermitian Hamiltonian and "
-                    "cannot be used with a CAP; use 'sia'"
+                    f"integrator {integrator!r} requires a Hermitian "
+                    "Hamiltonian and cannot be used with a CAP; use 'sia' "
+                    "or 'cf4-sia'"
                 )
         if not isinstance(profile, (bool, np.bool_)):
             raise TypeError("profile must be boolean")
@@ -316,6 +322,28 @@ class TwoRadialDistributed2DRealTimeSolver:
         def hamiltonian_action(coefficients, time):
             return self.total_action(local_state(coefficients), time).coefficients
 
+        def linear_combination_factory(linear_rhs, nodes, weights):
+            del linear_rhs
+            static_weight = float(sum(weights))
+            field_weight = 0.0
+            if self.dipole_interaction is not None:
+                field_weight = sum(
+                    weight * self.dipole_interaction.field_amplitude(node)
+                    for node, weight in zip(nodes, weights, strict=True)
+                )
+
+            def action(coefficients):
+                state = local_state(coefficients)
+                result = static_weight * self.hamiltonian(state).coefficients
+                if self.dipole_interaction is not None and field_weight != 0.0:
+                    result += (
+                        field_weight
+                        * self.dipole_interaction.spatial_action(state).coefficients
+                    )
+                return -1j * result
+
+            return action
+
         def inner_product(left, right):
             return self.reductions.inner_product(
                 local_state(left),
@@ -352,6 +380,11 @@ class TwoRadialDistributed2DRealTimeSolver:
             inner_product,
             inner_products=(
                 inner_products if self.krylov_reduction_mode == "batched" else None
+            ),
+            linear_combination_factory=(
+                linear_combination_factory
+                if self.integrator in {"cf4-sil", "cf4-sia"}
+                else None
             ),
             state_observer=observe,
             post_step=(

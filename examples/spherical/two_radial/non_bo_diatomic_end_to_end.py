@@ -2,8 +2,9 @@
 
 The default is H2+ in the legacy ``sp`` ground-state sector, embedded into a
 full electronic-parity ``M_tot=0`` dynamics basis.  A three-cycle, 800-nm
-``SineSquareLaser`` pulse at 3e13 W/cm^2 is propagated with SIA and cubic
-absorbers.  The complete observable contract is sampled every accepted step.
+``SineSquareLaser`` pulse at 3e13 W/cm^2 is propagated with SIA by default and
+cubic absorbers. The complete observable contract is sampled every accepted
+step. CF4 with an Arnoldi exponential backend is available as ``cf4-sia``.
 
 The pulse and requested propagation endpoint are independent.  For a quick
 local smoke test, retain the pulse definition but stop early, for example::
@@ -96,7 +97,7 @@ def calculation(
         coulomb_kernel=values.coulomb_kernel,
         radial_kernel=values.radial_kernel,
         dipole_kernel=values.dipole_kernel,
-        integrator="sia",
+        integrator=values.integrator,
         integrator_options={
             "max_krylov_dimension": 20,
             "rtol": values.krylov_rtol,
@@ -209,7 +210,7 @@ print_initial_observables(
     electronic_grid=setup["electronic_grid"],
     internuclear_grid=setup["internuclear_grid"],
 )
-print("Running serial SIA dynamics", flush=True)
+print(f"Running serial {values.integrator} dynamics", flush=True)
 started = perf_counter()
 if checkpoint is None:
     result = run.run(progress=True)

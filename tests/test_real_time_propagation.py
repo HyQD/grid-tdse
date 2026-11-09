@@ -419,7 +419,10 @@ def test_real_time_progress_can_be_disabled(capsys):
     assert capsys.readouterr().out == ""
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_krylov_integrators_match_exact_hermitian_propagation(integrator):
     hamiltonian = np.array(
         [[0.4, 0.1 - 0.2j], [0.1 + 0.2j, 1.1]], dtype=complex
@@ -452,7 +455,10 @@ def test_krylov_integrators_match_exact_hermitian_propagation(integrator):
     assert np.all(result.krylov_error_estimates >= 0.0)
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_krylov_integrators_use_batched_inner_products(integrator):
     hamiltonian = np.array(
         [[0.4, 0.1 - 0.2j], [0.1 + 0.2j, 1.1]], dtype=complex
@@ -501,7 +507,8 @@ def test_crank_nicolson_rejects_batched_inner_products():
         )
 
 
-def test_sia_matches_exact_cap_like_propagation():
+@pytest.mark.parametrize("integrator", ["sia", "cf4-sia"])
+def test_arnoldi_integrators_match_exact_cap_like_propagation(integrator):
     hamiltonian = np.array(
         [[0.5 - 0.2j, 0.1], [0.1, 1.0 - 0.4j]], dtype=complex
     )
@@ -509,7 +516,7 @@ def test_sia_matches_exact_cap_like_propagation():
     propagator = RealTimePropagator(
         final_time=0.4,
         time_step=0.2,
-        integrator="sia",
+        integrator=integrator,
         max_krylov_dimension=2,
         krylov_rtol=1.0e-13,
         krylov_atol=1.0e-15,
@@ -548,7 +555,98 @@ def test_krylov_integrators_sample_the_hamiltonian_at_midpoints(integrator):
     np.testing.assert_allclose(np.unique(evaluated_times), [0.3, 0.5])
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize("integrator", ["cf4-sil", "cf4-sia"])
+def test_cf4_integrators_sample_both_gauss_nodes(integrator):
+    evaluated_times = []
+    propagator = RealTimePropagator(
+        initial_time=0.2,
+        final_time=0.4,
+        time_step=0.2,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        progress_interval=None,
+    )
+
+    def hamiltonian(state, time):
+        evaluated_times.append(time)
+        return np.array([0.4, 0.9]) * state
+
+    propagator(np.ones(2), hamiltonian, np.vdot)
+
+    expected = [
+        0.2 + 0.2 * node
+        for node in (
+            0.5 - np.sqrt(3.0) / 6.0,
+            0.5 + np.sqrt(3.0) / 6.0,
+        )
+    ]
+    np.testing.assert_allclose(np.unique(evaluated_times), expected)
+
+
+def test_cf4_forwards_structured_linear_combination_factory():
+    hamiltonian_calls = []
+    factory_calls = []
+    energies = np.array([0.4, 0.9])
+    initial = np.array([1.0, -0.3j])
+
+    def hamiltonian(state, time):
+        hamiltonian_calls.append(time)
+        return energies * state
+
+    def factory(linear_rhs, nodes, weights):
+        factory_calls.append((linear_rhs, nodes, weights))
+        return lambda state: -1j * sum(weights) * energies * state
+
+    propagator = RealTimePropagator(
+        final_time=0.2,
+        time_step=0.2,
+        integrator="cf4-sia",
+        max_krylov_dimension=2,
+        krylov_rtol=1.0e-13,
+        krylov_atol=1.0e-15,
+        progress_interval=None,
+    )
+    result = propagator.propagate(
+        initial,
+        hamiltonian,
+        np.vdot,
+        linear_combination_factory=factory,
+    )
+
+    np.testing.assert_allclose(
+        result.state,
+        np.exp(-0.2j * energies) * initial,
+        atol=2.0e-13,
+    )
+    assert len(factory_calls) == 2
+    assert hamiltonian_calls == []
+    assert propagator.integrator_metadata["method"] == (
+        "commutator_free_magnus4_arnoldi"
+    )
+
+
+def test_non_cf4_integrator_rejects_linear_combination_factory():
+    propagator = RealTimePropagator(
+        final_time=0.1,
+        time_step=0.1,
+        integrator="sia",
+    )
+
+    with pytest.raises(ValueError, match="supported only.*cf4"):
+        propagator.propagate(
+            np.ones(2),
+            lambda state, time: state,
+            np.vdot,
+            linear_combination_factory=lambda linear_rhs, nodes, weights: (
+                lambda state: state
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_krylov_integrators_reject_preconditioners(integrator):
     propagator = RealTimePropagator(
         final_time=0.1,
@@ -565,7 +663,10 @@ def test_krylov_integrators_reject_preconditioners(integrator):
         )
 
 
-@pytest.mark.parametrize("integrator", ["sil", "sia"])
+@pytest.mark.parametrize(
+    "integrator",
+    ["sil", "sia", "cf4-sil", "cf4-sia"],
+)
 def test_krylov_progress_reports_exponential_diagnostics(integrator, capsys):
     propagator = RealTimePropagator(
         final_time=0.1,

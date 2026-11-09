@@ -76,7 +76,7 @@ def arguments() -> argparse.Namespace:
         choices=("scalar", "batched"),
         default="batched",
         help=(
-            "MPI reduction strategy for SIL/SIA Krylov projections "
+            "MPI reduction strategy for Krylov projections "
             "(default: batched; scalar retains the reference path)"
         ),
     )
@@ -195,7 +195,7 @@ solver = TwoRadialDistributed2DRealTimeSolver(
     initial_time=initial_time,
     final_time=setup["final_time"],
     time_step=values.time_step,
-    integrator="sia",
+    integrator=values.integrator,
     max_krylov_dimension=20,
     krylov_rtol=values.krylov_rtol,
     krylov_atol=values.krylov_atol,

@@ -1262,6 +1262,26 @@ speedups of 1.21, 1.29, and 1.19. The sanitized records are archived under
 The validated `batched` path is now the Cartesian-MPI default, while `scalar`
 remains available as the explicit reference mode.
 
+**Phase 9i.4 CF4 status:** the generic fourth-order commutator-free Magnus
+stepper is now supplied by integrator-lib and the local grid-tdse integration
+is complete. Serial and Cartesian-MPI two-radial dynamics expose `cf4-sil`
+for Hermitian propagation and `cf4-sia` for general propagation, including
+CAP calculations. Both paths preserve the existing scalar and batched Krylov
+inner-product interfaces. For the structured two-radial Hamiltonian
+`H(t) = H_static + f(t) D`, the two Gauss-node generators are combined before
+each exponential action. Consequently, one combined action applies the
+expensive static Hamiltonian and the field-independent dipole operator once,
+rather than evaluating two complete time-dependent Hamiltonians.
+
+Local tests cover the generic propagation adapter, Gauss-node sampling,
+structured-action counts, length- and velocity-gauge dipole decomposition,
+CAP acceptance and rejection, exact checkpoint continuation, and agreement
+between serial and Cartesian-MPI propagation. The remaining Phase 9i.4 work
+is a controlled Saga comparison against SIA at matched physical error and at
+matched computational budget. CF4 must remain optional until those records
+establish its accuracy/cost envelope for the representative non-BO dynamics
+workload.
+
 Deferred integrator-internal work includes delaying approximate-state
 construction and using a dedicated Hermitian tridiagonal projected solve;
 those changes belong in integrator-lib and should be benchmarked separately

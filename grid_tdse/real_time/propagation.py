@@ -12,6 +12,7 @@ import numpy as np
 
 from integrator_lib import (
     ArnoldiExponential,
+    CommutatorFreeMagnus4,
     CrankNicolson,
     ShortIterativeLanczos,
 )
@@ -176,15 +177,23 @@ class RealTimePropagator:
     time step, with the step size adjusted so that the final time is reached
     exactly. Each step uses a matrix-free propagator from
     :mod:`integrator_lib`. Crank--Nicolson, short-iterative Lanczos (SIL), and
-    short-iterative Arnoldi (SIA) are supported. All three sample a
-    time-dependent Hamiltonian at the temporal midpoint.
+    short-iterative Arnoldi (SIA), and fourth-order commutator-free Magnus
+    integration with either exponential backend are supported. The
+    second-order exponential methods sample a time-dependent Hamiltonian at
+    the temporal midpoint; CF4 samples it at two Gauss--Legendre nodes.
 
     States are never normalized during real-time propagation. An optional
     post-step transformation can apply a representation-specific operation,
     such as an absorbing mask, after each accepted integrator step.
     """
 
-    _INTEGRATORS = {"crank-nicolson", "sil", "sia"}
+    _INTEGRATORS = {
+        "crank-nicolson",
+        "sil",
+        "sia",
+        "cf4-sil",
+        "cf4-sia",
+    }
     _LINEAR_SOLVERS = {"gmres", "bicgstab"}
 
     def __init__(
@@ -193,7 +202,13 @@ class RealTimePropagator:
         initial_time: float = 0.0,
         final_time: float,
         time_step: float,
-        integrator: Literal["crank-nicolson", "sil", "sia"] = "crank-nicolson",
+        integrator: Literal[
+            "crank-nicolson",
+            "sil",
+            "sia",
+            "cf4-sil",
+            "cf4-sia",
+        ] = "crank-nicolson",
         linear_solver: str = "gmres",
         linear_rtol: float = 1.0e-10,
         linear_atol: float = 0.0,
@@ -286,6 +301,7 @@ class RealTimePropagator:
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
         inner_products: InnerProducts | None = None,
+        linear_combination_factory: Callable | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -316,12 +332,17 @@ class RealTimePropagator:
         inner_products
             Optional batched physical inner product. It receives a sequence
             of left states and one right state, and returns one value per left
-            state. SIL and SIA use this callback to batch Krylov projections;
-            it is not accepted by Crank--Nicolson.
+            state. All exponential methods use this callback to batch Krylov
+            projections; it is not accepted by Crank--Nicolson.
+        linear_combination_factory
+            Optional matrix-free generator-combination factory forwarded to
+            ``cf4-sil`` or ``cf4-sia``. It follows the integrator-lib CF4
+            contract ``factory(linear_rhs, nodes, weights) -> action`` and is
+            rejected by the other methods.
         preconditioner
             Optional shaped callable or SciPy ``LinearOperator`` forwarded to
             :class:`integrator_lib.CrankNicolson`. Preconditioners are not
-            accepted by SIL or SIA.
+            accepted by the exponential methods.
         samplers
             Optional mapping from result names to ``sampler(state, time)``
             callables. Each sampler is evaluated at the initial time and after
@@ -363,6 +384,7 @@ class RealTimePropagator:
             hamiltonian,
             inner_product,
             inner_products=inner_products,
+            linear_combination_factory=linear_combination_factory,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -384,6 +406,7 @@ class RealTimePropagator:
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
         inner_products: InnerProducts | None = None,
+        linear_combination_factory: Callable | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -416,6 +439,7 @@ class RealTimePropagator:
             hamiltonian,
             inner_product,
             inner_products=inner_products,
+            linear_combination_factory=linear_combination_factory,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -437,6 +461,7 @@ class RealTimePropagator:
         inner_product: Callable[[np.ndarray, np.ndarray], complex],
         *,
         inner_products: InnerProducts | None = None,
+        linear_combination_factory: Callable | None = None,
         preconditioner: (
             Callable[[np.ndarray], np.ndarray] | LinearOperator | None
         ) = None,
@@ -468,6 +493,7 @@ class RealTimePropagator:
             hamiltonian,
             inner_product,
             inner_products=inner_products,
+            linear_combination_factory=linear_combination_factory,
             preconditioner=preconditioner,
             samplers=samplers,
             state_observer=state_observer,
@@ -489,6 +515,7 @@ class RealTimePropagator:
         inner_product,
         *,
         inner_products,
+        linear_combination_factory,
         preconditioner,
         samplers,
         state_observer,
@@ -510,6 +537,18 @@ class RealTimePropagator:
             raise TypeError("inner_product must be callable")
         if inner_products is not None and not callable(inner_products):
             raise TypeError("inner_products must be callable or None")
+        if linear_combination_factory is not None and not callable(
+            linear_combination_factory
+        ):
+            raise TypeError("linear_combination_factory must be callable or None")
+        if (
+            linear_combination_factory is not None
+            and self.integrator not in {"cf4-sil", "cf4-sia"}
+        ):
+            raise ValueError(
+                "linear_combination_factory is supported only by "
+                "integrators 'cf4-sil' and 'cf4-sia'"
+            )
         if post_step is not None and not callable(post_step):
             raise TypeError("post_step must be callable or None")
         if state_observer is not None and not callable(state_observer):
@@ -618,6 +657,7 @@ class RealTimePropagator:
         integrator = self._build_integrator(
             inner_product,
             inner_products,
+            linear_combination_factory,
             preconditioner,
         )
 
@@ -701,11 +741,18 @@ class RealTimePropagator:
 
     __call__ = propagate
 
-    def _build_integrator(self, inner_product, inner_products, preconditioner):
+    def _build_integrator(
+        self,
+        inner_product,
+        inner_products,
+        linear_combination_factory,
+        preconditioner,
+    ):
         if self.integrator == "crank-nicolson":
             if inner_products is not None:
                 raise ValueError(
-                    "inner_products is supported only by integrators SIL and SIA"
+                    "inner_products is supported only by integrators SIL, SIA, "
+                    "cf4-sil, and cf4-sia"
                 )
             return CrankNicolson(
                 solver=self.linear_solver,
@@ -720,9 +767,11 @@ class RealTimePropagator:
                 f"preconditioner is not supported by integrator {self.integrator!r}"
             )
         integrator_type = (
-            ShortIterativeLanczos if self.integrator == "sil" else ArnoldiExponential
+            ShortIterativeLanczos
+            if self.integrator in {"sil", "cf4-sil"}
+            else ArnoldiExponential
         )
-        return integrator_type(
+        exponential = integrator_type(
             max_krylov_dimension=self.max_krylov_dimension,
             rtol=self.krylov_rtol,
             atol=self.krylov_atol,
@@ -732,6 +781,12 @@ class RealTimePropagator:
             inner_products=inner_products,
             breakdown_tolerance=self.krylov_breakdown_tolerance,
         )
+        if self.integrator in {"cf4-sil", "cf4-sia"}:
+            return CommutatorFreeMagnus4(
+                exponential,
+                linear_combination_factory=linear_combination_factory,
+            )
+        return exponential
 
     def _step_diagnostics(self, integrator) -> dict[str, int | float]:
         if self.integrator == "crank-nicolson":
@@ -767,12 +822,14 @@ class RealTimePropagator:
                 "gmres_restart": self.gmres_restart,
                 "reality_tolerance": self.reality_tolerance,
             }
+        methods = {
+            "sil": "short_iterative_lanczos",
+            "sia": "short_iterative_arnoldi",
+            "cf4-sil": "commutator_free_magnus4_lanczos",
+            "cf4-sia": "commutator_free_magnus4_arnoldi",
+        }
         return {
-            "method": (
-                "short_iterative_lanczos"
-                if self.integrator == "sil"
-                else "short_iterative_arnoldi"
-            ),
+            "method": methods[self.integrator],
             "max_krylov_dimension": self.max_krylov_dimension,
             "krylov_rtol": self.krylov_rtol,
             "krylov_atol": self.krylov_atol,
