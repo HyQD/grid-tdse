@@ -1226,6 +1226,13 @@ initial qualification uses the default `cxi` provider. Treat the optional
 `lnx` provider as a separate performance experiment after the correctness gate
 passes.
 
+After setting the multi-node transport variables, do not import
+`mpi4py.MPI` directly in the batch shell. Such a process is a singleton rather
+than a task in the multi-node Slurm step, so `cxi` attempts a single-node
+initialization and fails at `fi_domain` with error 38. The tracked gate obtains
+and prints `MPI.Get_library_version()` from rank zero inside its first
+two-node `srun` placement check.
+
 The multi-node gate requests two whole CPU nodes and runs 2, 4, 8, and 16
 ranks, evenly divided between the nodes. Each layout performs an MPI collective
 placement check followed by the same 100-step H2+ propagation used in Step 15.
@@ -1355,7 +1362,7 @@ rank-placement records:
         'Traceback|FAILED|ERROR|Error|AssertionError|MemoryError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY|exceeds tolerance' \
         "${output_file}" || true
     grep --text -E \
-        'Allocated node:|Status:|MPI ranks:|Serial state difference:|Time-series maximum difference:|Distributed wall time:|Two-node production-grid scaling|Multi-node stress correctness:' \
+        'Allocated node:|MPI library:|Status:|MPI ranks:|Serial state difference:|Time-series maximum difference:|Distributed wall time:|Two-node production-grid scaling|Multi-node stress correctness:' \
         "${output_file}" || true
     tail -n 200 "${output_file}"
 
