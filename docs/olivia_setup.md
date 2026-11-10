@@ -1205,30 +1205,187 @@ that lower rank counts may provide a better allocation-cost tradeoff.
 
 ## 16. Multi-node MPI configuration
 
-The single-node `ob1` settings above are not the multi-node configuration.
-For multi-node jobs, follow the current Sigma2 Open MPI guidance for
-libfabric/OFI and Slingshot. At the time of writing, the documented settings
-include:
+The single-node `ob1` settings above are not valid for a multi-node
+qualification. Sigma2's current
+[Open MPI guidance for Olivia](https://documentation.sigma2.no/hpc_machines/olivia/openmpi.html#multi-node-jobs)
+requires custom builds and containers to use the `cm`/`ofi` path through
+`libfabric`. The tracked gate sets:
 
 ```bash
 export OMPI_MCA_pml=cm
 export OMPI_MCA_mtl=ofi
 export OMPI_MCA_mtl_ofi_av=table
 export PRTE_MCA_ras_base_launch_orted_on_hn=1
+export FI_PROVIDER=cxi
+export FI_CXI_RX_MATCH_MODE=hybrid
 ```
 
-The `NRIS/CPU` stack also configures the CXI provider. Do not copy these values
-blindly into a long-lived template: confirm them against the current Olivia
-Open MPI documentation first.
+Forcing `cm`/`ofi` is intentional: if Slingshot or `libfabric` cannot be
+initialized, the job must fail rather than silently fall back to TCP. The
+initial qualification uses the default `cxi` provider. Treat the optional
+`lnx` provider as a separate performance experiment after the correctness gate
+passes.
 
-Use `--partition=large` for jobs needing complete or multiple CPU nodes. Large
-jobs are allocated whole nodes, so demonstrate useful single-node scaling
-before requesting them.
+The multi-node gate requests two whole CPU nodes and runs 2, 4, 8, and 16
+ranks, evenly divided between the nodes. Each layout performs an MPI collective
+placement check followed by the same 100-step H2+ propagation used in Step 15.
+Every result is compared with the serial implementation using the validated
+Krylov tolerances.
+
+Olivia `large` jobs are allocated and billed as whole nodes regardless of how
+few ranks they launch. This two-node run is therefore a controlled transport,
+correctness, and scaling qualification, not an allocation-efficiency claim.
+See the official
+[large-job documentation](https://documentation.sigma2.no/jobs/job_scripts/olivia_job_scripts.html#large)
+before changing its resources.
+
+Install, validate, and submit the tracked script from a login node:
+
+```bash
+(
+    set -euo pipefail
+
+    module --force purge
+    module load NRIS/Login
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
+
+    repository_root="${GRID_TDSE_SRC_ROOT}/grid-tdse"
+    script_path="examples/spherical/two_radial/Olivia/qualification/qualify_grid_tdse_multi_node.sh"
+    job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+    multi_node_script="${job_root}/qualify-grid-tdse-multi-node.sh"
+    deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
+
+    mkdir -p "${job_root}"
+    git -C "${repository_root}" fetch origin main
+
+    if ! git -C "${repository_root}" cat-file -e \
+        "origin/main:${script_path}"
+    then
+        echo "STOP: the multi-node script is not present on origin/main" >&2
+        exit 1
+    fi
+
+    temporary_script=$(mktemp \
+        "${job_root}/.qualify-grid-tdse-multi-node.XXXXXX")
+
+    cleanup()
+    {
+        if [[ -e "${temporary_script}" ]]
+        then
+            rm -- "${temporary_script}"
+        fi
+    }
+    trap cleanup EXIT
+
+    git -C "${repository_root}" show \
+        "origin/main:${script_path}" \
+        > "${temporary_script}"
+
+    if [[ ! -s "${temporary_script}" ]]
+    then
+        echo "STOP: extracted multi-node script is empty" >&2
+        exit 1
+    fi
+
+    bash -n "${temporary_script}"
+    install -m 0755 "${temporary_script}" "${multi_node_script}"
+    test -s "${multi_node_script}"
+    bash -n "${multi_node_script}"
+
+    multi_node_job_id=$(
+        sbatch \
+            --parsable \
+            --chdir="${job_root}" \
+            --account="${GRID_TDSE_PROJECT_ID}" \
+            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
+            "${multi_node_script}"
+    )
+
+    if [[ ! "${multi_node_job_id}" =~ ^[0-9]+$ ]]
+    then
+        echo "STOP: sbatch did not return a numeric job ID: ${multi_node_job_id}" >&2
+        exit 1
+    fi
+
+    printf 'Multi-node job: %s\n' "${multi_node_job_id}"
+    printf '%s\n' "${multi_node_job_id}" \
+        > "${job_root}/latest-multi-node-job-id.txt"
+
+    squeue \
+        -j "${multi_node_job_id}" \
+        --format='%.18i %.30j %.10T %.10M %.10l %.24R'
+)
+```
+
+The source-manifest checks intentionally require the deployment's five source
+checkouts to remain pinned and clean. The commands above fetch `origin/main`
+but do not switch, merge, or pull the checked-out commit. They extract only the
+reviewed script into the work area, so an immutable deployment may run a newer
+qualification driver without changing its installed code.
+
+After the job leaves the queue, inspect its accounting, numerical results, and
+rank-placement records:
+
+```bash
+(
+    set -euo pipefail
+
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
+
+    deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
+    job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+    multi_node_job_id=$(cat "${job_root}/latest-multi-node-job-id.txt")
+    output_file="${job_root}/grid_tdse_multi_node-${multi_node_job_id}.out"
+    run_root="${GRID_TDSE_WORK_ROOT}/qualification/${deployment_id}/multi-node-${multi_node_job_id}"
+
+    if [[ ! "${multi_node_job_id}" =~ ^[0-9]+$ ]]
+    then
+        echo "STOP: invalid recorded job ID: ${multi_node_job_id}" >&2
+        exit 1
+    fi
+
+    sacct \
+        -j "${multi_node_job_id}" \
+        --format=JobID,JobName%30,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,NodeList
+
+    test -f "${output_file}"
+    grep --text -n -E \
+        'Traceback|FAILED|ERROR|Error|AssertionError|MemoryError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY|exceeds tolerance' \
+        "${output_file}" || true
+    grep --text -E \
+        'Allocated node:|Status:|MPI ranks:|Serial state difference:|Time-series maximum difference:|Distributed wall time:|Two-node production-grid scaling|Multi-node stress correctness:' \
+        "${output_file}" || true
+    tail -n 200 "${output_file}"
+
+    find "${run_root}" \
+        -maxdepth 2 \
+        -type f \
+        -print |
+    sort
+)
+```
+
+The gate passes only when:
+
+1. Slurm reports `COMPLETED` with exit code `0:0`;
+2. every placement record contains the requested number of ranks on exactly
+   two nodes;
+3. the forced `cm`/`ofi` and `cxi` transport initializes without fallback or
+   provider errors;
+4. every rank layout agrees with the serial state and observable time series
+   below `1e-8`;
+5. the output contains `Multi-node stress correctness: PASS`.
+
+Retain the timings even if additional ranks do not improve this small problem.
+The purpose of the first multi-node run is to qualify correctness and transport;
+larger production-shaped scaling studies should follow only after it passes.
 
 ## 17. Promote or roll back a deployment
 
 Do not overwrite a validated environment. Promote a candidate by changing the
-`current` symlink only after the qualification gates in Steps 13--15 pass:
+`current` symlink only after the qualification gates in Steps 13--16 pass:
 
 ```bash
 readlink -f "${GRID_TDSE_CURRENT}"
@@ -1532,8 +1689,8 @@ Exit the compute allocation after these checks complete.
 ### 18.8 Run the qualification gates
 
 Back on the login node, refresh the tracked scripts in the work area. Submit
-the test-suite/MPI-launch job, numerical-equivalence job, and representative
-single-node gate as an `afterok` chain:
+the test-suite/MPI-launch job, numerical-equivalence job, representative
+single-node gate, and two-node gate as an `afterok` chain:
 
 ```bash
 (
@@ -1553,11 +1710,13 @@ single-node gate as an `afterok` chain:
         qualify_grid_tdse.sh
         qualify_grid_tdse_equivalence.sh
         qualify_grid_tdse_single_node.sh
+        qualify_grid_tdse_multi_node.sh
     )
     installed_scripts=(
         qualify-grid-tdse.sh
         qualify-grid-tdse-equivalence.sh
         qualify-grid-tdse-single-node.sh
+        qualify-grid-tdse-multi-node.sh
     )
 
     mkdir -p "${job_root}"
@@ -1608,19 +1767,32 @@ single-node gate as an `afterok` chain:
     )
     [[ "${single_node_job_id}" =~ ^[0-9]+$ ]]
 
+    multi_node_job_id=$(
+        sbatch \
+            --parsable \
+            --dependency="afterok:${single_node_job_id}" \
+            --account="${GRID_TDSE_PROJECT_ID}" \
+            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
+            qualify-grid-tdse-multi-node.sh
+    )
+    [[ "${multi_node_job_id}" =~ ^[0-9]+$ ]]
+
     printf 'Qualification job: %s\n' "${qualification_job_id}"
     printf 'Equivalence job:   %s\n' "${equivalence_job_id}"
     printf 'Single-node job:   %s\n' "${single_node_job_id}"
+    printf 'Multi-node job:    %s\n' "${multi_node_job_id}"
     printf '%s\n' "${qualification_job_id}" \
         > "${manifest_root}/qualification-job-id.txt"
     printf '%s\n' "${equivalence_job_id}" \
         > "${manifest_root}/equivalence-job-id.txt"
     printf '%s\n' "${single_node_job_id}" \
         > "${manifest_root}/single-node-job-id.txt"
+    printf '%s\n' "${multi_node_job_id}" \
+        > "${manifest_root}/multi-node-job-id.txt"
 )
 ```
 
-When all three jobs leave the queue, verify their states and outputs:
+When all four jobs leave the queue, verify their states and outputs:
 
 ```bash
 source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
@@ -1629,8 +1801,9 @@ manifest_root="${GRID_TDSE_ROOT}/manifests/${deployment_id}"
 qualification_job_id=$(cat "${manifest_root}/qualification-job-id.txt")
 equivalence_job_id=$(cat "${manifest_root}/equivalence-job-id.txt")
 single_node_job_id=$(cat "${manifest_root}/single-node-job-id.txt")
+multi_node_job_id=$(cat "${manifest_root}/multi-node-job-id.txt")
 
-job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id}"
+job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id},${multi_node_job_id}"
 sacct -X \
     -j "${job_ids}" \
     --format=JobID,JobName%30,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,NodeList
@@ -1638,7 +1811,8 @@ sacct -X \
 for job_id in \
     "${qualification_job_id}" \
     "${equivalence_job_id}" \
-    "${single_node_job_id}"
+    "${single_node_job_id}" \
+    "${multi_node_job_id}"
 do
     output_file=$(find "${GRID_TDSE_WORK_ROOT}/jobs" \
         -maxdepth 1 -type f -name "*-${job_id}.out" -print -quit)
@@ -1650,10 +1824,11 @@ do
 done
 ```
 
-Do not promote unless all three jobs are `COMPLETED` with exit code `0:0`, the
+Do not promote unless all four jobs are `COMPLETED` with exit code `0:0`, the
 test suite passes, the equivalence output contains
 `Grid-tdse serial/MPI equivalence: PASS`, and the scaling output contains
-`Single-node stress correctness: PASS`.
+both `Single-node stress correctness: PASS` and
+`Multi-node stress correctness: PASS`.
 
 ### 18.9 Promote the new prefix by changing `current`
 
