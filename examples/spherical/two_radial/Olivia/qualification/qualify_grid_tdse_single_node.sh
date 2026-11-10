@@ -145,6 +145,8 @@ do
             --initial-state-policy compute-if-missing \
             --integrator sia \
             --krylov-reduction-mode batched \
+            --krylov-rtol 1.0e-13 \
+            --krylov-atol 1.0e-15 \
             --time-step 0.25 \
             --final-time 25.0 \
             --field-strength 0.02 \
