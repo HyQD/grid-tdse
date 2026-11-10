@@ -1372,7 +1372,10 @@ equivalence test passed, and the production-grid single-node gate passed for
 1, 2, 4, 8, and 16 ranks. The single-node run reached a `4.805` speedup at 16
 ranks with serial state differences below `6.8e-15`. Multi-node qualification,
 cross-cluster comparison, and cluster-specific reusable production templates
-are still required.
+are still required. A tracked two-node Olivia gate now covers forced
+`cm`/`ofi` over the `cxi` provider, rank-placement checks, and 2--16-rank
+production-grid comparisons; execution and archival of that gate remain
+pending.
 
 1. Add cluster-specific setup and launch documentation under
    `examples/Olivia` and `examples/Betzy`, while continuing to use the shared
