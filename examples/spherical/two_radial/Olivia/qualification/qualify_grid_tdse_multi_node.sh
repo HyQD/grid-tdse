@@ -99,7 +99,6 @@ echo "Libfabric provider: ${FI_PROVIDER}"
 module list
 
 python -m pip check
-python -c 'from mpi4py import MPI; print(MPI.Get_library_version().rstrip("\x00"))'
 
 cd "${GRID_TDSE_SRC_ROOT}/grid-tdse"
 
@@ -144,11 +143,22 @@ do
         python -c '
 from mpi4py import MPI
 import socket
+import sys
 
 communicator = MPI.COMM_WORLD
+shared_communicator = communicator.Split_type(MPI.COMM_TYPE_SHARED)
+local_rank = shared_communicator.rank
+shared_communicator.Free()
 total = communicator.allreduce(communicator.rank, op=MPI.SUM)
+if communicator.rank == 0 and communicator.size == 2:
+    print(
+        "MPI library: "
+        + MPI.Get_library_version().rstrip("\x00"),
+        file=sys.stderr,
+        flush=True,
+    )
 print(
-    f"rank={communicator.rank} local={MPI.COMM_WORLD.Split_type(MPI.COMM_TYPE_SHARED).rank} "
+    f"rank={communicator.rank} local={local_rank} "
     f"host={socket.gethostname()} rank_sum={total}",
     flush=True,
 )
