@@ -23,6 +23,8 @@ initial one- and two-coordinate solvers are organized and validated.
 - [Documentation overview](docs/index.md)
 - [Runtime dependencies](docs/runtime_dependencies.md)
 - [Installation](docs/installation.md)
+- [Saga environment setup and updates](docs/saga_setup.md)
+- [Olivia environment setup and updates](docs/olivia_setup.md)
 - [One-electron diatomic ground-state validation](docs/one_electron_diatomic_validation.md)
 - [Two-radial spherical foundation](docs/two_radial_foundation.md)
 - [Imaginary-time ground-state iteration](docs/ground_state_iteration.md)

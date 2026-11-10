@@ -1362,6 +1362,15 @@ distributed layouts, Hamiltonian, and integrators must remain shared; only the
 software environment, MPI launch configuration, resource requests, cache
 placement, and site-specific performance settings should vary by cluster.
 
+**Preparation status:** the
+[`docs/olivia_setup.md`](../docs/olivia_setup.md) guide now specifies a
+versioned HPC-container-wrapper deployment, pinned HyQD source revisions,
+Olivia Open MPI qualification, updates, and rollback. The initial Olivia CPU
+deployment and Step 13 qualification completed successfully on 2026-11-09:
+all 644 tests passed and two `mpi4py` ranks used Open MPI 5.0.8. A small
+grid-tdse serial/MPI numerical-equivalence run, multi-node qualification, and
+cluster-specific reusable production templates are still required.
+
 1. Add cluster-specific setup and launch documentation under
    `examples/Olivia` and `examples/Betzy`, while continuing to use the shared
    MPI Python examples and benchmark drivers.
