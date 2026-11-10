@@ -1366,10 +1366,13 @@ placement, and site-specific performance settings should vary by cluster.
 [`docs/olivia_setup.md`](../docs/olivia_setup.md) guide now specifies a
 versioned HPC-container-wrapper deployment, pinned HyQD source revisions,
 Olivia Open MPI qualification, updates, and rollback. The initial Olivia CPU
-deployment and Step 13 qualification completed successfully on 2026-11-09:
-all 644 tests passed and two `mpi4py` ranks used Open MPI 5.0.8. A small
-grid-tdse serial/MPI numerical-equivalence run, multi-node qualification, and
-cluster-specific reusable production templates are still required.
+deployment passed Steps 13--15 on 2026-11-09 and 2026-11-10: all 644 tests
+passed, two `mpi4py` ranks used Open MPI 5.0.8, the small grid-tdse serial/MPI
+equivalence test passed, and the production-grid single-node gate passed for
+1, 2, 4, 8, and 16 ranks. The single-node run reached a `4.805` speedup at 16
+ranks with serial state differences below `6.8e-15`. Multi-node qualification,
+cross-cluster comparison, and cluster-specific reusable production templates
+are still required.
 
 1. Add cluster-specific setup and launch documentation under
    `examples/Olivia` and `examples/Betzy`, while continuing to use the shared

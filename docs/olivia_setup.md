@@ -10,9 +10,10 @@ that date with the pinned CPU modules below: the containerized deployment
 reported no broken requirements, all 644 tests passed, `py3nj` was selected as
 the Gaunt backend, `mpi4py` linked to Open MPI 5.0.8, and two MPI ranks launched
 successfully. The grid-tdse serial/MPI numerical-equivalence gate also passed
-with differences far below its `1e-8` threshold. Representative single-node
-stress/scaling and multi-node qualification remain required before scientific
-production calculations.
+with differences far below its `1e-8` threshold. Step 15 passed on 2026-11-10
+for 1, 2, 4, 8, and 16 ranks, with a best single-node speedup of `4.805` and
+serial differences no larger than `1.11e-14`. Multi-node qualification remains
+required before scientific production calculations.
 
 Olivia differs from Saga in two important ways:
 
@@ -852,7 +853,8 @@ job directory instead of pasting a second copy into an editor:
 
     module --force purge
     module load NRIS/Login
-    source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     qualification_source="${GRID_TDSE_SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Olivia/qualification"
     qualification_script="${GRID_TDSE_WORK_ROOT}/jobs/qualify-grid-tdse.sh"
@@ -880,6 +882,9 @@ Submit the candidate deployment explicitly and persist the returned job ID:
 ```bash
 (
     set -euo pipefail
+
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
     qualification_script="${GRID_TDSE_WORK_ROOT}/jobs/qualify-grid-tdse.sh"
@@ -977,7 +982,8 @@ the Step 13 job script:
 
     module --force purge
     module load NRIS/Login
-    source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     qualification_source="${GRID_TDSE_SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Olivia/qualification"
     source_script="${qualification_source}/qualify_grid_tdse_equivalence.sh"
@@ -1000,6 +1006,9 @@ Validate, submit, and record the job ID:
 ```bash
 (
     set -euo pipefail
+
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     equivalence_script="${GRID_TDSE_WORK_ROOT}/jobs/qualify-grid-tdse-equivalence.sh"
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
@@ -1076,6 +1085,9 @@ construction, sustained SIA propagation, or shared-memory-node MPI scaling.
 Before requesting multiple nodes, run the tracked single-node gate. It performs
 an `l_max=8` production-grid construction-memory check and propagates the
 production H2+ radial grid for 100 steps with 1, 2, 4, 8, and 16 ranks.
+The gate uses `krylov_rtol=1e-13` and `krylov_atol=1e-15`. The looser example
+defaults, and an intermediate `1e-12`/`1e-14` test, did not keep every
+100-step serial comparison below the gate's `1e-8` threshold on Olivia.
 
 Install, validate, and submit the tracked script from a login node:
 
@@ -1085,11 +1097,13 @@ Install, validate, and submit the tracked script from a login node:
 
     module --force purge
     module load NRIS/Login
-    source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     qualification_source="${GRID_TDSE_SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Olivia/qualification"
     source_script="${qualification_source}/qualify_grid_tdse_single_node.sh"
-    single_node_script="${GRID_TDSE_WORK_ROOT}/jobs/qualify-grid-tdse-single-node.sh"
+    job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+    single_node_script="${job_root}/qualify-grid-tdse-single-node.sh"
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
 
     if [[ ! -s "${source_script}" ]]
@@ -1105,6 +1119,7 @@ Install, validate, and submit the tracked script from a login node:
     single_node_job_id=$(
         sbatch \
             --parsable \
+            --chdir="${job_root}" \
             --account="${GRID_TDSE_PROJECT_ID}" \
             --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
             "${single_node_script}"
@@ -1126,6 +1141,9 @@ Copy each parenthesized block as a unit. The subshell enables Bash's strict
 error handling, checks that the source and installed scripts are non-empty, and
 records a job ID only after `sbatch` returns a numeric value. This prevents a
 failed extraction or copy from leaving an empty script that is later submitted.
+The explicit `--chdir` also ensures that Slurm writes the relative output path
+from the tracked script into `${GRID_TDSE_WORK_ROOT}/jobs`, regardless of the
+login shell's current directory.
 
 The job requests 16 cores and 64 GiB on one `small`-partition CPU node, within
 the documented [Olivia small-job limits](https://documentation.sigma2.no/jobs/job_scripts/olivia_job_scripts.html#small).
@@ -1169,6 +1187,21 @@ agrees with its serial reference below `1e-8`, and at least one MPI layout is
 faster than the one-rank distributed calculation. Retain the full timing table
 for later Olivia-versus-Saga and multi-node comparisons. Do not assume that
 the largest rank count is optimal.
+
+The initial validated run produced the following distributed propagation
+times. These are qualification measurements, not general performance claims:
+
+| MPI ranks | Process grid | Wall time (s) | Speedup | Serial state difference |
+| ---: | :---: | ---: | ---: | ---: |
+| 1 | `1x1` | 58.525 | 1.000 | `4.250e-15` |
+| 2 | `1x2` | 34.251 | 1.709 | `3.672e-15` |
+| 4 | `2x2` | 20.389 | 2.870 | `6.761e-15` |
+| 8 | `2x4` | 15.078 | 3.882 | `6.092e-15` |
+| 16 | `4x4` | 12.179 | 4.805 | `6.073e-15` |
+
+All five layouts completed 100 steps with norm drift below `6.2e-15`. The
+16-rank layout minimized wall time, while declining parallel efficiency shows
+that lower rank counts may provide a better allocation-cost tradeoff.
 
 ## 16. Multi-node MPI configuration
 
@@ -1508,7 +1541,8 @@ single-node gate as an `afterok` chain:
 
     module --force purge
     module load NRIS/Login
-    source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
+    export GRID_TDSE_PATHS_FILE="/cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh"
+    source "${GRID_TDSE_PATHS_FILE}"
 
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
     manifest_root="${GRID_TDSE_ROOT}/manifests/${deployment_id}"
