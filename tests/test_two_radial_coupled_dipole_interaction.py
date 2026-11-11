@@ -3,6 +3,7 @@ import pytest
 
 from grid_tdse.spherical.two_radial import (
     AngularBasisSpec,
+    AxialCoordinateDipole,
     AxialDipoleCouplings,
     CoordinateSpec,
     CoulombMultipoleSpec,
@@ -196,17 +197,67 @@ def test_diatomic_interaction_matches_transformed_uncoupled_action(system_name):
         assert coordinates == (1, 2)
 
 
-def test_rejects_unsupported_gauge_and_field_gauge_mismatch():
+@pytest.mark.parametrize("coordinate", [1, 2])
+@pytest.mark.parametrize("radial_operator_mode", ["global", "element-local"])
+def test_velocity_coordinate_action_matches_transformed_uncoupled_action(
+    coordinate,
+    radial_operator_mode,
+):
+    coupled, uncoupled, transform = _system_pair("HD+")
+    state = _random_state(coupled)
+    coupling = -0.73 if coordinate == 1 else 0.19
+    coupled_operator = CoupledAxialCoordinateDipole(
+        coupled,
+        coordinate,
+        gauge="velocity",
+        coupling=coupling,
+        radial_operator_mode=radial_operator_mode,
+    )
+    uncoupled_operator = AxialCoordinateDipole(
+        uncoupled,
+        coordinate,
+        gauge="velocity",
+        coupling=coupling,
+        radial_operator_mode=radial_operator_mode,
+    )
+
+    actual = transform.to_uncoupled(coupled_operator(state))
+    expected = uncoupled_operator(transform.to_uncoupled(state))
+
+    np.testing.assert_allclose(actual, expected, atol=8.0e-13, rtol=5.0e-13)
+
+
+@pytest.mark.parametrize("system_name", ["H2+", "HD+", "D2+"])
+def test_velocity_interaction_matches_transformed_uncoupled_action(system_name):
+    coupled, uncoupled, transform = _system_pair(system_name)
+    parameters = _diatomic_parameters(system_name, "2022")
+    state = _random_state(coupled)
+    field = _FieldProfile("velocity", 0.17)
+    coupled_interaction = (
+        CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+            coupled,
+            parameters,
+            gauge="velocity",
+            fields=field,
+        )
+    )
+    uncoupled_interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        uncoupled,
+        parameters,
+        gauge="velocity",
+        fields=field,
+        radial_operator_mode="element-local",
+    )
+
+    actual = transform.to_uncoupled(coupled_interaction(state, 0.4))
+    expected = uncoupled_interaction(transform.to_uncoupled(state), 0.4)
+
+    np.testing.assert_allclose(actual, expected, atol=8.0e-13, rtol=5.0e-13)
+
+
+def test_rejects_field_gauge_mismatch():
     coupled, _, _ = _system_pair("HD+")
     couplings = AxialDipoleCouplings(-0.91, 0.14)
-
-    with pytest.raises(ValueError, match="only length gauge"):
-        CoupledTwoRadialAxialDipoleInteraction(
-            coupled,
-            gauge="velocity",
-            fields=lambda time: 0.0,
-            couplings=couplings,
-        )
 
     velocity_field = _FieldProfile("velocity", 0.2)
     with pytest.raises(ValueError, match="uses gauge 'velocity'"):

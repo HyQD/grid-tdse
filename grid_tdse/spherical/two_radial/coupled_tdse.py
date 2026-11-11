@@ -121,10 +121,6 @@ class CoupledNonBornOppenheimerDiatomicIonTDSE(
             raise ValueError(
                 "the coupled constructor requires wf_representation='coupled'"
             )
-        if field_gauge != "length":
-            raise ValueError(
-                "coupled dynamics currently support field_gauge='length' only"
-            )
         if integrator not in {"sia", "cf4-sia"}:
             raise ValueError(
                 "coupled dynamics currently support integrator='sia' or "
@@ -351,6 +347,11 @@ class CoupledNonBornOppenheimerDiatomicIonTDSE(
                 self.field_free_hamiltonian,
                 gauge=self.field_gauge,
                 fields=self.fields,
+                velocity_action=(
+                    self._velocity_action()
+                    if self.field_gauge == "velocity"
+                    else None
+                ),
                 radial_operator_mode=self.radial_operator_mode,
             )
         )
@@ -386,9 +387,18 @@ class CoupledNonBornOppenheimerDiatomicIonTDSE(
             self.parameters,
             gauge=self.field_gauge if gauge is None else gauge,
             fields=fields,
+            radial_operator_mode=self.radial_operator_mode,
             coupling_tolerance=self.coupling_tolerance,
             max_coupling_pairs=self.max_coupling_pairs,
         )
+
+    def _velocity_action(self):
+        if self.dipole_interaction is not None:
+            return self.dipole_interaction.spatial_action
+        return self._build_dipole_interaction(
+            (),
+            gauge="velocity",
+        ).spatial_action
 
     def _build_compatibility_metadata(self):
         return coupled_two_radial_compatibility_metadata(

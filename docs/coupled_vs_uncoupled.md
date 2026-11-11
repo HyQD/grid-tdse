@@ -270,6 +270,40 @@ therefore produce the same physical wavefunction, norm loss, expectation
 values, radial densities, and final-state probabilities, up to the numerical
 errors of the propagator.
 
+This finite-space equivalence applies in velocity gauge as well as length
+gauge. The coupled and uncoupled momentum actions must use the same reduced
+velocity couplings, radial first-derivative convention, angular momentum
+coefficients, and treatment of the spatially uniform quadratic
+vector-potential term. The implementation omits that `A(t)^2` scalar term in
+both representations because it changes only the global phase. A field-free
+initial state is used directly only when the supplied vector potential
+satisfies `A(t_0)=0`; otherwise an explicit gauge transformation of the
+initial state would be required.
+
+Short SIA trajectories on deliberately small, complete matched spaces have
+been compared for H2+, HD+, and D2+. After applying the exact
+Clebsch--Gordan transformation, the coupled and uncoupled velocity-gauge
+states and sampled observables agree to the propagation tolerance. This is a
+representation-equivalence test, not a claim that the finite radial or
+angular spaces are physically converged and not a substitute for a
+length-versus-velocity gauge convergence study.
+
+The comparison used the same electronic and internuclear FEMDVR
+specification, `FEMDVRGridSpec([0, 1, 2], [3, 3])`, with
+`l1_max=l2_max=1`, `L_max=2`, `M_tot=0`, and `lambda_max=2`. The radial
+Coulomb construction was analytic and radial differential actions were
+element-local. A normalized arbitrary state was propagated from `t=0` to
+`t=0.006` with SIA and `dt=0.002`, using the compatible vector potential
+
+```math
+A(t)=0.02\sin^2(\pi t/0.006),
+```
+
+which has `A(0)=0`. Using an arbitrary state rather than only the ground
+state exercises every retained angular channel. The phase-aligned final
+states and all sampled representation-independent observables agree within
+`3e-10`; the underlying velocity-operator actions agree within `8e-13`.
+
 The fact that the initial ground state has `L=0` does not justify retaining
 only `L=0` during a laser pulse. The electric-dipole interaction is a
 rank-one spherical tensor. It couples total angular momenta satisfying
@@ -337,8 +371,9 @@ For each supported isotope and symmetry sector:
 5. compare complete field-free Hamiltonian actions;
 6. compare the `L=0` Davidson ground state with the projected uncoupled
    result;
-7. compare axial length-gauge dipole actions;
-8. propagate a short pulse in both representations and compare transformed
+7. compare axial length-gauge dipole and velocity-gauge momentum actions;
+8. propagate short length- and velocity-gauge pulses in both representations
+   and compare transformed
    states and representation-independent observables; and
 9. repeat the propagation with a deliberately incomplete `L_max` to confirm
    that the validation detects the resulting projection error.
