@@ -939,6 +939,23 @@ the normative oracle before enabling a reduced Wigner-symbol builder.
 Exit gate: both dipole tables agree coefficient by coefficient and as actions
 with transformed uncoupled reference operators for all three isotopologues.
 
+This step is implemented in `coupled_dipole.py`. The direct builder evaluates
+the defining Clebsch--Gordan sums and remains the convention oracle. The
+production builder uses coordinate-specific reduced matrix elements and a
+Wigner 6-j symbol. Both support `q=-1,0,1`, distinct input and output
+fixed-`M_tot` bases, effective-charge scaling, sparse output-grouped storage,
+and an angular action on arrays with arbitrary trailing axes. Electronic and
+internuclear tables are built independently with `coordinate=1` and
+`coordinate=2`, respectively. The radial factors and the overall
+length-gauge interaction sign remain intentionally deferred to Step 9.
+
+The Step 8 tests compare the direct and reduced coefficients and complete
+sparse tables for every spherical component, verify the rank-one, inversion,
+and spectator-coordinate selection rules, and compare radialized `q=0`
+actions with transformed uncoupled `AxialCoordinateDipole` actions. H2+ and
+D2+ exercise an exactly empty internuclear table because their effective
+internuclear charge vanishes; HD+ exercises both nonzero coordinate tables.
+
 ### Step 9: implement the serial length-gauge interaction
 
 Add a coupled counterpart of `TwoRadialAxialDipoleInteraction` with a
