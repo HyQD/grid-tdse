@@ -21,6 +21,7 @@ from .coupled_angular import (
     CoupledAngularTransform,
     UncoupledAngularState,
 )
+from .coupled_hamiltonian import CoupledTwoRadialOneBodyHamiltonian
 from .diatomic import (
     DavidsonPreconditionerName,
     DiatomicIonGroundStateResult,
@@ -176,6 +177,7 @@ __all__ = [
     "CoupledAngularProjection",
     "CoupledAngularState",
     "CoupledAngularTransform",
+    "CoupledTwoRadialOneBodyHamiltonian",
     "CoupledTwoRadialSystem",
     "CartesianRealTimeCommunicator",
     "DavidsonPreconditionerName",

@@ -738,6 +738,8 @@ coupling table.
 
 ### Step 4: implement diagonal field-free terms
 
+Status: implemented and covered by focused unit tests.
+
 Implement the electronic and internuclear radial kinetic actions, centrifugal
 terms, and nuclear repulsion. The angular diagonal for channel
 `(l_1,l_2,L,M)` is fixed by `l_1(l_1+1)` and `l_2(l_2+1)`; it must not depend
@@ -749,6 +751,13 @@ operator builders rather than copying their numerical formulas.
 
 Exit gate: every term agrees with the transformed uncoupled action on random
 states for multiple cutoffs and independent electronic/internuclear grids.
+
+`CoupledTwoRadialOneBodyHamiltonian` provides separate radial-kinetic,
+centrifugal, and angular-independent radial-potential actions for both
+coordinates. The production path uses the element-local FEMDVR derivative;
+the optional dense global path is retained only as a small-system oracle.
+Angular-dependent uncoupled one-body terms are rejected explicitly because
+individual magnetic projections are not quantum numbers in this basis.
 
 ### Step 5: implement the coupled Coulomb action
 
