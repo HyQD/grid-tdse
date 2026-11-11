@@ -415,6 +415,20 @@ class CoupledTwoRadialSystem:
             "radial_multipole_representation": self.radial_multipoles.representation,
         }
 
+    def one_body_hamiltonian(
+        self,
+        *,
+        radial_operator_mode: RadialOperatorMode = "element-local",
+    ):
+        """Build the coupled field-free one-body action."""
+
+        from .coupled_hamiltonian import CoupledTwoRadialOneBodyHamiltonian
+
+        return CoupledTwoRadialOneBodyHamiltonian(
+            self,
+            radial_operator_mode=radial_operator_mode,
+        )
+
 
 @dataclass(frozen=True)
 class TwoRadialSystem:
