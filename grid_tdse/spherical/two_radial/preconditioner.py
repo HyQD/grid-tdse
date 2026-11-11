@@ -10,7 +10,7 @@ from grid_tdse.ground_state.davidson import (
     safeguarded_davidson_denominator,
 )
 
-from .system import TwoRadialSystem
+from .system import CoupledTwoRadialSystem, TwoRadialSystem
 
 
 RealTimePreconditionerName = Literal[
@@ -242,6 +242,122 @@ class TwoRadialOneBodyDavidsonPreconditioner:
                 i,
                 j,
                 block_result,
+            )
+        self.last_regularized_entries = regularized_entries
+        return result
+
+
+class CoupledTwoRadialOneBodyDavidsonPreconditioner:
+    r"""Apply the separable one-body Davidson inverse by coupled channel.
+
+    A coupled channel is labelled by ``(l_1, l_2, L, M)``.  Its one-body
+    radial Hamiltonian depends only on ``l_1`` and ``l_2``, so the weighted
+    eigensystems are constructed once for each retained one-coordinate
+    angular momentum and reused across all compatible ``(L, M)`` channels.
+    The two-coordinate Coulomb interaction is deliberately omitted from the
+    preconditioner.
+    """
+
+    name = "one-body-spectral"
+
+    def __init__(
+        self,
+        system: CoupledTwoRadialSystem,
+        *,
+        relative_floor: float = 1.0e-8,
+        absolute_floor: float = 1.0e-12,
+        level_shift: float = 0.0,
+    ) -> None:
+        if not isinstance(system, CoupledTwoRadialSystem):
+            raise TypeError("system must be a CoupledTwoRadialSystem")
+        self.system = system
+        self.relative_floor = _nonnegative_real(
+            relative_floor,
+            "relative_floor",
+        )
+        self.absolute_floor = _positive_real(
+            absolute_floor,
+            "absolute_floor",
+        )
+        self.level_shift = _nonnegative_real(level_shift, "level_shift")
+        self._sqrt_w1 = np.sqrt(system.grid1.weights)
+        self._sqrt_w2 = np.sqrt(system.grid2.weights)
+
+        operators1 = np.asarray(
+            [
+                system.coordinate1.build_one_body_channel(
+                    l1,
+                    0,
+                    system.grid1,
+                )
+                for l1 in range(system.angular_basis.l1_max + 1)
+            ]
+        )
+        operators2 = np.asarray(
+            [
+                system.coordinate2.build_one_body_channel(
+                    l2,
+                    0,
+                    system.grid2,
+                )
+                for l2 in range(system.angular_basis.l2_max + 1)
+            ]
+        )
+        self._eigenvalues1, self._eigenvectors1 = _weighted_eigensystems(
+            operators1,
+            self._sqrt_w1,
+        )
+        self._eigenvalues2, self._eigenvectors2 = _weighted_eigensystems(
+            operators2,
+            self._sqrt_w2,
+        )
+        self.last_regularized_entries = 0
+
+    def __call__(
+        self,
+        residual: np.ndarray,
+        ritz_value: float,
+    ) -> np.ndarray:
+        residual = self.system.validate_state(residual, name="residual")
+        theta = _finite_real(ritz_value, "ritz_value")
+        result = np.empty_like(
+            residual,
+            dtype=np.result_type(residual.dtype, float),
+        )
+        regularized_entries = 0
+        for channel, (l1, l2, _L, _M) in enumerate(
+            self.system.angular_basis.states
+        ):
+            values1 = self._eigenvalues1[l1]
+            vectors1 = self._eigenvectors1[l1]
+            values2 = self._eigenvalues2[l2]
+            vectors2 = self._eigenvectors2[l2]
+            weighted = (
+                self._sqrt_w1[:, None]
+                * residual[channel]
+                * self._sqrt_w2[None, :]
+            )
+            transformed = vectors1.T.conj() @ weighted @ vectors2
+            raw_denominator = values1[:, None] + values2[None, :] - theta
+            denominator, regularized = safeguarded_davidson_denominator(
+                raw_denominator,
+                spectral_scale=max(
+                    1.0,
+                    float(np.max(np.abs(values1))),
+                    float(np.max(np.abs(values2))),
+                    abs(theta),
+                ),
+                relative_floor=self.relative_floor,
+                absolute_floor=self.absolute_floor,
+                level_shift=self.level_shift,
+            )
+            regularized_entries += regularized
+            transformed = -transformed / denominator
+            weighted_result = vectors1 @ transformed @ vectors2.T.conj()
+            result[channel] = (
+                weighted_result
+                / self._sqrt_w1[:, None]
+                / self._sqrt_w2[None, :]
             )
         self.last_regularized_entries = regularized_entries
         return result

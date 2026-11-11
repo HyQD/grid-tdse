@@ -9,3 +9,6 @@ ground-state and real-time calculations.
   selected high-level examples.
 - [`davidson_ground_states`](davidson_ground_states/) is the default output
   location for the Davidson reference example.
+- [`coupled_gs_nbo_diatomics.py`](coupled_gs_nbo_diatomics.py) validates the
+  serial coupled-angular Davidson path for H2+, HD+, and D2+ on fixed moderate
+  grids; its energies are not physical convergence results.

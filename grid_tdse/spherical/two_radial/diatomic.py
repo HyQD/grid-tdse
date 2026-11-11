@@ -280,7 +280,10 @@ class NonBornOppenheimerDiatomicIonGroundState:
     thick-restarted Hermitian Lanczos solve, or Davidson with a selectable
     physical preconditioner. A compatible lower-``l_max`` state archive may
     be passed directly as ``initial_state`` and is embedded into the target
-    angular representation.
+    angular representation. ``wf_representation="uncoupled"`` preserves this
+    default interface. ``wf_representation="coupled"`` dispatches once to the
+    coupled Davidson path, which instead accepts ``l1_max``, ``l2_max``, and
+    ``L_max``.
     """
 
     _CANONICAL_NAMES = {
@@ -289,10 +292,32 @@ class NonBornOppenheimerDiatomicIonGroundState:
         ("deuteron", "deuteron", "electron"): "D2+",
     }
 
+    def __new__(
+        cls,
+        *args,
+        wf_representation: Literal["uncoupled", "coupled"] = "uncoupled",
+        **kwargs,
+    ):
+        if cls is NonBornOppenheimerDiatomicIonGroundState:
+            if wf_representation == "coupled":
+                from .coupled_diatomic import (
+                    CoupledNonBornOppenheimerDiatomicIonGroundState,
+                )
+
+                return object.__new__(
+                    CoupledNonBornOppenheimerDiatomicIonGroundState
+                )
+            if wf_representation != "uncoupled":
+                raise ValueError(
+                    "wf_representation must be 'uncoupled' or 'coupled'"
+                )
+        return super().__new__(cls)
+
     def __init__(
         self,
         system: str,
         *,
+        wf_representation: Literal["uncoupled", "coupled"] = "uncoupled",
         electronic_grid: FEMDVRGridSpec,
         internuclear_grid: FEMDVRGridSpec,
         inversion_parity: Parity,
@@ -355,6 +380,12 @@ class NonBornOppenheimerDiatomicIonGroundState:
         coulomb_kernel: CoulombKernelMode = "reference",
         radial_kernel: RadialKernelMode = "reference",
     ) -> None:
+        if wf_representation != "uncoupled":
+            raise ValueError(
+                "the uncoupled constructor requires "
+                "wf_representation='uncoupled'"
+            )
+        self.wf_representation = "uncoupled"
         self.parameters = _diatomic_parameters(system, codata_set)
         self.inversion_parity = _parity(inversion_parity, "inversion_parity")
         self.pair_exchange_parity = _pair_exchange_parity(

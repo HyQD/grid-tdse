@@ -2,8 +2,8 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Steps 1-6 are
-implemented and covered by focused tests; Steps 7-17 have not started.
+This document is a design, implementation, and validation plan. Steps 1-7 are
+implemented and covered by focused tests; Steps 8-17 have not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
@@ -817,18 +817,83 @@ preconditioner object.
 
 ### Step 7: connect field-free initial states
 
+Status: implemented and covered by focused unit tests.
+
 Extend the Davidson ground-state path to the coupled representation. Begin
 with `L=0`, `M=0` and no CAP. Reuse isotope parameters and archive
 compatibility checks from `NonBornOppenheimerDiatomicIonGroundState`.
 
-For each isotope, compare energy, residual, norm, radial densities, angular
-expectations, inversion, and spatial exchange where defined. Independently
-converge `l1_max`, `l2_max`, `L_max`, `lambda_max`, and both radial grids. A
-dynamics calculation must refuse a nonconverged initial archive unless the
-caller explicitly selects an existing unsafe override policy.
+Keep this step a fixed-space implementation and representation-validation
+task. Do not attempt physical convergence with respect to either radial grid,
+`l1_max`, or `l2_max`. Systematic radial and angular convergence belongs to a
+later qualification step after the field interaction and propagation path are
+available.
 
-Exit gate: coupled and uncoupled ground states agree for equivalent finite
-spaces and satisfy the established residual and wavefunction tolerances.
+Use the same deliberately small FEMDVR grids as the existing uncoupled
+Davidson tests:
+
+```python
+electronic_grid = FEMDVRGridSpec([0.0, 2.0, 5.0], [3, 3])
+internuclear_grid = FEMDVRGridSpec([0.0, 1.5, 4.0], [3, 3])
+```
+
+Use fixed `l1_max = l2_max = 2`, `L_max = 0`, `M_tot = 0`, and
+`lambda_max = 4` for the initial validation cases. These choices include the
+complete Coulomb projection within the retained `(l_1,l_2)` rectangle but
+deliberately select only its `L=0` block. Use positive inversion parity for
+all three isotopes, positive spatial nuclear-exchange parity for H2+ and D2+,
+and no exchange restriction for HD+.
+
+For each isotope, compare energy, Davidson residual, norm, radial densities,
+`L^2`, `L_z`, inversion, and spatial exchange where defined. Compare the
+coupled state with the explicit `L=0` projection of the uncoupled
+`M_tot=0` state, including the retained and discarded projection norms. The
+uncoupled ground state is expected to have zero discarded norm within the
+solver tolerance because the documented ground states have `L=0`. Do not
+describe agreement on these small grids as radial or angular convergence.
+
+The finite-space equivalence conditions, and the distinction between the
+complete uncoupled `M_tot=0` space and its coupled `L=0` block, are specified
+in [`coupled_vs_uncoupled.md`](../docs/coupled_vs_uncoupled.md). Tests in this
+step must follow those conditions rather than comparing coefficient arrays
+without the Clebsch--Gordan transformation.
+
+Add
+`examples/spherical/two_radial/coupled_gs_nbo_diatomics.py` as a compact
+serial example. It must demonstrate Davidson ground-state calculations for
+H2+, HD+, and D2+. Unlike the deliberately tiny unit-test grids above, use
+four 11-point electronic elements with nodes `[0, 4, 8, 12, 16]` and two
+15-point internuclear elements with nodes `[0, 4, 8]`. Retain the fixed
+`l1_max = l2_max = 2`, `L_max = 0`, `M_tot = 0`, and `lambda_max = 4`
+angular setup. Print at least the isotope, energy, residual norm, wavefunction
+norm, iteration count, termination reason, and solver-convergence status.
+State prominently that the example is not a radial or angular convergence
+study and that its finite-basis energies are not convergence claims.
+
+Ground-state archives must record the coupled representation metadata,
+isotope and symmetry selections, all fixed cutoffs, grid specifications,
+Davidson tolerances, residual, and solver-convergence status. A dynamics
+calculation must refuse an archive whose Davidson solve did not converge
+unless the caller explicitly selects the existing unsafe override policy.
+This check concerns eigensolver convergence only; it must not imply that the
+fixed radial or angular basis is physically converged.
+
+Exit gate: the coupled Davidson interface and the example run successfully
+for H2+, HD+, and D2+; every solve satisfies the established residual and
+wavefunction tolerances; and the coupled results agree with the transformed
+or explicitly `L=0`-projected uncoupled results at the documented numerical
+tolerances. No radial-grid or `l1_max`/`l2_max` convergence claim is required.
+
+`NonBornOppenheimerDiatomicIonGroundState` now dispatches once from the
+explicit `wf_representation` selector while preserving `"uncoupled"` as the
+default. The coupled path uses `CoupledTwoRadialSystem`, the generic Davidson
+solver, and the field-free diagonal supplied in Step 6. Coupled archives use a
+distinct checksum-protected format and expose an explicit solver-convergence
+gate, so their arrays cannot be interpreted as uncoupled states accidentally.
+The three-isotope tests use the small uncoupled-test grids to compare the
+coupled state with the transformed `L=0` uncoupled result and verify
+negligible discarded projection norm. The public example uses the larger
+fixed grids specified above.
 
 ### Step 8: implement the length-gauge angular dipole builders
 
