@@ -2,8 +2,8 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Steps 1-5 are
-implemented and covered by focused tests; Steps 6-17 have not started.
+This document is a design, implementation, and validation plan. Steps 1-6 are
+implemented and covered by focused tests; Steps 7-17 have not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
@@ -786,6 +786,8 @@ expansions are rejected explicitly.
 
 ### Step 6: complete and validate the field-free Hamiltonian
 
+Status: implemented and covered by focused unit tests.
+
 Compose the terms from Steps 4 and 5 behind the same callable Hamiltonian
 contract used by real-time propagation. Add field-free energy evaluation and
 the coupled versions of the preconditioner inputs required by Davidson and
@@ -802,6 +804,16 @@ Required tests include:
 
 Exit gate: the field-free action is a validated replacement for the uncoupled
 action at equivalent truncations.
+
+`CoupledTwoRadialHamiltonian` composes the one-body and Coulomb actions behind
+the standard callable contract. It distinguishes the physical field-free
+action from the static propagation action when a radial CAP is configured, so
+physical energy evaluation always excludes the CAP. Separate component
+actions and the complete coefficient-space diagonal are available for
+diagnostics and preconditioning. `davidson_diagonal()` follows the existing
+one-body default and can optionally include the point-local Coulomb diagonal.
+SIA consumes the complete callable action directly and requires no separate
+preconditioner object.
 
 ### Step 7: connect field-free initial states
 
