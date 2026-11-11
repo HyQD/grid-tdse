@@ -41,9 +41,11 @@ from .coupled_diatomic import (
     CoupledNonBornOppenheimerDiatomicIonGroundState,
 )
 from .coupled_dipole import (
+    CoupledAxialCoordinateDipole,
     CoupledDipoleCoefficientMethod,
     CoupledDipoleCoordinate,
     CoupledDipoleCouplings,
+    CoupledTwoRadialAxialDipoleInteraction,
     build_coupled_dipole_couplings,
     coupled_dipole_coefficient_direct,
     coupled_dipole_coefficient_reduced,
@@ -209,6 +211,7 @@ __all__ = [
     "CoupledAngularProjection",
     "CoupledAngularState",
     "CoupledAngularTransform",
+    "CoupledAxialCoordinateDipole",
     "CoupledCoulombCoefficientMethod",
     "CoupledCoulombCouplings",
     "CoupledDavidsonPreconditionerName",
@@ -219,6 +222,7 @@ __all__ = [
     "CoupledDiatomicIonGroundStateResult",
     "CoupledHamiltonianComponents",
     "CoupledNonBornOppenheimerDiatomicIonGroundState",
+    "CoupledTwoRadialAxialDipoleInteraction",
     "CoupledTwoRadialState",
     "CoupledTwoRadialHamiltonian",
     "CoupledTwoRadialOneBodyDavidsonPreconditioner",

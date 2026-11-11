@@ -972,6 +972,23 @@ Exit gate: zero-field, electronic-only, internuclear-only, combined, and
 multiple-field actions match explicit reference matrices and the transformed
 uncoupled action.
 
+This step is implemented by `CoupledAxialCoordinateDipole` and
+`CoupledTwoRadialAxialDipoleInteraction` in `coupled_dipole.py`. Each
+coordinate operator combines its Step 8 sparse angular table with only the
+matching radial DVR coordinate and applies the established minus sign. The
+combined interaction exposes the same `field_amplitude(time)`,
+`spatial_action(state)`, and time-dependent `apply(state, time)` protocol as
+the uncoupled interaction, including summation of multiple axial field
+profiles. It accepts length gauge explicitly and rejects velocity gauge until
+the corresponding coupled momentum operator is implemented.
+
+The Step 9 tests cover zero field, electronic-only, internuclear-only,
+combined, and multiple-field actions. They compare coordinate actions with
+explicit sparse matrices and compare the complete action with transformed
+uncoupled operators for H2+, HD+, and D2+. Field-coupled bases must retain
+both inversion parities; a nonzero internuclear term must also retain both
+pair-exchange parities.
+
 ### Step 10: expose the coupled high-level dynamics interface
 
 Add `wf_representation="uncoupled" | "coupled"` to

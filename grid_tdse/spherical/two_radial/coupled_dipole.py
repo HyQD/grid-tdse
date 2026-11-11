@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from numbers import Integral, Real
 from typing import Literal
@@ -12,6 +13,13 @@ from grid_lib.spherical_coordinates.angular_momentum import get_y_value
 from numba import njit, prange
 
 from .coupled_angular import CoupledAngularBasisSpec, CoupledAngularState
+from .dipole import (
+    AxialDipoleCouplings,
+    DipoleGauge,
+    _field_profiles,
+    _gauge,
+)
+from .system import CoupledTwoRadialSystem
 
 
 CoupledDipoleCoefficientMethod = Literal["direct", "reduced"]
@@ -25,9 +33,9 @@ class CoupledDipoleCouplings:
     r"""Sparse rank-one transitions grouped by coupled output channel.
 
     The coefficients include the coordinate's effective charge but not its
-    radial factor or the overall length-gauge interaction sign.  Thus Step 9
-    can form ``-xi_r r C_0^(1)`` or ``-xi_R R C_0^(1)`` without rebuilding
-    the angular table.
+    radial factor or the overall length-gauge interaction sign. This lets the
+    coordinate operator form ``-xi_r r C_0^(1)`` or
+    ``-xi_R R C_0^(1)`` without rebuilding the angular table.
     """
 
     output: np.ndarray
@@ -121,6 +129,234 @@ class CoupledDipoleCouplings:
             self.coefficient,
         )
         return out
+
+    __call__ = apply
+
+
+class CoupledAxialCoordinateDipole:
+    r"""Apply one coordinate's coupled-angular length-gauge dipole.
+
+    The state axes are ``(coupled_channel, radial1, radial2)``.  For a
+    coordinate coupling ``xi``, this operator applies
+    ``-xi * radial * C_0^(1)`` and excludes the temporal electric-field
+    amplitude.
+    """
+
+    def __init__(
+        self,
+        representation: CoupledTwoRadialSystem,
+        coordinate: CoupledDipoleCoordinate,
+        *,
+        coupling: float,
+        couplings: CoupledDipoleCouplings | None = None,
+        coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
+        tolerance: float = 1.0e-12,
+        max_pairs: int = 20_000_000,
+    ) -> None:
+        if not isinstance(representation, CoupledTwoRadialSystem):
+            raise TypeError("representation must be a CoupledTwoRadialSystem")
+        coordinate = _coordinate(coordinate)
+        coupling = _finite_real(coupling, "coupling")
+        basis = representation.angular_basis
+        if coupling != 0.0 and basis.inversion_parity is not None:
+            raise ValueError(
+                "a field-coupled basis must retain both inversion parities"
+            )
+        if (
+            coupling != 0.0
+            and coordinate == 2
+            and basis.pair_exchange_parity is not None
+        ):
+            raise ValueError(
+                "a field-coupled internuclear coordinate must retain both "
+                "pair-exchange parities"
+            )
+        if couplings is None:
+            couplings = build_coupled_dipole_couplings(
+                basis,
+                coordinate,
+                coupling,
+                coefficient_method=coefficient_method,
+                tolerance=tolerance,
+                max_pairs=max_pairs,
+            )
+        else:
+            _validate_coordinate_couplings(
+                couplings,
+                basis,
+                coordinate,
+                coupling,
+            )
+
+        self.representation = representation
+        self.coordinate = coordinate
+        self.coupling = coupling
+        self.couplings = couplings
+        self.radial = (
+            representation.grid1.r
+            if coordinate == 1
+            else representation.grid2.r
+        )
+
+    def apply(
+        self,
+        state: np.ndarray,
+        *,
+        out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Apply the field-independent coordinate term, accumulating in out."""
+
+        values = self.representation.validate_state(state)
+        dtype = np.result_type(values.dtype, self.couplings.coefficient.dtype)
+        if out is None:
+            out = np.zeros(self.representation.psi_shape, dtype=dtype)
+        elif out.shape != self.representation.psi_shape:
+            raise ValueError(
+                f"out has shape {out.shape}; expected "
+                f"{self.representation.psi_shape}"
+            )
+        elif not np.can_cast(dtype, out.dtype, casting="same_kind"):
+            raise TypeError(
+                f"cannot accumulate {dtype} dipole action in {out.dtype} output"
+            )
+        elif not out.flags.c_contiguous:
+            raise ValueError("out must be C-contiguous")
+
+        _apply_coupled_length_dipole_kernel(
+            out,
+            values,
+            self.radial,
+            self.coordinate,
+            self.couplings.output,
+            self.couplings.offsets,
+            self.couplings.input,
+            self.couplings.coefficient,
+        )
+        return out
+
+    __call__ = apply
+
+
+class CoupledTwoRadialAxialDipoleInteraction:
+    r"""Apply a serial coupled-angular, z-polarized dipole interaction.
+
+    Length-gauge profiles return ``E_z(t)`` and the interaction is
+    ``-E_z(t) * (xi_r r C_0^(1)(rhat) + xi_R R C_0^(1)(Rhat))``.
+    """
+
+    def __init__(
+        self,
+        representation: CoupledTwoRadialSystem,
+        *,
+        gauge: DipoleGauge,
+        fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
+        couplings: AxialDipoleCouplings,
+        coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
+        coupling_tolerance: float = 1.0e-12,
+        max_coupling_pairs: int = 20_000_000,
+    ) -> None:
+        if not isinstance(representation, CoupledTwoRadialSystem):
+            raise TypeError("representation must be a CoupledTwoRadialSystem")
+        gauge = _gauge(gauge)
+        if gauge != "length":
+            raise ValueError(
+                "coupled axial dipole interactions currently support only "
+                "length gauge"
+            )
+        if not isinstance(couplings, AxialDipoleCouplings):
+            raise TypeError("couplings must be an AxialDipoleCouplings")
+
+        self.representation = representation
+        self.gauge = gauge
+        self.couplings = couplings
+        self.fields = _field_profiles(fields, gauge)
+        coordinate_operators = []
+        for coordinate, coupling in (
+            (1, couplings.coordinate1),
+            (2, couplings.coordinate2),
+        ):
+            if coupling != 0.0:
+                coordinate_operators.append(
+                    CoupledAxialCoordinateDipole(
+                        representation,
+                        coordinate,
+                        coupling=coupling,
+                        coefficient_method=coefficient_method,
+                        tolerance=coupling_tolerance,
+                        max_pairs=max_coupling_pairs,
+                    )
+                )
+        if not coordinate_operators:
+            raise ValueError("at least one dipole coupling must be nonzero")
+        self.coordinate_operators = tuple(coordinate_operators)
+
+    @classmethod
+    def for_diatomic_ion(
+        cls,
+        representation: CoupledTwoRadialSystem,
+        parameters,
+        *,
+        gauge: DipoleGauge,
+        fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
+        coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
+        coupling_tolerance: float = 1.0e-12,
+        max_coupling_pairs: int = 20_000_000,
+    ) -> CoupledTwoRadialAxialDipoleInteraction:
+        """Construct a non-BO diatomic-ion interaction."""
+
+        return cls(
+            representation,
+            gauge=gauge,
+            fields=fields,
+            couplings=AxialDipoleCouplings.for_diatomic_ion(
+                parameters,
+                gauge,
+            ),
+            coefficient_method=coefficient_method,
+            coupling_tolerance=coupling_tolerance,
+            max_coupling_pairs=max_coupling_pairs,
+        )
+
+    def field_amplitude(self, time: float) -> float:
+        """Evaluate and sum the scalar z-polarized electric fields."""
+
+        amplitude = 0.0
+        for index, field in enumerate(self.fields):
+            value = np.asarray(field(time))
+            if (
+                value.ndim != 0
+                or not np.issubdtype(value.dtype, np.number)
+                or np.iscomplexobj(value)
+                or not np.isfinite(value)
+            ):
+                raise ValueError(
+                    f"field {index} must return a finite real scalar"
+                )
+            amplitude += float(value)
+        return amplitude
+
+    def apply(self, state: np.ndarray, time: float) -> np.ndarray:
+        """Return the complete time-dependent dipole action."""
+
+        values = self.representation.validate_state(state)
+        amplitude = self.field_amplitude(time)
+        dtype = np.result_type(values.dtype, float)
+        if amplitude == 0.0:
+            return np.zeros(self.representation.psi_shape, dtype=dtype)
+        return amplitude * self._spatial_action_values(values, dtype)
+
+    def spatial_action(self, state: np.ndarray) -> np.ndarray:
+        """Return the field-independent coupled dipole action."""
+
+        values = self.representation.validate_state(state)
+        dtype = np.result_type(values.dtype, float)
+        return self._spatial_action_values(values, dtype)
+
+    def _spatial_action_values(self, values, dtype):
+        result = np.zeros(self.representation.psi_shape, dtype=dtype)
+        for operator in self.coordinate_operators:
+            operator.apply(values, out=result)
+        return result
 
     __call__ = apply
 
@@ -351,6 +587,27 @@ def _reduced_c1(l_out: int, l_in: int) -> float:
     )
 
 
+def _validate_coordinate_couplings(
+    couplings,
+    basis: CoupledAngularBasisSpec,
+    coordinate: CoupledDipoleCoordinate,
+    coupling: float,
+) -> None:
+    if not isinstance(couplings, CoupledDipoleCouplings):
+        raise TypeError("couplings must be a CoupledDipoleCouplings")
+    if couplings.coordinate != coordinate:
+        raise ValueError("couplings use the wrong radial coordinate")
+    if couplings.q != 0:
+        raise ValueError("an axial interaction requires q=0 couplings")
+    if (
+        couplings.n_input_channels != basis.n_channels
+        or couplings.n_output_channels != basis.n_channels
+    ):
+        raise ValueError("coupled dipole channel count disagrees with basis")
+    if couplings.coupling != coupling:
+        raise ValueError("couplings use a different effective charge")
+
+
 def _coordinate(value) -> CoupledDipoleCoordinate:
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral):
         raise TypeError("coordinate must be an integer")
@@ -400,3 +657,32 @@ def _apply_coupled_dipole_kernel(
             for pair in range(offsets[group], offsets[group + 1]):
                 value += coefficient[pair] * state[input_channel[pair], point]
             result[target, point] += value
+
+
+@njit(cache=True, parallel=True)
+def _apply_coupled_length_dipole_kernel(
+    result,
+    state,
+    radial,
+    coordinate,
+    output_channel,
+    offsets,
+    input_channel,
+    coefficient,
+):
+    n_radial1 = state.shape[1]
+    n_radial2 = state.shape[2]
+    for group in prange(output_channel.size):
+        target = output_channel[group]
+        for radial1 in range(n_radial1):
+            for radial2 in range(n_radial2):
+                value = state[0, radial1, radial2] * 0.0
+                for pair in range(offsets[group], offsets[group + 1]):
+                    value += (
+                        coefficient[pair]
+                        * state[input_channel[pair], radial1, radial2]
+                    )
+                radial_value = (
+                    radial[radial1] if coordinate == 1 else radial[radial2]
+                )
+                result[target, radial1, radial2] -= radial_value * value
