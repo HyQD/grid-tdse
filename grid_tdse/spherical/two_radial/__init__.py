@@ -29,7 +29,11 @@ from .coupled_coulomb import (
     coupled_coulomb_coefficient_direct,
     coupled_coulomb_coefficient_reduced,
 )
-from .coupled_hamiltonian import CoupledTwoRadialOneBodyHamiltonian
+from .coupled_hamiltonian import (
+    CoupledHamiltonianComponents,
+    CoupledTwoRadialHamiltonian,
+    CoupledTwoRadialOneBodyHamiltonian,
+)
 from .diatomic import (
     DavidsonPreconditionerName,
     DiatomicIonGroundStateResult,
@@ -187,6 +191,8 @@ __all__ = [
     "CoupledAngularTransform",
     "CoupledCoulombCoefficientMethod",
     "CoupledCoulombCouplings",
+    "CoupledHamiltonianComponents",
+    "CoupledTwoRadialHamiltonian",
     "CoupledTwoRadialCoulombHamiltonian",
     "CoupledTwoRadialOneBodyHamiltonian",
     "CoupledTwoRadialSystem",

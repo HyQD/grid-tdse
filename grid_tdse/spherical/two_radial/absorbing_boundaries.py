@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .grids import RadialGrid
-from .system import TwoRadialSystem
+from .system import TwoRadialRepresentation
 
 
 class TwoRadialAbsorbingBoundaries:
@@ -16,15 +16,17 @@ class TwoRadialAbsorbingBoundaries:
 
     def __init__(
         self,
-        representation: TwoRadialSystem,
+        representation: TwoRadialRepresentation,
         *,
         mask1=None,
         mask2=None,
         cap1=None,
         cap2=None,
     ) -> None:
-        if not isinstance(representation, TwoRadialSystem):
-            raise TypeError("representation must be a TwoRadialSystem")
+        if not isinstance(representation, TwoRadialRepresentation):
+            raise TypeError(
+                "representation must satisfy TwoRadialRepresentation"
+            )
         _validate_exclusive(mask1, cap1, "coordinate 1")
         _validate_exclusive(mask2, cap2, "coordinate 2")
         self.representation = representation

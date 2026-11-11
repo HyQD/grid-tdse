@@ -447,6 +447,30 @@ class CoupledTwoRadialSystem:
             max_pairs=max_pairs,
         )
 
+    def hamiltonian(
+        self,
+        *,
+        radial_operator_mode: RadialOperatorMode = "element-local",
+        coefficient_method="reduced",
+        couplings=None,
+        coupling_tolerance: float = 1.0e-12,
+        max_coupling_pairs: int = 20_000_000,
+        absorbing_boundaries=None,
+    ):
+        """Build the complete coupled field-free Hamiltonian action."""
+
+        from .coupled_hamiltonian import CoupledTwoRadialHamiltonian
+
+        return CoupledTwoRadialHamiltonian(
+            self,
+            radial_operator_mode=radial_operator_mode,
+            coefficient_method=coefficient_method,
+            couplings=couplings,
+            coupling_tolerance=coupling_tolerance,
+            max_coupling_pairs=max_coupling_pairs,
+            absorbing_boundaries=absorbing_boundaries,
+        )
+
 
 @dataclass(frozen=True)
 class TwoRadialSystem:
