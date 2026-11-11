@@ -16,7 +16,7 @@ truncations, different symmetry restrictions, or numerical errors.
 Let `l_1` denote the electronic orbital angular momentum and `l_2` the
 internuclear rotational angular momentum. In the uncoupled representation,
 
-$$
+```math
 \Psi(\mathbf r,\mathbf R,t)
 =
 \frac{1}{rR}
@@ -24,19 +24,19 @@ $$
 \psi_{l_1m_1l_2m_2}(r,R,t)
 Y_{l_1m_1}(\hat{\mathbf r})
 Y_{l_2m_2}(\hat{\mathbf R}).
-$$
+```
 
 For a selected total magnetic projection `M_tot`, only channels satisfying
 
-$$
+```math
 m_1+m_2=M_{\mathrm{tot}}
-$$
+```
 
 are retained.
 
 The coupled representation uses bipolar spherical harmonics,
 
-$$
+```math
 \mathcal Y_{l_1l_2}^{LM}
 (\hat{\mathbf r},\hat{\mathbf R})
 =
@@ -44,11 +44,11 @@ $$
 \langle l_1m_1,l_2m_2\mid LM\rangle
 Y_{l_1m_1}(\hat{\mathbf r})
 Y_{l_2m_2}(\hat{\mathbf R}),
-$$
+```
 
 and parametrizes the wavefunction as
 
-$$
+```math
 \Psi(\mathbf r,\mathbf R,t)
 =
 \frac{1}{rR}
@@ -56,26 +56,26 @@ $$
 \psi_{l_1l_2LM}(r,R,t)
 \mathcal Y_{l_1l_2}^{LM}
 (\hat{\mathbf r},\hat{\mathbf R}).
-$$
+```
 
 The coupled channels obey
 
-$$
+```math
 |l_1-l_2|\le L\le l_1+l_2,
 \qquad
 M=M_{\mathrm{tot}}.
-$$
+```
 
 At fixed `M_tot`, the two coefficient vectors are related by a
 time-independent Clebsch--Gordan transformation `U`:
 
-$$
+```math
 \boldsymbol\psi_{\mathrm{coupled}}(t)
 =U^\dagger\boldsymbol\psi_{\mathrm{uncoupled}}(t),
 \qquad
 \boldsymbol\psi_{\mathrm{uncoupled}}(t)
 =U\boldsymbol\psi_{\mathrm{coupled}}(t).
-$$
+```
 
 The coefficient arrays therefore should not be compared channel by channel
 without first applying this transformation.
@@ -101,15 +101,15 @@ enough by itself. All of the following conditions are required.
 The largest possible coupled angular momentum in the rectangular
 `(l_1,l_2)` truncation is
 
-$$
+```math
 L_{\mathrm{complete}}=l_{1,\max}+l_{2,\max}.
-$$
+```
 
 Consequently,
 
-$$
+```math
 L_{\max}=l_{1,\max}+l_{2,\max}
-$$
+```
 
 is sufficient to avoid an additional total-angular-momentum truncation,
 provided all allowed intermediate `L` values are actually retained. A smaller
@@ -118,10 +118,10 @@ complete uncoupled `M_tot` sector.
 
 When the finite spaces match, every represented operator must satisfy
 
-$$
+```math
 H_{\mathrm{coupled}}(t)
 =U^\dagger H_{\mathrm{uncoupled}}(t)U.
-$$
+```
 
 This relation applies to the complete Hamiltonian and separately to the
 one-body kinetic terms, electron--nuclear Coulomb interaction, field
@@ -136,10 +136,10 @@ transformation.
 
 For finite `l1_max` and `l2_max`, no Coulomb multipoles above
 
-$$
+```math
 \lambda_{\mathrm{complete}}
 =2\min(l_{1,\max},l_{2,\max})
-$$
+```
 
 can couple two channels within the retained rectangular angular space. Using
 this value includes the full Coulomb projection in that space. A lower
@@ -158,13 +158,13 @@ The field-free Hamiltonian is rotationally invariant and commutes with
 `L^2` and `L_z`. The rovibronic ground states considered for H2+, HD+, and
 D2+ have
 
-$$
+```math
 L=0,
 \qquad
 M=0,
 \qquad
 \langle L^2\rangle=0.
-$$
+```
 
 A coupled calculation restricted to `L_max=0` is therefore an appropriate
 ground-state calculation in the known symmetry sector. For `L=0`, the
@@ -234,19 +234,19 @@ was selected for H2+ and D2+; HD+ has no exchange restriction.
 
 | `l_max` | System | Coupled energy (Eh) | Uncoupled energy (Eh) | Absolute difference (Eh) |
 | ---: | :--- | ---: | ---: | ---: |
-| 2 | H2+ | -0.576977161109 | -0.576977161109 | $2.0\times10^{-13}$ |
-| 2 | HD+ | -0.571842318284 | -0.571842318284 | $2.5\times10^{-13}$ |
-| 2 | D2+ | -0.578789888172 | -0.578789888172 | $2.3\times10^{-13}$ |
-| 4 | H2+ | -0.588407314504678 | -0.588407314504696 | $1.8\times10^{-14}$ |
-| 4 | HD+ | -0.588467969903139 | -0.588467969903120 | $1.9\times10^{-14}$ |
-| 4 | D2+ | -0.590072023205223 | -0.590072023205240 | $1.7\times10^{-14}$ |
-| 6 | H2+ | -0.591382793725416 | -0.591382793725429 | $1.3\times10^{-14}$ |
-| 6 | HD+ | -0.593908932988414 | -0.593908932988385 | $2.9\times10^{-14}$ |
-| 6 | D2+ | -0.592892162324956 | -0.592892162324955 | $1.2\times10^{-15}$ |
+| 2 | H2+ | -0.576977161109 | -0.576977161109 | 2.0e-13 |
+| 2 | HD+ | -0.571842318284 | -0.571842318284 | 2.5e-13 |
+| 2 | D2+ | -0.578789888172 | -0.578789888172 | 2.3e-13 |
+| 4 | H2+ | -0.588407314504678 | -0.588407314504696 | 1.8e-14 |
+| 4 | HD+ | -0.588467969903139 | -0.588467969903120 | 1.9e-14 |
+| 4 | D2+ | -0.590072023205223 | -0.590072023205240 | 1.7e-14 |
+| 6 | H2+ | -0.591382793725416 | -0.591382793725429 | 1.3e-14 |
+| 6 | HD+ | -0.593908932988414 | -0.593908932988385 | 2.9e-14 |
+| 6 | D2+ | -0.592892162324956 | -0.592892162324955 | 1.2e-15 |
 
 All 18 solves converged below the requested residual tolerance. The
-uncoupled solutions had numerical `L^2` expectation values below
-$4\times10^{-17}$, confirming that they remained in the same `L=0` block as
+uncoupled solutions had numerical `L^2` expectation values below `4e-17`,
+confirming that they remained in the same `L=0` block as
 the coupled calculations. The agreement therefore validates the coupled
 Hamiltonian and Davidson path on these fixed spaces. The changes in energy
 with `l_max` are substantial, so this table must not be interpreted as an
@@ -257,13 +257,13 @@ angular- or radial-convergence result.
 Because `U` is time independent, equivalent finite-space Hamiltonians have
 equivalent propagators:
 
-$$
+```math
 \mathcal U_{\mathrm{coupled}}(t,t_0)
 =
 U^\dagger
 \mathcal U_{\mathrm{uncoupled}}(t,t_0)
 U.
-$$
+```
 
 An initial state transformed consistently between the two bases must
 therefore produce the same physical wavefunction, norm loss, expectation
@@ -274,9 +274,9 @@ The fact that the initial ground state has `L=0` does not justify retaining
 only `L=0` during a laser pulse. The electric-dipole interaction is a
 rank-one spherical tensor. It couples total angular momenta satisfying
 
-$$
+```math
 |L-L'|\le 1,
-$$
+```
 
 with the `L=0` to `L'=0` transition excluded. Starting from `L=0`, the first
 dipole interaction therefore populates `L=1`; repeated interactions can
@@ -287,9 +287,9 @@ projected dynamics problems.
 For a field polarized along the laboratory `z` axis, only the `q=0`
 spherical component is present and
 
-$$
+```math
 \Delta M=0.
-$$
+```
 
 An initial `M_tot=0` state can then remain in a single `M_tot=0` block.
 Circular, elliptical, or non-axis-aligned fields contain `q=+1` and/or
