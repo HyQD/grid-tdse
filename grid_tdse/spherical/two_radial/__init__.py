@@ -14,6 +14,7 @@ from .coulomb import (
     build_radial_coulomb_multipoles,
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
+from .coupled_angular import CoupledAngularBasisSpec, CoupledAngularState
 from .diatomic import (
     DavidsonPreconditionerName,
     DiatomicIonGroundStateResult,
@@ -163,6 +164,8 @@ __all__ = [
     "CoulombMultipoleSpec",
     "CoulombTerm",
     "CoulombKernelMode",
+    "CoupledAngularBasisSpec",
+    "CoupledAngularState",
     "CartesianRealTimeCommunicator",
     "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
