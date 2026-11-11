@@ -14,6 +14,7 @@ foundation:
 - [Saga environment setup and updates](saga_setup.md)
 - [Olivia environment setup, qualification, and updates](olivia_setup.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)
+- [Coupled and uncoupled angular representations](coupled_vs_uncoupled.md)
 - [Imaginary-time ground-state iteration](ground_state_iteration.md)
 - [Non-Born--Oppenheimer diatomic-ion ground states](non_bo_diatomic_ground_state.md)
 - [Non-BO ground-state integrator comparison](non_bo_diatomic_ground_state_integrator_benchmark.md)

@@ -8,6 +8,16 @@ from `matter-field-params` for a selected CODATA release.
 The first implementation uses FEM-DVR for both radial coordinates and the
 representation-independent imaginary-time solver in `grid-tdse`.
 
+The high-level constructor preserves the uncoupled representation as its
+default. Passing `wf_representation="coupled"` selects the space-fixed bipolar
+spherical-harmonic representation with explicit `l1_max`, `l2_max`, `L_max`,
+and `M_tot` cutoffs. The initial coupled ground-state path uses Davidson and is
+intended first for fixed-space implementation validation. See
+[`coupled_vs_uncoupled.md`](coupled_vs_uncoupled.md) for the conditions under
+which the two parametrizations span equivalent finite spaces and for the
+fixed-grid H2+, HD+, and D2+ Davidson energy comparisons through
+`l1_max=l2_max=6`.
+
 ## Coordinates and Hamiltonian
 
 The vector `R` joins the two positive particles. The electronic vector `r`
@@ -158,6 +168,23 @@ frequency, or to `None` to disable progress output.
 two-radial representation, normalized initial state, complete ground-state
 iteration result, final symmetry expectations, and initial and final values
 of `<L_total^2>` and `<L_total,z>`.
+
+For the coupled path, `CoupledDiatomicIonGroundStateResult` contains the
+coupled representation, Davidson diagnostics, radial marginal densities, and
+the diagonal angular expectations available directly from `(l_1,l_2,L,M)`.
+Its `save()` method writes a distinct coupled archive format containing the
+ordered channel table, angular cutoffs, symmetry sectors, radial grid
+specifications, Coulomb truncation, Davidson options, residual, and explicit
+solver-convergence status. Loading is intentionally performed with
+`load_coupled_two_radial_state`; an uncoupled loader will reject the archive.
+
+The small validation example
+[`examples/spherical/two_radial/coupled_gs_nbo_diatomics.py`](../examples/spherical/two_radial/coupled_gs_nbo_diatomics.py)
+computes the `L=0`, `M=0` Davidson ground states of H2+, HD+, and D2+. It uses
+four 11-point electronic elements on `[0,16]` and two 15-point internuclear
+elements on `[0,8]`. This fixed setup is not a radial or angular convergence
+study, and its energies must not be interpreted as physically converged
+results.
 
 See
 [`examples/spherical/two_radial/non_bo_diatomic_ground_state.py`](../examples/spherical/two_radial/non_bo_diatomic_ground_state.py)
