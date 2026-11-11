@@ -18,8 +18,9 @@ from .dipole import (
     DipoleGauge,
     _field_profiles,
     _gauge,
+    _radial_operator_mode,
 )
-from .system import CoupledTwoRadialSystem
+from .system import CoupledTwoRadialSystem, RadialOperatorMode
 
 
 CoupledDipoleCoefficientMethod = Literal["direct", "reduced"]
@@ -134,12 +135,12 @@ class CoupledDipoleCouplings:
 
 
 class CoupledAxialCoordinateDipole:
-    r"""Apply one coordinate's coupled-angular length-gauge dipole.
+    r"""Apply one coordinate's coupled-angular axial interaction.
 
     The state axes are ``(coupled_channel, radial1, radial2)``.  For a
-    coordinate coupling ``xi``, this operator applies
-    ``-xi * radial * C_0^(1)`` and excludes the temporal electric-field
-    amplitude.
+    coordinate coupling ``c``, this operator applies ``-c z`` in length
+    gauge and ``-c p_z`` in velocity gauge. It excludes the temporal field
+    amplitude in both cases.
     """
 
     def __init__(
@@ -147,7 +148,9 @@ class CoupledAxialCoordinateDipole:
         representation: CoupledTwoRadialSystem,
         coordinate: CoupledDipoleCoordinate,
         *,
+        gauge: DipoleGauge = "length",
         coupling: float,
+        radial_operator_mode: RadialOperatorMode = "element-local",
         couplings: CoupledDipoleCouplings | None = None,
         coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
         tolerance: float = 1.0e-12,
@@ -156,7 +159,9 @@ class CoupledAxialCoordinateDipole:
         if not isinstance(representation, CoupledTwoRadialSystem):
             raise TypeError("representation must be a CoupledTwoRadialSystem")
         coordinate = _coordinate(coordinate)
+        gauge = _gauge(gauge)
         coupling = _finite_real(coupling, "coupling")
+        radial_operator_mode = _radial_operator_mode(radial_operator_mode)
         basis = representation.angular_basis
         if coupling != 0.0 and basis.inversion_parity is not None:
             raise ValueError(
@@ -190,12 +195,26 @@ class CoupledAxialCoordinateDipole:
 
         self.representation = representation
         self.coordinate = coordinate
+        self.gauge = gauge
         self.coupling = coupling
+        self.radial_operator_mode = radial_operator_mode
         self.couplings = couplings
         self.radial = (
             representation.grid1.r
             if coordinate == 1
             else representation.grid2.r
+        )
+        self.grid = (
+            representation.grid1 if coordinate == 1 else representation.grid2
+        )
+        self._velocity_angular2 = (
+            None
+            if gauge == "length"
+            else _velocity_angular2_coefficients(
+                couplings,
+                basis,
+                coordinate,
+            )
         )
 
     def apply(
@@ -207,7 +226,11 @@ class CoupledAxialCoordinateDipole:
         """Apply the field-independent coordinate term, accumulating in out."""
 
         values = self.representation.validate_state(state)
-        dtype = np.result_type(values.dtype, self.couplings.coefficient.dtype)
+        dtype = np.result_type(
+            values.dtype,
+            self.couplings.coefficient.dtype,
+            complex if self.gauge == "velocity" else float,
+        )
         if out is None:
             out = np.zeros(self.representation.psi_shape, dtype=dtype)
         elif out.shape != self.representation.psi_shape:
@@ -222,15 +245,52 @@ class CoupledAxialCoordinateDipole:
         elif not out.flags.c_contiguous:
             raise ValueError("out must be C-contiguous")
 
-        _apply_coupled_length_dipole_kernel(
+        if self.gauge == "length":
+            _apply_coupled_length_dipole_kernel(
+                out,
+                values,
+                self.radial,
+                self.coordinate,
+                self.couplings.output,
+                self.couplings.offsets,
+                self.couplings.input,
+                self.couplings.coefficient,
+            )
+            return out
+
+        divided = values / (
+            self.radial[None, :, None]
+            if self.coordinate == 1
+            else self.radial[None, None, :]
+        )
+        if self.radial_operator_mode == "element-local":
+            derivative = self.grid.apply_local_first_derivative(
+                values,
+                axis=self.coordinate,
+            )
+        elif self.coordinate == 1:
+            derivative = np.einsum(
+                "ij,cjk->cik",
+                self.grid.first_derivative(0),
+                values,
+                optimize=True,
+            )
+        else:
+            derivative = np.einsum(
+                "ij,crj->cri",
+                self.grid.first_derivative(0),
+                values,
+                optimize=True,
+            )
+        _apply_coupled_velocity_dipole_kernel(
             out,
-            values,
-            self.radial,
-            self.coordinate,
+            derivative - divided,
+            divided,
             self.couplings.output,
             self.couplings.offsets,
             self.couplings.input,
             self.couplings.coefficient,
+            self._velocity_angular2,
         )
         return out
 
@@ -241,7 +301,12 @@ class CoupledTwoRadialAxialDipoleInteraction:
     r"""Apply a serial coupled-angular, z-polarized dipole interaction.
 
     Length-gauge profiles return ``E_z(t)`` and the interaction is
-    ``-E_z(t) * (xi_r r C_0^(1)(rhat) + xi_R R C_0^(1)(Rhat))``.
+    ``-E_z(t) * (xi_r z_r + xi_R z_R)``. Velocity-gauge profiles return
+    ``A_z(t)`` and the interaction is
+    ``-A_z(t) * (nu_r p_z,r + nu_R p_z,R)``.
+
+    The spatially uniform quadratic vector-potential term is omitted because
+    it changes only the global phase.
     """
 
     def __init__(
@@ -251,6 +316,7 @@ class CoupledTwoRadialAxialDipoleInteraction:
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
         couplings: AxialDipoleCouplings,
+        radial_operator_mode: RadialOperatorMode = "element-local",
         coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
         coupling_tolerance: float = 1.0e-12,
         max_coupling_pairs: int = 20_000_000,
@@ -258,17 +324,13 @@ class CoupledTwoRadialAxialDipoleInteraction:
         if not isinstance(representation, CoupledTwoRadialSystem):
             raise TypeError("representation must be a CoupledTwoRadialSystem")
         gauge = _gauge(gauge)
-        if gauge != "length":
-            raise ValueError(
-                "coupled axial dipole interactions currently support only "
-                "length gauge"
-            )
         if not isinstance(couplings, AxialDipoleCouplings):
             raise TypeError("couplings must be an AxialDipoleCouplings")
 
         self.representation = representation
         self.gauge = gauge
         self.couplings = couplings
+        self.radial_operator_mode = _radial_operator_mode(radial_operator_mode)
         self.fields = _field_profiles(fields, gauge)
         coordinate_operators = []
         for coordinate, coupling in (
@@ -280,7 +342,9 @@ class CoupledTwoRadialAxialDipoleInteraction:
                     CoupledAxialCoordinateDipole(
                         representation,
                         coordinate,
+                        gauge=gauge,
                         coupling=coupling,
+                        radial_operator_mode=self.radial_operator_mode,
                         coefficient_method=coefficient_method,
                         tolerance=coupling_tolerance,
                         max_pairs=max_coupling_pairs,
@@ -298,6 +362,7 @@ class CoupledTwoRadialAxialDipoleInteraction:
         *,
         gauge: DipoleGauge,
         fields: Callable[[float], Real] | Iterable[Callable[[float], Real]],
+        radial_operator_mode: RadialOperatorMode = "element-local",
         coefficient_method: CoupledDipoleCoefficientMethod = "reduced",
         coupling_tolerance: float = 1.0e-12,
         max_coupling_pairs: int = 20_000_000,
@@ -312,6 +377,7 @@ class CoupledTwoRadialAxialDipoleInteraction:
                 parameters,
                 gauge,
             ),
+            radial_operator_mode=radial_operator_mode,
             coefficient_method=coefficient_method,
             coupling_tolerance=coupling_tolerance,
             max_coupling_pairs=max_coupling_pairs,
@@ -340,7 +406,10 @@ class CoupledTwoRadialAxialDipoleInteraction:
 
         values = self.representation.validate_state(state)
         amplitude = self.field_amplitude(time)
-        dtype = np.result_type(values.dtype, float)
+        dtype = np.result_type(
+            values.dtype,
+            complex if self.gauge == "velocity" else float,
+        )
         if amplitude == 0.0:
             return np.zeros(self.representation.psi_shape, dtype=dtype)
         return amplitude * self._spatial_action_values(values, dtype)
@@ -349,7 +418,10 @@ class CoupledTwoRadialAxialDipoleInteraction:
         """Return the field-independent coupled dipole action."""
 
         values = self.representation.validate_state(state)
-        dtype = np.result_type(values.dtype, float)
+        dtype = np.result_type(
+            values.dtype,
+            complex if self.gauge == "velocity" else float,
+        )
         return self._spatial_action_values(values, dtype)
 
     def _spatial_action_values(self, values, dtype):
@@ -608,6 +680,31 @@ def _validate_coordinate_couplings(
         raise ValueError("couplings use a different effective charge")
 
 
+def _velocity_angular2_coefficients(
+    couplings: CoupledDipoleCouplings,
+    basis: CoupledAngularBasisSpec,
+    coordinate: CoupledDipoleCoordinate,
+) -> np.ndarray:
+    """Return the angular coefficients multiplying the radial ``1/r`` term."""
+
+    result = np.empty(couplings.n_pairs, dtype=couplings.coefficient.dtype)
+    angular_index = coordinate - 1
+    for group, output in enumerate(couplings.output):
+        l_out = basis.states[int(output)][angular_index]
+        for pair in range(couplings.offsets[group], couplings.offsets[group + 1]):
+            l_in = basis.states[int(couplings.input[pair])][angular_index]
+            if l_out == l_in + 1:
+                factor = l_in
+            elif l_out == l_in - 1:
+                factor = -(l_in + 1)
+            else:  # defensive: rank-one coordinate tables require delta l = +/-1
+                raise ValueError(
+                    "velocity-gauge coupling does not connect adjacent l values"
+                )
+            result[pair] = factor * couplings.coefficient[pair]
+    return np.ascontiguousarray(result)
+
+
 def _coordinate(value) -> CoupledDipoleCoordinate:
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral):
         raise TypeError("coordinate must be an integer")
@@ -686,3 +783,31 @@ def _apply_coupled_length_dipole_kernel(
                     radial[radial1] if coordinate == 1 else radial[radial2]
                 )
                 result[target, radial1, radial2] -= radial_value * value
+
+
+@njit(parallel=True, cache=True)
+def _apply_coupled_velocity_dipole_kernel(
+    result,
+    derivative_tilde,
+    divided,
+    output_channel,
+    output_offsets,
+    input_channel,
+    angular1,
+    angular2,
+):
+    n_radial1 = derivative_tilde.shape[1]
+    n_radial2 = derivative_tilde.shape[2]
+    for group in prange(output_channel.size):
+        target = output_channel[group]
+        for radial1 in range(n_radial1):
+            for radial2 in range(n_radial2):
+                value = derivative_tilde[0, radial1, radial2] * 0.0j
+                for pair in range(output_offsets[group], output_offsets[group + 1]):
+                    source = input_channel[pair]
+                    value += (
+                        angular1[pair]
+                        * derivative_tilde[source, radial1, radial2]
+                        - angular2[pair] * divided[source, radial1, radial2]
+                    )
+                result[target, radial1, radial2] += 1j * value

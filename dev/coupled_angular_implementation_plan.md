@@ -2,10 +2,13 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Steps 1-13 are
+This document is a design, implementation, and validation plan. Steps 1-13
+and the finite-space representation-equivalence portion of Step 15 are
 implemented and covered by focused tests. The serial restart portion of Step
 13 is complete; its cross-process-grid restart check remains coupled to the
-MPI work in Step 16. Steps 14-17 have not started.
+MPI work in Step 16. The production convergence matrix in Step 14 and its
+length-versus-velocity gauge-convergence gate are deferred to cluster
+qualification. Steps 16-17 have not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
@@ -1129,17 +1132,36 @@ series—not only total energy.
 Exit gate: the implementation has documented convergence envelopes and no
 isotope relies accidentally on a symmetry valid only for another isotope.
 
+This step is deliberately deferred. Its radial-box, FEMDVR-order, angular,
+CAP, time-step, and Krylov convergence matrix is a production qualification
+activity rather than an appropriate local development test. The fixed-grid
+representation tests in Step 15 do not satisfy or replace this gate.
+
 ### Step 15: add velocity gauge as a cross-check
 
-Only after length-gauge qualification, implement the coupled electronic and
-internuclear momentum actions using the same reduced velocity couplings as the
-uncoupled path. Preserve the existing convention that omits the spatially
-uniform `A(t)^2` scalar term, which affects only global phase. Require a pulse
-with compatible initial vector potential.
+Implement the coupled electronic and internuclear momentum actions using the
+same reduced velocity couplings as the uncoupled path. Their fixed-space
+representation equivalence can be validated before the production
+length-gauge convergence matrix, but physical gauge convergence cannot.
+Preserve the existing convention that omits the spatially uniform `A(t)^2`
+scalar term, which affects only global phase. Require a pulse with compatible
+initial vector potential.
 
 Exit gate: length- and velocity-gauge observables converge toward one another
 as angular and radial spaces and time resolution are increased. Do not use
 gauge agreement to replace comparison against the uncoupled implementation.
+
+The implementation and representation-equivalence portion of this step is
+complete. Coupled electronic and internuclear momentum actions use the same
+reduced velocity couplings, FEMDVR first derivatives, and radial ``1/r``
+terms as the uncoupled path. The uniform ``A(t)^2`` term remains omitted from
+the propagated Hamiltonian, and the existing ``A(initial_time)=0`` gate is
+applied by the high-level interface. Operator-level tests cover global and
+element-local radial actions. Short SIA trajectories for H2+, HD+, and D2+
+agree with the explicitly transformed uncoupled velocity-gauge trajectories
+in complete matched finite spaces, including sampled observables and the
+gauge-covariant energy numerator. Physical length-versus-velocity gauge
+convergence still belongs to the deferred Step 14 production matrix.
 
 ### Step 16: integrate Cartesian radial MPI
 

@@ -42,6 +42,16 @@ class _Pulse:
         return self.amplitude * np.sin(np.pi * time / self.duration) ** 2
 
 
+class _VelocityPulse(_Pulse):
+    gauge = "velocity"
+
+
+class _NonzeroInitialVelocityPulse(_VelocityPulse):
+    def __call__(self, time):
+        del time
+        return self.amplitude
+
+
 def _representation_pair(system_name):
     parameters = _diatomic_parameters(system_name, "2022")
     exchange = 1 if parameters.has_identical_pair else None
@@ -120,6 +130,7 @@ def _calculation_pair(
     time_step=0.002,
     cap=None,
     krylov_rtol=2.0e-12,
+    field_gauge="length",
 ):
     coupled_state, uncoupled_state, transform = _initial_state(system_name)
     parameters = _diatomic_parameters(system_name, "2022")
@@ -128,8 +139,12 @@ def _calculation_pair(
         electronic_grid=GRID,
         internuclear_grid=GRID,
         pair_exchange_parity=exchange,
-        fields=(_Pulse(duration=final_time),),
-        field_gauge="length",
+        fields=(
+            (_VelocityPulse if field_gauge == "velocity" else _Pulse)(
+                duration=final_time
+            ),
+        ),
+        field_gauge=field_gauge,
         M_tot=0,
         lambda_max=2,
         codata_set="2022",
@@ -224,6 +239,43 @@ def test_sia_pulse_matches_complete_uncoupled_reference(system_name):
         _assert_snapshot_agreement(
             coupled_sample.snapshot,
             uncoupled_sample.snapshot,
+        )
+
+
+@pytest.mark.parametrize("system_name", ["H2+", "HD+", "D2+"])
+def test_velocity_gauge_sia_matches_complete_uncoupled_reference(system_name):
+    coupled, uncoupled, transform = _calculation_pair(
+        system_name,
+        field_gauge="velocity",
+    )
+    coupled_result = coupled.run(progress=False)
+    uncoupled_result = uncoupled.run(progress=False)
+
+    transformed = transform.to_uncoupled(coupled_result.state)
+    assert _phase_aligned_error(
+        uncoupled_result.state,
+        transformed,
+        uncoupled.representation.inner_product,
+    ) < 3.0e-10
+    for coupled_sample, uncoupled_sample in zip(
+        coupled.dynamics_time_series.samples,
+        uncoupled.dynamics_time_series.samples,
+        strict=True,
+    ):
+        assert coupled_sample.snapshot.gauge == "velocity"
+        assert coupled_sample.snapshot.field_symbol == "A"
+        assert coupled_sample.snapshot.field_amplitude == pytest.approx(
+            uncoupled_sample.snapshot.field_amplitude,
+            abs=1.0e-15,
+        )
+        assert coupled_sample.snapshot.energy_numerator == pytest.approx(
+            uncoupled_sample.snapshot.energy_numerator,
+            abs=3.0e-10,
+        )
+        _assert_snapshot_agreement(
+            coupled_sample.snapshot,
+            uncoupled_sample.snapshot,
+            atol=3.0e-10,
         )
 
 
@@ -554,17 +606,18 @@ def test_coupled_interface_rejects_unsupported_options():
         final_time=0.001,
         time_step=0.001,
     )
-    with pytest.raises(ValueError, match="field_gauge='length' only"):
-        NonBornOppenheimerDiatomicIonTDSE(
-            "H2+",
-            wf_representation="coupled",
-            field_gauge="velocity",
-            **common,
-        )
     with pytest.raises(ValueError, match="uncoupled-only kernel"):
         NonBornOppenheimerDiatomicIonTDSE(
             "H2+",
             wf_representation="coupled",
             coulomb_kernel="multipole-grouped",
+            **common,
+        )
+    with pytest.raises(ValueError, match=r"A\(initial_time\)=0"):
+        NonBornOppenheimerDiatomicIonTDSE(
+            "H2+",
+            wf_representation="coupled",
+            field_gauge="velocity",
+            fields=(_NonzeroInitialVelocityPulse(),),
             **common,
         )
