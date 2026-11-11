@@ -1,7 +1,7 @@
 """Preparation of grid and angular data for two-radial Hamiltonians."""
 
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Protocol
+from typing import Callable, Literal, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -13,12 +13,25 @@ from .coulomb import (
     build_radial_coulomb_multipoles,
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
+from .coupled_angular import CoupledAngularBasisSpec
 from .grids import RadialGrid, RadialGridSpec, require_same_grid_family
-
 
 RadialOperatorMode = Literal["global", "element-local"]
 CoulombKernelMode = Literal["reference", "multipole-grouped"]
 RadialKernelMode = Literal["reference", "row-wise"]
+
+
+@runtime_checkable
+class TwoRadialRepresentation(Protocol):
+    """Representation-independent serial two-radial state contract."""
+
+    grid1: RadialGrid
+    grid2: RadialGrid
+
+    @property
+    def psi_shape(self) -> tuple[int, ...]: ...
+
+    def inner_product(self, left: np.ndarray, right: np.ndarray) -> complex: ...
 
 
 class RadialDiagonalTerm(Protocol):
@@ -206,6 +219,201 @@ class TwoRadialSystemSpec:
             h2_diagonal=h2_diagonal,
             radial_operator_mode=radial_operator_mode,
         )
+
+    def build_coupled(
+        self,
+        angular_basis: CoupledAngularBasisSpec,
+    ) -> "CoupledTwoRadialSystem":
+        """Prepare radial data for a coupled-angular representation.
+
+        This path deliberately constructs neither uncoupled angular couplings
+        nor one-body Hamiltonian matrices.  Those actions are introduced in
+        later coupled-representation implementation steps.
+        """
+
+        if not isinstance(angular_basis, CoupledAngularBasisSpec):
+            raise TypeError("angular_basis must be a CoupledAngularBasisSpec")
+        if self.coordinate1.basis.l_max != angular_basis.l1_max:
+            raise ValueError("coordinate1 l_max must equal angular_basis.l1_max")
+        if self.coordinate2.basis.l_max != angular_basis.l2_max:
+            raise ValueError("coordinate2 l_max must equal angular_basis.l2_max")
+        if self.M_tot not in (None, angular_basis.M_tot):
+            raise ValueError("system M_tot disagrees with angular_basis.M_tot")
+
+        grid1 = self.coordinate1.build_grid()
+        grid2 = self.coordinate2.build_grid()
+        require_same_grid_family(grid1, grid2)
+        radial_multipoles = build_radial_coulomb_multipoles(
+            grid1,
+            grid2,
+            self.multipoles,
+            self.coulomb_terms,
+            method=self.radial_coulomb_method,
+        )
+        return CoupledTwoRadialSystem(
+            grid1=grid1,
+            grid2=grid2,
+            angular_basis=angular_basis,
+            multipoles=self.multipoles,
+            radial_multipoles=radial_multipoles,
+            coordinate1=self.coordinate1,
+            coordinate2=self.coordinate2,
+        )
+
+
+@dataclass(frozen=True)
+class CoupledTwoRadialSystem:
+    """Prepared radial data and state operations for coupled angular channels.
+
+    Serial states have shape ``(coupled_channel, r_1, r_2)``.  The object does
+    not retain a dense coupled/uncoupled transformation or any Hamiltonian
+    matrices.
+    """
+
+    grid1: RadialGrid
+    grid2: RadialGrid
+    angular_basis: CoupledAngularBasisSpec
+    multipoles: CoulombMultipoleSpec
+    radial_multipoles: RadialCoulombMultipoles
+    coordinate1: CoordinateSpec
+    coordinate2: CoordinateSpec
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.angular_basis, CoupledAngularBasisSpec):
+            raise TypeError("angular_basis must be a CoupledAngularBasisSpec")
+        require_same_grid_family(self.grid1, self.grid2)
+        if self.grid1.l_max != self.angular_basis.l1_max:
+            raise ValueError("grid1 l_max disagrees with angular_basis.l1_max")
+        if self.grid2.l_max != self.angular_basis.l2_max:
+            raise ValueError("grid2 l_max disagrees with angular_basis.l2_max")
+        if self.coordinate1.basis.l_max != self.angular_basis.l1_max:
+            raise ValueError(
+                "coordinate1 l_max disagrees with angular_basis.l1_max"
+            )
+        if self.coordinate2.basis.l_max != self.angular_basis.l2_max:
+            raise ValueError(
+                "coordinate2 l_max disagrees with angular_basis.l2_max"
+            )
+        expected_radial_shape = (self.grid1.n_points, self.grid2.n_points)
+        if self.radial_multipoles.values.shape[1:] != expected_radial_shape:
+            raise ValueError("radial multipoles do not match the radial grids")
+        if self.radial_multipoles.lambdas != self.multipoles.lambdas:
+            raise ValueError("radial multipoles disagree with multipole selection")
+
+    @property
+    def M_tot(self) -> int:
+        return self.angular_basis.M_tot
+
+    @property
+    def psi_shape(self) -> tuple[int, int, int]:
+        return (
+            self.angular_basis.n_channels,
+            self.grid1.n_points,
+            self.grid2.n_points,
+        )
+
+    @property
+    def radial_shape(self) -> tuple[int, int]:
+        return (self.grid1.n_points, self.grid2.n_points)
+
+    def validate_state(self, state: np.ndarray, *, name: str = "state") -> np.ndarray:
+        """Return an array view after validating coupled state storage."""
+
+        values = np.asarray(state)
+        if values.shape != self.psi_shape:
+            raise ValueError(
+                f"{name} has shape {values.shape}; expected {self.psi_shape}"
+            )
+        if not np.issubdtype(values.dtype, np.number):
+            raise TypeError(f"{name} must have a numerical dtype")
+        return values
+
+    def zeros(self, dtype=np.complex128) -> np.ndarray:
+        """Allocate a zero state in coupled serial storage."""
+
+        return np.zeros(self.psi_shape, dtype=dtype)
+
+    def random_state(
+        self,
+        rng: np.random.Generator | None = None,
+        *,
+        dtype=np.complex128,
+        normalize: bool = False,
+    ) -> np.ndarray:
+        """Create a random real or complex state, optionally normalized."""
+
+        rng = np.random.default_rng() if rng is None else rng
+        dtype = np.dtype(dtype)
+        if np.issubdtype(dtype, np.complexfloating):
+            values = rng.normal(size=self.psi_shape) + 1j * rng.normal(
+                size=self.psi_shape
+            )
+        elif np.issubdtype(dtype, np.floating):
+            values = rng.normal(size=self.psi_shape)
+        else:
+            raise TypeError("random state dtype must be real or complex floating")
+        result = np.asarray(values, dtype=dtype)
+        if normalize:
+            result /= self.norm(result)
+        return result
+
+    def copy_state(self, state: np.ndarray) -> np.ndarray:
+        """Return an independent contiguous copy of a validated state."""
+
+        return np.ascontiguousarray(self.validate_state(state).copy())
+
+    def inner_product(self, left: np.ndarray, right: np.ndarray) -> complex:
+        """Return the quadrature-weighted two-radial inner product."""
+
+        left = self.validate_state(left, name="left state")
+        right = self.validate_state(right, name="right state")
+        return np.einsum(
+            "cab,cab,a,b->",
+            left.conj(),
+            right,
+            self.grid1.weights,
+            self.grid2.weights,
+            optimize=True,
+        )
+
+    def norm(self, state: np.ndarray) -> float:
+        """Return the physical quadrature norm of a coupled state."""
+
+        value = float(self.inner_product(state, state).real)
+        return float(np.sqrt(max(value, 0.0)))
+
+    def radial_marginals(self, state: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return pointwise radial probability densities for both coordinates."""
+
+        values = self.validate_state(state)
+        population = np.einsum("cab,cab->ab", values.conj(), values).real
+        density1 = np.einsum("ab,b->a", population, self.grid2.weights, optimize=True)
+        density2 = np.einsum("ab,a->b", population, self.grid1.weights, optimize=True)
+        return density1, density2
+
+    def state_nbytes(self, dtype=np.complex128) -> int:
+        """Return the storage required by one state with the given dtype."""
+
+        return int(np.prod(self.psi_shape, dtype=np.int64) * np.dtype(dtype).itemsize)
+
+    def to_metadata(self) -> dict[str, object]:
+        """Return deterministic JSON-compatible representation metadata."""
+
+        return {
+            "type": "coupled-two-radial-system",
+            "version": 1,
+            "angular_basis": self.angular_basis.to_metadata(),
+            "grid_family": self.grid1.family,
+            "radial_shape": list(self.radial_shape),
+            "psi_shape": list(self.psi_shape),
+            "multipoles": {
+                "lambda_max": self.multipoles.lambda_max,
+                "mu_max": self.multipoles.mu_max,
+                "lambda_parity": self.multipoles.lambda_parity,
+                "lambdas": list(self.multipoles.lambdas),
+            },
+            "radial_multipole_representation": self.radial_multipoles.representation,
+        }
 
 
 @dataclass(frozen=True)

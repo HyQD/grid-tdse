@@ -683,6 +683,8 @@ and invalid-input behavior are exhaustively unit tested at small cutoffs.
 
 ### Step 2: build the coupled/uncoupled transformation oracle
 
+Status: implemented and covered by focused unit tests.
+
 Implement a structured fixed-`M` transformation using the
 Clebsch-Gordan coefficients, without introducing it into any hot Hamiltonian
 path. Support vectors and batches over arbitrary trailing radial axes.
@@ -699,7 +701,15 @@ Use it to verify:
 Exit gate: full equivalent spaces transform unitarily to machine precision,
 and projected spaces report rather than hide discarded norm.
 
+The implementation is `CoupledAngularTransform`. Its uncoupled ordering
+matches the existing compact `AngularPairBasis` ordering, its dense
+coefficient matrix is confined to the validation oracle, and
+`CoupledAngularProjection` reports retained and discarded norm explicitly for
+an `L`-truncated space.
+
 ### Step 3: introduce the coupled prepared representation
+
+Status: implemented and covered by focused unit tests.
 
 Add a separate `CoupledTwoRadialSystem`; do not change the meaning or storage
 of `TwoRadialSystem`. Define the smallest shared representation protocol
@@ -719,6 +729,12 @@ dense uncoupled transformation or dense angular matrices per radial point.
 
 Exit gate: zero states, random states, norms, copies, metadata, and storage
 estimates work without constructing a Hamiltonian.
+
+`TwoRadialSystemSpec.build_coupled()` prepares the radial grids and reuses the
+existing FEMDVR or analytic radial Coulomb construction. The returned
+`CoupledTwoRadialSystem` implements the minimal `TwoRadialRepresentation`
+protocol and retains no Hamiltonian, dense angular transform, or uncoupled
+coupling table.
 
 ### Step 4: implement diagonal field-free terms
 
