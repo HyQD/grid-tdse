@@ -14,7 +14,13 @@ from .coulomb import (
     build_radial_coulomb_multipoles,
 )
 from .couplings import CoulombCouplings, build_coulomb_couplings
-from .coupled_angular import CoupledAngularBasisSpec, CoupledAngularState
+from .coupled_angular import (
+    CoupledAngularBasisSpec,
+    CoupledAngularProjection,
+    CoupledAngularState,
+    CoupledAngularTransform,
+    UncoupledAngularState,
+)
 from .diatomic import (
     DavidsonPreconditionerName,
     DiatomicIonGroundStateResult,
@@ -139,9 +145,11 @@ from .system import (
     AngularRadialPotential,
     CoordinateSpec,
     CoulombKernelMode,
+    CoupledTwoRadialSystem,
     RadialKernelMode,
     RadialOperatorMode,
     RadialPotential,
+    TwoRadialRepresentation,
     TwoRadialSystem,
     TwoRadialSystemSpec,
     angular_radial_potential,
@@ -165,7 +173,10 @@ __all__ = [
     "CoulombTerm",
     "CoulombKernelMode",
     "CoupledAngularBasisSpec",
+    "CoupledAngularProjection",
     "CoupledAngularState",
+    "CoupledAngularTransform",
+    "CoupledTwoRadialSystem",
     "CartesianRealTimeCommunicator",
     "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
@@ -240,6 +251,8 @@ __all__ = [
     "TwoRadialState",
     "TwoRadialSystem",
     "TwoRadialSystemSpec",
+    "TwoRadialRepresentation",
+    "UncoupledAngularState",
     "TwoElectronAtomGroundState",
     "TwoElectronAtomGroundStateResult",
     "TwoElectronAtomParameters",

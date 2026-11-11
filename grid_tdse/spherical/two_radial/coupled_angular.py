@@ -7,9 +7,13 @@ from dataclasses import dataclass, field
 from numbers import Integral
 from typing import Any
 
-from .angular import Parity
+import numpy as np
+from grid_lib.spherical_coordinates import clebsch_gordan
+
+from .angular import AngularBasisSpec, AngularPairBasis, Parity
 
 CoupledAngularState = tuple[int, int, int, int]
+UncoupledAngularState = tuple[int, int, int, int]
 
 _METADATA_TYPE = "coupled-bipolar-spherical-harmonics"
 _METADATA_VERSION = 1
@@ -185,6 +189,155 @@ class CoupledAngularBasisSpec:
         return result
 
 
+@dataclass(frozen=True)
+class CoupledAngularProjection:
+    """Result of projecting an uncoupled array into a coupled basis.
+
+    The reported norms are Euclidean sums over the angular and all trailing
+    axes.  Radial quadrature weights can be applied independently when a
+    physical two-radial norm is required.
+    """
+
+    coefficients: np.ndarray
+    input_norm_squared: float
+    retained_norm_squared: float
+    discarded_norm_squared: float
+
+    @property
+    def discarded_fraction(self) -> float:
+        """Return the fraction of input norm removed by the projection."""
+
+        if self.input_norm_squared == 0.0:
+            return 0.0
+        return self.discarded_norm_squared / self.input_norm_squared
+
+
+@dataclass(frozen=True)
+class CoupledAngularTransform:
+    r"""Fixed-``M`` Clebsch--Gordan transformation oracle.
+
+    The coefficient matrix has rows labelled by uncoupled states
+    ``(l_1, m_1, l_2, m_2)`` and columns labelled by the coupled states in
+    :class:`CoupledAngularBasisSpec`.  Its entries are
+
+    ``<l_1 m_1, l_2 m_2 | L M>``.
+
+    Arrays use the angular channel as their first axis and may have any number
+    of trailing axes.  The dense matrix is intentionally an oracle for tests
+    and validation; production Hamiltonian paths should use sparse reduced
+    coupling tables instead.
+    """
+
+    basis: CoupledAngularBasisSpec
+    uncoupled_states: tuple[UncoupledAngularState, ...] = field(init=False)
+    coefficients: np.ndarray = field(init=False, repr=False)
+    _uncoupled_indices: dict[UncoupledAngularState, int] = field(
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.basis, CoupledAngularBasisSpec):
+            raise TypeError("basis must be a CoupledAngularBasisSpec")
+
+        basis1 = AngularBasisSpec(self.basis.l1_max)
+        basis2 = AngularBasisSpec(self.basis.l2_max)
+        pair_basis = AngularPairBasis(basis1, basis2, self.basis.M_tot)
+        states = tuple(
+            (l1, m1, l2, m2)
+            for channel1, channel2 in pair_basis.pairs
+            for l1, m1 in (basis1.states[channel1],)
+            for l2, m2 in (basis2.states[channel2],)
+            if self.basis.inversion_parity is None
+            or _angular_parity(l1 + l2) == self.basis.inversion_parity
+            if self.basis.pair_exchange_parity is None
+            or _angular_parity(l2) == self.basis.pair_exchange_parity
+        )
+        indices = {state: index for index, state in enumerate(states)}
+        coefficients = np.zeros((len(states), self.basis.n_channels))
+
+        for coupled, (l1, l2, L, M) in enumerate(self.basis.states):
+            for m1 in range(-l1, l1 + 1):
+                m2 = M - m1
+                uncoupled = indices.get((l1, m1, l2, m2))
+                if uncoupled is not None:
+                    coefficients[uncoupled, coupled] = clebsch_gordan(
+                        l1,
+                        m1,
+                        l2,
+                        m2,
+                        L,
+                        M,
+                    )
+
+        coefficients.setflags(write=False)
+        object.__setattr__(self, "uncoupled_states", states)
+        object.__setattr__(self, "_uncoupled_indices", indices)
+        object.__setattr__(self, "coefficients", coefficients)
+
+    @property
+    def n_uncoupled(self) -> int:
+        """Return the number of retained fixed-``M`` uncoupled states."""
+
+        return len(self.uncoupled_states)
+
+    @property
+    def n_coupled(self) -> int:
+        """Return the number of retained coupled channels."""
+
+        return self.basis.n_channels
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether the coupled basis spans the selected uncoupled space."""
+
+        return self.n_coupled == self.n_uncoupled
+
+    def uncoupled_index(self, l1: int, m1: int, l2: int, m2: int) -> int:
+        """Return an uncoupled state index or raise ``ValueError``."""
+
+        state = (l1, m1, l2, m2)
+        try:
+            return self._uncoupled_indices[state]
+        except KeyError as exc:
+            raise ValueError(
+                f"uncoupled angular state {state} is not retained"
+            ) from exc
+
+    def to_uncoupled(self, values: np.ndarray) -> np.ndarray:
+        """Transform coupled coefficients to the fixed-``M`` uncoupled basis."""
+
+        values = _angular_array(values, self.n_coupled, "coupled")
+        return np.ascontiguousarray(
+            np.tensordot(self.coefficients, values, axes=(1, 0))
+        )
+
+    def to_coupled(self, values: np.ndarray) -> np.ndarray:
+        """Apply the adjoint transform to fixed-``M`` uncoupled coefficients."""
+
+        values = _angular_array(values, self.n_uncoupled, "uncoupled")
+        return np.ascontiguousarray(
+            np.tensordot(self.coefficients.conj().T, values, axes=(1, 0))
+        )
+
+    def project(self, values: np.ndarray) -> CoupledAngularProjection:
+        """Project uncoupled values and report the norm discarded by ``L``."""
+
+        values = _angular_array(values, self.n_uncoupled, "uncoupled")
+        coupled = self.to_coupled(values)
+        retained = self.to_uncoupled(coupled)
+        residual = values - retained
+        input_norm_squared = _norm_squared(values)
+        retained_norm_squared = _norm_squared(retained)
+        discarded_norm_squared = _norm_squared(residual)
+        return CoupledAngularProjection(
+            coefficients=coupled,
+            input_norm_squared=input_norm_squared,
+            retained_norm_squared=retained_norm_squared,
+            discarded_norm_squared=discarded_norm_squared,
+        )
+
+
 def _metadata_states(values: Any) -> tuple[CoupledAngularState, ...]:
     if not isinstance(values, (list, tuple)):
         raise TypeError("metadata states must be a sequence")
@@ -222,3 +375,17 @@ def _parity(value: Any, name: str) -> Parity | None:
 
 def _angular_parity(angular_momentum: int) -> Parity:
     return -1 if angular_momentum % 2 else 1
+
+
+def _angular_array(values: Any, n_channels: int, name: str) -> np.ndarray:
+    result = np.asarray(values)
+    if result.ndim == 0 or result.shape[0] != n_channels:
+        raise ValueError(
+            f"{name} values have shape {result.shape}; expected first axis "
+            f"of length {n_channels}"
+        )
+    return result
+
+
+def _norm_squared(values: np.ndarray) -> float:
+    return float(np.vdot(values, values).real)
