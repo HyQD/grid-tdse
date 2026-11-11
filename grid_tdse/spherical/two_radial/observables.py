@@ -372,21 +372,12 @@ class DiatomicIonObservableEvaluator:
         return np.asarray(results, dtype=complex)
 
     def _local_r_dot_R(self, state, r, R, w_r, w_R):
-        result = np.zeros_like(state, dtype=np.result_type(state.dtype, complex))
-        for direction1, direction2 in zip(self._directions1, self._directions2):
-            action = _coordinate_angular_action(
-                self.system,
-                state,
-                2,
-                direction2,
-            )
-            action = _coordinate_angular_action(
-                self.system,
-                action,
-                1,
-                direction1,
-            )
-            result += action
+        result = _two_coordinate_angular_action(
+            self.system,
+            state,
+            self._directions1,
+            self._directions2,
+        )
         radial_shape = (1,) * (state.ndim - 2) + (r.size, R.size)
         result *= np.multiply.outer(r, R).reshape(radial_shape)
         return _local_inner_product(state, result, w_r, w_R)
@@ -663,6 +654,38 @@ def _coordinate_angular_action(system, state, coordinate, matrix):
                     result[output_pair] += coefficient * block
             else:
                 result[output_i, output_j] += coefficient * block
+    return result
+
+
+def _two_coordinate_angular_action(system, state, matrices1, matrices2):
+    """Apply a sum of product operators without projecting intermediates.
+
+    This is required in a fixed-total-``M`` representation: each individual
+    transverse direction changes ``M``, while their scalar-product sum
+    conserves it.  Sequential projected coordinate actions would therefore
+    discard valid transverse contributions.
+    """
+
+    result = np.zeros_like(state, dtype=np.result_type(state.dtype, complex))
+    for input_pair, (input1, input2) in enumerate(system.angular_pairs.pairs):
+        block = (
+            state[input_pair]
+            if system.uses_compact_angular_storage
+            else state[input1, input2]
+        )
+        for output_pair, (output1, output2) in enumerate(
+            system.angular_pairs.pairs
+        ):
+            coefficient = sum(
+                matrix1[output1, input1] * matrix2[output2, input2]
+                for matrix1, matrix2 in zip(matrices1, matrices2, strict=True)
+            )
+            if coefficient == 0.0:
+                continue
+            if system.uses_compact_angular_storage:
+                result[output_pair] += coefficient * block
+            else:
+                result[output1, output2] += coefficient * block
     return result
 
 

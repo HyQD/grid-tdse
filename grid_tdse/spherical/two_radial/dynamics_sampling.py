@@ -21,6 +21,32 @@ from .system import RadialOperatorMode, TwoRadialSystem
 
 
 @dataclass(frozen=True)
+class DiatomicIonAngularPopulations:
+    """Raw or norm-divided populations grouped by angular quantum number."""
+
+    L: tuple[float, ...]
+    l1: tuple[float, ...]
+    l2: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        for name in ("L", "l1", "l2"):
+            values = tuple(float(value) for value in getattr(self, name))
+            if not all(np.isfinite(values)) or any(value < 0.0 for value in values):
+                raise ValueError(f"{name} populations must be finite and non-negative")
+            object.__setattr__(self, name, values)
+
+    def divided_by(self, norm: float) -> DiatomicIonAngularPopulations:
+        """Return populations divided by a positive state norm."""
+
+        norm = _positive_real(norm, "norm")
+        return DiatomicIonAngularPopulations(
+            L=tuple(value / norm for value in self.L),
+            l1=tuple(value / norm for value in self.l1),
+            l2=tuple(value / norm for value in self.l2),
+        )
+
+
+@dataclass(frozen=True)
 class DiatomicIonConditionalObservables:
     r"""Norm-divided observables conditional on survival in the grid."""
 
@@ -37,6 +63,10 @@ class DiatomicIonConditionalObservables:
     l_R_z: float
     cos_theta_R: float
     cos2_theta_R: float
+    cos4_theta_R: float
+    cos6_theta_R: float
+    cos8_theta_R: float
+    R_cos2_theta_R: float
     coordinate_r: tuple[float, float, float]
     coordinate_R: tuple[float, float, float]
     dipole_r: tuple[float, float, float]
@@ -100,6 +130,8 @@ class DiatomicIonDynamicsSnapshot:
     conditional: DiatomicIonConditionalObservables
     radial_densities: DiatomicIonRadialDensities
     electron_center_distances: DiatomicIonElectronCenterDistances
+    angular_populations: DiatomicIonAngularPopulations | None = None
+    conditional_angular_populations: DiatomicIonAngularPopulations | None = None
 
     @property
     def norm(self) -> float:
@@ -166,12 +198,19 @@ class DiatomicIonDynamicsSample:
     is_final: bool = False
     is_checkpoint: bool = False
 
+    @property
+    def cap_norm_loss(self) -> float:
+        """Return positive norm removed relative to the initial sample."""
+
+        return -self.norm_divergence
+
     def as_dict(self) -> dict[str, object]:
         """Return a JSON-compatible, recursively flattened record."""
 
         nested = asdict(self)
         nested["snapshot"].pop("radial_densities")
         record = _flatten_mapping(nested)
+        record["cap_norm_loss"] = self.cap_norm_loss
         record["snapshot.numerators.z_e"] = (
             self.snapshot.numerators.coordinate_r[2]
         )
@@ -351,8 +390,10 @@ class DiatomicIonDynamicsObservableEvaluator:
         radial_operator_mode: RadialOperatorMode = "global",
         reality_tolerance: float = 1.0e-10,
     ) -> None:
-        if not isinstance(system, TwoRadialSystem):
-            raise TypeError("system must be a TwoRadialSystem")
+        from .system import CoupledTwoRadialSystem
+
+        if not isinstance(system, (TwoRadialSystem, CoupledTwoRadialSystem)):
+            raise TypeError("system must satisfy a serial two-radial representation")
         if not callable(field_free_action):
             raise TypeError("field_free_action must be callable")
         if gauge not in ("length", "velocity"):
@@ -375,7 +416,20 @@ class DiatomicIonDynamicsObservableEvaluator:
         self.gauge = gauge
         self.fields = _field_profiles(fields, gauge)
         self.reality_tolerance = _positive_real(reality_tolerance, "reality_tolerance")
-        self.observable_evaluator = DiatomicIonObservableEvaluator(system, parameters)
+        if isinstance(system, CoupledTwoRadialSystem):
+            from .coupled_observables import (
+                CoupledDiatomicIonObservableEvaluator,
+            )
+
+            self.observable_evaluator = CoupledDiatomicIonObservableEvaluator(
+                system,
+                parameters,
+            )
+        else:
+            self.observable_evaluator = DiatomicIonObservableEvaluator(
+                system,
+                parameters,
+            )
         if gauge == "velocity" and velocity_action is None:
             velocity_action = _serial_velocity_action(
                 system,
@@ -407,6 +461,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             numerators,
             self.system.inner_product,
             _serial_radial_densities(self.system, state),
+            self._serial_angular_populations(state),
         )
 
     def distributed(
@@ -421,6 +476,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             numerators,
             reductions.expectation,
             _distributed_radial_densities(state, reductions),
+            _distributed_angular_populations(state, reductions),
         )
 
     def distributed_2d(
@@ -437,6 +493,7 @@ class DiatomicIonDynamicsObservableEvaluator:
             numerators,
             reductions.expectation,
             _distributed_radial_densities(state, reductions),
+            _distributed_angular_populations(state, reductions),
         )
 
     def field_amplitude(self, time: float) -> float:
@@ -456,7 +513,15 @@ class DiatomicIonDynamicsObservableEvaluator:
             amplitude += float(value)
         return amplitude
 
-    def _snapshot(self, state, time, numerators, inner_product, radial_densities):
+    def _snapshot(
+        self,
+        state,
+        time,
+        numerators,
+        inner_product,
+        radial_densities,
+        angular_populations=None,
+    ):
         time = _finite_real(time, "time")
         amplitude = self.field_amplitude(time)
         field_free_state = self.field_free_action(state)
@@ -489,7 +554,19 @@ class DiatomicIonDynamicsObservableEvaluator:
                 float(self.parameters.reference_center_scale),
                 float(self.parameters.partner_center_scale),
             ),
+            angular_populations=angular_populations,
+            conditional_angular_populations=(
+                None
+                if angular_populations is None
+                else angular_populations.divided_by(numerators.norm)
+            ),
         )
+
+    def _serial_angular_populations(self, state):
+        method = getattr(self.observable_evaluator, "angular_populations", None)
+        if method is None:
+            return _uncoupled_angular_populations(self.system, state)
+        return method(state)
 
     def _real_expectation(self, value, name):
         value = complex(value)
@@ -723,6 +800,10 @@ def _conditional_observables(numerators):
         l_R_z=numerators.l_R_z / norm,
         cos_theta_R=numerators.cos_theta_R / norm,
         cos2_theta_R=numerators.cos2_theta_R / norm,
+        cos4_theta_R=numerators.cos4_theta_R / norm,
+        cos6_theta_R=numerators.cos6_theta_R / norm,
+        cos8_theta_R=numerators.cos8_theta_R / norm,
+        R_cos2_theta_R=numerators.R_cos2_theta_R / norm,
         coordinate_r=divide(numerators.coordinate_r),
         coordinate_R=divide(numerators.coordinate_R),
         dipole_r=divide(numerators.dipole_r),
@@ -747,6 +828,130 @@ def _serial_radial_densities(system, state):
         values,
         system.grid1.weights,
         system.grid2.weights,
+    )
+
+
+def _uncoupled_angular_populations(system, state):
+    values = np.asarray(state)
+    if values.shape != system.psi_shape:
+        raise ValueError(
+            f"state shape {values.shape} does not match {system.psi_shape}"
+        )
+    weights = (
+        system.grid1.weights[:, None] * system.grid2.weights[None, :]
+    )
+    populations = _uncoupled_angular_population_arrays(
+        system,
+        values,
+        weights,
+    )
+    return DiatomicIonAngularPopulations(
+        L=tuple(populations[0]),
+        l1=tuple(populations[1]),
+        l2=tuple(populations[2]),
+    )
+
+
+def _uncoupled_angular_population_arrays(system, values, weights):
+    if system.uses_compact_angular_storage:
+        channel_population = np.einsum(
+            "pab,pab,ab->p",
+            values.conj(),
+            values,
+            weights,
+            optimize=True,
+        ).real
+    else:
+        channel_population = np.einsum(
+            "ijab,ijab,ab->ij",
+            values.conj(),
+            values,
+            weights,
+            optimize=True,
+        ).real
+
+    l1_population = np.zeros(system.basis1.l_max + 1)
+    l2_population = np.zeros(system.basis2.l_max + 1)
+    L_population = np.zeros(system.basis1.l_max + system.basis2.l_max + 1)
+    for pair, (channel1, channel2) in enumerate(system.angular_pairs.pairs):
+        index = pair if system.uses_compact_angular_storage else (
+            channel1,
+            channel2,
+        )
+        population = channel_population[index]
+        l1 = system.basis1.states[channel1][0]
+        l2 = system.basis2.states[channel2][0]
+        l1_population[l1] += population
+        l2_population[l2] += population
+
+    # Total-L populations require a coupled transform. They are left empty
+    # for the legacy full-product representation, where no fixed M sector is
+    # selected. Compact storage has an exact fixed-M transform.
+    if system.M_tot is not None:
+        from .coupled_angular import (
+            CoupledAngularBasisSpec,
+            CoupledAngularTransform,
+        )
+
+        coupled_basis = CoupledAngularBasisSpec(
+            system.basis1.l_max,
+            system.basis2.l_max,
+            system.basis1.l_max + system.basis2.l_max,
+            M_tot=system.M_tot,
+            pair_exchange_parity=system.basis2.coordinate_parity,
+        )
+        transform = CoupledAngularTransform(coupled_basis)
+        expected_states = tuple(
+            (*system.basis1.states[channel1], *system.basis2.states[channel2])
+            for channel1, channel2 in system.angular_pairs.pairs
+        )
+        if expected_states == transform.uncoupled_states:
+            coupled = transform.to_coupled(values)
+            coupled_population = np.einsum(
+                "cab,cab,ab->c",
+                coupled.conj(),
+                coupled,
+                weights,
+                optimize=True,
+            ).real
+            for population, (_, _, L, _) in zip(
+                coupled_population,
+                coupled_basis.states,
+                strict=True,
+            ):
+                L_population[L] += population
+
+    return L_population, l1_population, l2_population
+
+
+def _distributed_angular_populations(state, reductions):
+    representation = state.layout.representation
+    partition = state.partition
+    if hasattr(partition, "owned_indices1"):
+        weights_r = representation.grid1.weights[partition.owned_indices1]
+        weights_R = representation.grid2.weights[partition.owned_indices2]
+    elif state.layout.partitioned_coordinate == 1:
+        weights_r = representation.grid1.weights[partition.owned_indices]
+        weights_R = representation.grid2.weights
+    else:
+        weights_r = representation.grid1.weights
+        weights_R = representation.grid2.weights[partition.owned_indices]
+    local = _uncoupled_angular_population_arrays(
+        representation,
+        state.coefficients,
+        weights_r[:, None] * weights_R[None, :],
+    )
+    sizes = tuple(values.size for values in local)
+    combined = reductions.global_sum(
+        np.concatenate(local),
+        rank=state.rank,
+    )
+    first = sizes[0]
+    second = first + sizes[1]
+    return DiatomicIonAngularPopulations(
+        L=tuple(combined[:first]),
+        l1=tuple(combined[first:second]),
+        l2=tuple(combined[second:]),
     )
 
 

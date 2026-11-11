@@ -106,6 +106,17 @@ class CoupledTwoRadialState:
     ) -> None:
         """Require exact radial and coupled-angular representation identity."""
 
+        self._validate_radial_and_multipoles(representation)
+        if self.angular_basis != representation.angular_basis:
+            raise ValueError("coupled angular basis does not match")
+        expected = np.asarray(representation.angular_basis.states, dtype=np.int64)
+        if not np.array_equal(self.angular_states, expected):
+            raise ValueError("coupled angular state table does not match")
+
+    def _validate_radial_and_multipoles(
+        self,
+        representation: CoupledTwoRadialSystem,
+    ) -> None:
         if not isinstance(representation, CoupledTwoRadialSystem):
             raise TypeError("representation must be a CoupledTwoRadialSystem")
         stored = self.metadata["representation"]
@@ -123,11 +134,6 @@ class CoupledTwoRadialState:
             stored["coordinate2"]["grid"],
             representation.grid2,
         )
-        if self.angular_basis != representation.angular_basis:
-            raise ValueError("coupled angular basis does not match")
-        expected = np.asarray(representation.angular_basis.states, dtype=np.int64)
-        if not np.array_equal(self.angular_states, expected):
-            raise ValueError("coupled angular state table does not match")
         expected_multipoles = {
             "lambda_max": representation.multipoles.lambda_max,
             "mu_max": representation.multipoles.mu_max,
@@ -141,6 +147,37 @@ class CoupledTwoRadialState:
 
         self.validate_representation(representation)
         return self.coefficients.copy()
+
+    def embed_into(
+        self,
+        representation: CoupledTwoRadialSystem,
+    ) -> np.ndarray:
+        """Embed a symmetry-restricted state into a compatible larger basis."""
+
+        self._validate_radial_and_multipoles(representation)
+        stored_basis = self.angular_basis
+        target_basis = representation.angular_basis
+        if stored_basis.l1_max != target_basis.l1_max:
+            raise ValueError("stored and target l1_max values do not match")
+        if stored_basis.l2_max != target_basis.l2_max:
+            raise ValueError("stored and target l2_max values do not match")
+        if stored_basis.M_tot != target_basis.M_tot:
+            raise ValueError("stored and target M_tot values do not match")
+        if stored_basis.pair_exchange_parity != target_basis.pair_exchange_parity:
+            raise ValueError(
+                "stored and target pair-exchange parities do not match"
+            )
+
+        result = representation.zeros(dtype=self.coefficients.dtype)
+        for stored_channel, state in enumerate(stored_basis.states):
+            target_channel = target_basis.get(*state)
+            if target_channel is None:
+                raise ValueError(
+                    f"stored coupled angular state {state} is absent from "
+                    "the target representation"
+                )
+            result[target_channel] = self.coefficients[stored_channel]
+        return result
 
 
 def save_coupled_two_radial_state(
@@ -266,6 +303,31 @@ def load_coupled_two_radial_state(
     if state.state_data_id != _array_id(state.coefficients):
         raise ValueError("coupled archive coefficient checksum does not match")
     return state
+
+
+def coupled_two_radial_compatibility_metadata(
+    representation: CoupledTwoRadialSystem,
+    *,
+    physical_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return representation-safe coupled checkpoint metadata."""
+
+    if not isinstance(representation, CoupledTwoRadialSystem):
+        raise TypeError("representation must be a CoupledTwoRadialSystem")
+    if not isinstance(physical_state, Mapping):
+        raise TypeError("physical_state must be a mapping")
+    arrays = _representation_arrays(representation)
+    representation_metadata = _representation_metadata(representation)
+    metadata = {
+        "physical_state": dict(physical_state),
+        "representation": representation_metadata,
+        "representation_id": _representation_id(
+            representation_metadata,
+            arrays,
+        ),
+        "state_shape": list(representation.psi_shape),
+    }
+    return json.loads(_canonical_json(metadata))
 
 
 def _representation_arrays(

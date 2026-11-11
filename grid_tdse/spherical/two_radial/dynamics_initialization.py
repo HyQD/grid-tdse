@@ -14,6 +14,10 @@ import numpy as np
 
 from .angular import Parity
 from .coulomb import RadialCoulombMethod
+from .coupled_state_archive import (
+    CoupledTwoRadialState,
+    load_coupled_two_radial_state,
+)
 from .diatomic import (
     DiatomicIonGroundStateResult,
     NonBornOppenheimerDiatomicIonGroundState,
@@ -28,7 +32,7 @@ from .distributed_2d_state import (
 )
 from .grids import FEMDVRGridSpec
 from .state_archive import TwoRadialState, load_two_radial_state
-from .system import TwoRadialSystem
+from .system import CoupledTwoRadialSystem, TwoRadialSystem
 
 
 DiatomicDynamicsInitialStatePolicy = Literal[
@@ -60,6 +64,32 @@ class DiatomicDynamicsInitializationResult:
             "representation_id": self.archive.representation_id,
             "setup_wall_time": self.setup_wall_time,
             "ground_state_wall_time": self.ground_state_wall_time,
+        }
+
+
+@dataclass(frozen=True)
+class CoupledDiatomicDynamicsInitializationResult:
+    """Prepared coupled dynamics state and its setup provenance."""
+
+    state: np.ndarray
+    source: Literal["archive", "computed"]
+    archive_path: Path
+    archive: CoupledTwoRadialState
+    setup_wall_time: float
+    ground_state_wall_time: float | None
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Return JSON-compatible initialization metadata."""
+
+        return {
+            "source": self.source,
+            "archive_path": str(self.archive_path),
+            "state_data_id": self.archive.state_data_id,
+            "representation_id": self.archive.representation_id,
+            "setup_wall_time": self.setup_wall_time,
+            "ground_state_wall_time": self.ground_state_wall_time,
+            "wf_representation": "coupled",
         }
 
 
@@ -139,6 +169,8 @@ def prepare_non_bo_diatomic_dynamics_initial_state(
         internuclear_grid=internuclear_grid,
         pair_exchange_parity=pair_parity,
     )
+
+
     _validate_ground_state_options(options)
 
     compute = policy == "recompute" or (
@@ -185,6 +217,155 @@ def prepare_non_bo_diatomic_dynamics_initial_state(
     state = archive.embed_into(representation)
     state = _normalized_state(representation, state)
     return DiatomicDynamicsInitializationResult(
+        state=state,
+        source=source,
+        archive_path=path,
+        archive=archive,
+        setup_wall_time=perf_counter() - started,
+        ground_state_wall_time=ground_state_wall_time,
+    )
+
+
+def prepare_coupled_non_bo_diatomic_dynamics_initial_state(
+    representation: CoupledTwoRadialSystem,
+    *,
+    system: str,
+    electronic_grid: FEMDVRGridSpec,
+    internuclear_grid: FEMDVRGridSpec,
+    pair_exchange_parity: Parity | None,
+    archive_path: str | PathLike[str],
+    policy: DiatomicDynamicsInitialStatePolicy = "require",
+    inversion_parity: Parity = 1,
+    ground_state_L_max: int = 0,
+    codata_set: str = "2022",
+    radial_coulomb_method: RadialCoulombMethod = "poisson",
+    ground_state_options: Mapping[str, Any] | None = None,
+    allow_unconverged: bool = False,
+) -> CoupledDiatomicDynamicsInitializationResult:
+    """Load or compute and embed a coupled Davidson ground state."""
+
+    started = perf_counter()
+    policy = _initial_state_policy(policy)
+    path = Path(archive_path)
+    if not isinstance(representation, CoupledTwoRadialSystem):
+        raise TypeError("representation must be a CoupledTwoRadialSystem")
+    if not isinstance(electronic_grid, FEMDVRGridSpec):
+        raise TypeError("electronic_grid must be a FEMDVRGridSpec")
+    if not isinstance(internuclear_grid, FEMDVRGridSpec):
+        raise TypeError("internuclear_grid must be a FEMDVRGridSpec")
+    if not isinstance(allow_unconverged, (bool, np.bool_)):
+        raise TypeError("allow_unconverged must be boolean")
+
+    parameters = _diatomic_parameters(system, codata_set)
+    pair_parity = _pair_exchange_parity(pair_exchange_parity, parameters)
+    inversion_parity = _parity(inversion_parity, "inversion_parity")
+    options = {} if ground_state_options is None else dict(ground_state_options)
+    reserved = {
+        "system",
+        "wf_representation",
+        "electronic_grid",
+        "internuclear_grid",
+        "inversion_parity",
+        "pair_exchange_parity",
+        "l1_max",
+        "l2_max",
+        "L_max",
+        "M_tot",
+        "lambda_max",
+        "codata_set",
+        "radial_coulomb_method",
+        "initial_state",
+        "solver",
+    }
+    conflicts = sorted(reserved.intersection(options))
+    if conflicts:
+        raise ValueError(
+            "ground_state_options cannot override: " + ", ".join(conflicts)
+        )
+    basis = representation.angular_basis
+    if representation.grid1.specification != electronic_grid:
+        raise ValueError("dynamics electronic grid does not match electronic_grid")
+    if representation.grid2.specification != internuclear_grid:
+        raise ValueError(
+            "dynamics internuclear grid does not match internuclear_grid"
+        )
+    if basis.pair_exchange_parity != pair_parity:
+        raise ValueError(
+            "dynamics coupled basis does not preserve pair_exchange_parity"
+        )
+
+    compute = policy == "recompute" or (
+        policy == "compute-if-missing" and not path.is_file()
+    )
+    if policy == "require" and not path.is_file():
+        raise FileNotFoundError(
+            f"required ground-state archive does not exist: {path}"
+        )
+
+    ground_state_wall_time = None
+    if compute:
+        if path.exists() and not path.is_file():
+            raise ValueError(f"ground-state archive path is not a file: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        solve_started = perf_counter()
+        calculation = NonBornOppenheimerDiatomicIonGroundState(
+            parameters.name,
+            wf_representation="coupled",
+            electronic_grid=electronic_grid,
+            internuclear_grid=internuclear_grid,
+            inversion_parity=inversion_parity,
+            pair_exchange_parity=pair_parity,
+            l1_max=basis.l1_max,
+            l2_max=basis.l2_max,
+            L_max=ground_state_L_max,
+            M_tot=basis.M_tot,
+            lambda_max=representation.multipoles.lambda_max,
+            radial_coulomb_method=radial_coulomb_method,
+            codata_set=codata_set,
+            initial_state="product",
+            solver="davidson",
+            **options,
+        )
+        result = calculation.solve()
+        ground_state_wall_time = perf_counter() - solve_started
+        if not result.converged and not allow_unconverged:
+            raise RuntimeError(
+                "computed coupled ground state did not satisfy the Davidson "
+                "convergence criterion"
+            )
+        result.save(path, overwrite=policy == "recompute")
+        source: Literal["archive", "computed"] = "computed"
+    else:
+        source = "archive"
+
+    archive = load_coupled_two_radial_state(path)
+    archive.require_solver_converged(allow_unconverged=allow_unconverged)
+    physical = archive.physical_state
+    if physical.get("system_family") != "non_bo_diatomic_ion":
+        raise ValueError("initial-state archive is not a non-BO diatomic ion")
+    if physical.get("system") != parameters.name:
+        raise ValueError("initial-state archive contains a different system")
+    stored_parameters = physical.get("parameters", {})
+    if stored_parameters.get("codata_set") != parameters.codata_set:
+        raise ValueError("initial-state archive uses a different CODATA set")
+    symmetry = physical.get("symmetry", {})
+    expected_symmetry = {
+        "inversion_parity": inversion_parity,
+        "pair_exchange_parity": pair_parity,
+        "M_tot": basis.M_tot,
+    }
+    for name, expected in expected_symmetry.items():
+        if symmetry.get(name) != expected:
+            raise ValueError(
+                f"initial-state archive symmetry {name!r} does not match"
+            )
+
+    state = archive.embed_into(representation)
+    norm = representation.norm(state)
+    if norm <= 0.0:
+        raise ValueError("coupled initial state must have positive norm")
+    state = state / norm
+    return CoupledDiatomicDynamicsInitializationResult(
         state=state,
         source=source,
         archive_path=path,
