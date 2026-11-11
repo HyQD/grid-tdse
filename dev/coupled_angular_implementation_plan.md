@@ -2,8 +2,10 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Steps 1-7 are
-implemented and covered by focused tests; Steps 8-17 have not started.
+This document is a design, implementation, and validation plan. Steps 1-13 are
+implemented and covered by focused tests. The serial restart portion of Step
+13 is complete; its cross-process-grid restart check remains coupled to the
+MPI work in Step 16. Steps 14-17 have not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
@@ -1006,6 +1008,17 @@ embedding must be explicit and norm preserving.
 Exit gate: existing uncoupled callers are unchanged, while a coupled
 calculation can be configured entirely through the public high-level API.
 
+This step is implemented by the one-time `wf_representation` dispatch in
+`NonBornOppenheimerDiatomicIonTDSE` and the representation-specific
+`CoupledNonBornOppenheimerDiatomicIonTDSE` driver. The coupled constructor
+accepts the four coupled angular controls, builds only coupled actions, and
+supports axial length-gauge SIA and CF4-SIA propagation. It rejects velocity
+gauge and uncoupled-only kernel selectors explicitly. A converged,
+inversion-restricted coupled ground-state archive is embedded channel by
+channel into the larger field-coupled space; the radial grids, multipoles,
+`l1_max`, `l2_max`, `M_tot`, and exchange sector must match, and the embedding
+preserves the physical norm.
+
 ### Step 11: validate serial pulse propagation with SIA
 
 Use SIA as the first propagator because a CAP makes the Hamiltonian
@@ -1028,6 +1041,14 @@ independently time-step converged.
 Exit gate: all three isotopologues pass state-level and observable-level
 comparisons for the serial reference pulses.
 
+This step is implemented and validated for H2+, HD+, and D2+. Focused tests
+transform the complete coupled trajectory to the fixed-`M_tot` uncoupled
+space and compare states and observables at every retained sample. They cover
+SIA weak pulses, CF4-SIA with CAPs, norm loss, time-step refinement, and
+Krylov-tolerance refinement. The coupled propagator reuses the structured CF4
+linear-combination factory, so the static Hamiltonian and field-independent
+dipole action are each evaluated through their native coupled kernels.
+
 ### Step 12: add dynamics observables and angular populations
 
 Generalize `DiatomicIonDynamicsObservableEvaluator` through the shared
@@ -1048,6 +1069,19 @@ observable rather than a numerical second derivative hidden in the propagator.
 Exit gate: every observable agrees with its uncoupled transformed reference
 at the initial state and at selected times during a pulse.
 
+This step is implemented by a coupled observable evaluator that performs the
+radial contractions directly in coupled storage. Small angular matrices are
+constructed once from the exact Clebsch--Gordan transform; trajectory states
+are not converted while sampling. Raw and conditional results now include
+CAP norm loss, all existing radial and alignment moments, electronic,
+internuclear, and total dipoles, angular-momentum expectations, inversion and
+exchange expectations, radial marginals, and populations grouped by `L`,
+`l_1`, and `l_2`. The uncoupled fixed-`M_tot` evaluator exposes the same
+population schema for direct trajectory comparisons. The scalar-product
+observable `r dot R` is applied as one two-coordinate operator so transverse
+contributions are not lost through an unphysical intermediate fixed-`M_tot`
+projection.
+
 ### Step 13: make archives, snapshots, and restart representation-safe
 
 Extend ground-state archives, wavefunction snapshots, and rolling checkpoints
@@ -1063,6 +1097,19 @@ accepted-step count.
 
 Exit gate: restarted serial trajectories reproduce uninterrupted states and
 time series to the established tolerance.
+
+The serial portion of this step is implemented. Coupled ground-state
+archives, rolling checkpoints, and retained snapshots carry a checksum-bound
+channel table, all coupled angular limits, `M_tot`, symmetry sectors,
+Condon--Shortley and Clebsch--Gordan conventions, physical parameters,
+field/gauge data, integrator data, and CAP metadata. Tests cover
+uninterrupted-versus-restarted trajectories, accepted-step and field-phase
+continuity, retained scientific snapshot metadata, and rejection of an
+uncoupled restart. Rolling-checkpoint retention remains the common real-time
+behavior and does not delete requested scientific snapshots. Restarting on a
+different compatible radial process grid cannot be tested before a coupled
+distributed state exists; that remaining sub-gate is assigned to Step 16 and
+does not weaken the serial representation-safety gate.
 
 ### Step 14: qualify isotope-specific laser physics
 

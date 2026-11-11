@@ -50,6 +50,7 @@ from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
 from .system import (
     CoordinateSpec,
+    CoupledTwoRadialSystem,
     CoulombKernelMode,
     RadialKernelMode,
     RadialOperatorMode,
@@ -186,7 +187,7 @@ class _TwoRadialTDSE:
             initial_time=initial_time,
         )
         self.initial_state = self._prepare_initial_state(initial_state)
-        self.field_free_hamiltonian = self.representation.hamiltonian(
+        self.field_free_hamiltonian = self._build_field_free_hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
             coulomb_kernel=coulomb_kernel,
@@ -298,10 +299,7 @@ class _TwoRadialTDSE:
         self._active_parent_state_data_id = real_time_state_data_id(
             self.initial_state
         )
-        self.compatibility_metadata = two_radial_compatibility_metadata(
-            self.representation,
-            physical_state=self._physical_state_metadata(),
-        )
+        self.compatibility_metadata = self._build_compatibility_metadata()
         self.dynamics_metadata = {
             "interaction": "electric_dipole" if self.fields else "field_free",
             "polarization_axis": "z" if self.fields else None,
@@ -591,6 +589,15 @@ class _TwoRadialTDSE:
     def _build_dipole_interaction(self, fields, gauge=None):
         raise NotImplementedError
 
+    def _build_field_free_hamiltonian(self, **options):
+        return self.representation.hamiltonian(**options)
+
+    def _build_compatibility_metadata(self):
+        return two_radial_compatibility_metadata(
+            self.representation,
+            physical_state=self._physical_state_metadata(),
+        )
+
     def _physical_state_metadata(self) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -751,10 +758,32 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
 class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
     """Propagate a non-Born--Oppenheimer three-body diatomic ion."""
 
+    def __new__(
+        cls,
+        *args,
+        wf_representation: Literal["uncoupled", "coupled"] = "uncoupled",
+        **kwargs,
+    ):
+        if cls is NonBornOppenheimerDiatomicIonTDSE:
+            if wf_representation == "coupled":
+                from .coupled_tdse import (
+                    CoupledNonBornOppenheimerDiatomicIonTDSE,
+                )
+
+                return object.__new__(
+                    CoupledNonBornOppenheimerDiatomicIonTDSE
+                )
+            if wf_representation != "uncoupled":
+                raise ValueError(
+                    "wf_representation must be 'uncoupled' or 'coupled'"
+                )
+        return super().__new__(cls)
+
     def __init__(
         self,
         system: str,
         *,
+        wf_representation: Literal["uncoupled"] = "uncoupled",
         electronic_grid: FEMDVRGridSpec,
         internuclear_grid: FEMDVRGridSpec,
         initial_state: InitialState | None = None,
@@ -805,6 +834,12 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         radial_kernel: RadialKernelMode = "reference",
         dipole_kernel: DipoleKernelMode = "reference",
     ) -> None:
+        if wf_representation != "uncoupled":
+            raise ValueError(
+                "the uncoupled constructor requires "
+                "wf_representation='uncoupled'"
+            )
+        self.wf_representation = "uncoupled"
         _validate_absorber_pair(mask_r, cap_r, "electronic coordinate r")
         _validate_absorber_pair(mask_R, cap_R, "internuclear coordinate R")
         if not isinstance(electronic_grid, FEMDVRGridSpec):
@@ -1226,6 +1261,20 @@ def _validate_velocity_gauge_initial_vector_potential(
 
 def _validate_field_angular_basis(representation, fields) -> None:
     if not fields:
+        return
+    if isinstance(representation, CoupledTwoRadialSystem):
+        basis = representation.angular_basis
+        if basis.inversion_parity is not None:
+            raise ValueError(
+                "a z-polarized field requires both inversion parities in "
+                "the coupled angular basis"
+            )
+        parities = {(l1 + l2) % 2 for l1, l2, _, _ in basis.states}
+        if parities != {0, 1}:
+            raise ValueError(
+                "a z-polarized field requires both even and odd coupled "
+                "angular channels"
+            )
         return
     electronic_parities = {
         l_value % 2 for l_value, _ in representation.basis1.states

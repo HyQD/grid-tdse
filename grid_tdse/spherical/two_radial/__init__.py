@@ -52,6 +52,7 @@ from .coupled_dipole import (
 )
 from .coupled_state_archive import (
     CoupledTwoRadialState,
+    coupled_two_radial_compatibility_metadata,
     load_coupled_two_radial_state,
     save_coupled_two_radial_state,
 )
@@ -70,13 +71,16 @@ from .dipole import (
     TwoRadialAxialDipoleInteraction,
 )
 from .dynamics_initialization import (
+    CoupledDiatomicDynamicsInitializationResult,
     DiatomicDynamicsInitializationResult,
     DiatomicDynamicsInitialStatePolicy,
     DistributedDiatomicDynamicsInitializationResult,
     prepare_distributed_non_bo_diatomic_dynamics_initial_state,
+    prepare_coupled_non_bo_diatomic_dynamics_initial_state,
     prepare_non_bo_diatomic_dynamics_initial_state,
 )
 from .dynamics_sampling import (
+    DiatomicIonAngularPopulations,
     DiatomicIonConditionalObservables,
     DiatomicIonDynamicsObservableEvaluator,
     DiatomicIonDynamicsSample,
@@ -194,6 +198,7 @@ from .tdse import (
     NonBornOppenheimerDiatomicIonTDSE,
     TwoElectronAtomTDSE,
 )
+from .coupled_tdse import CoupledNonBornOppenheimerDiatomicIonTDSE
 
 __all__ = [
     "AngularBasisSpec",
@@ -220,8 +225,10 @@ __all__ = [
     "CoupledDipoleCouplings",
     "CoupledDiatomicIonGroundStateObservables",
     "CoupledDiatomicIonGroundStateResult",
+    "CoupledDiatomicDynamicsInitializationResult",
     "CoupledHamiltonianComponents",
     "CoupledNonBornOppenheimerDiatomicIonGroundState",
+    "CoupledNonBornOppenheimerDiatomicIonTDSE",
     "CoupledTwoRadialAxialDipoleInteraction",
     "CoupledTwoRadialState",
     "CoupledTwoRadialHamiltonian",
@@ -233,6 +240,7 @@ __all__ = [
     "DavidsonPreconditionerName",
     "DiatomicIonGroundStateResult",
     "DiatomicIonGroundStateSample",
+    "DiatomicIonAngularPopulations",
     "DiatomicIonConditionalObservables",
     "DiatomicIonParameters",
     "DiatomicDynamicsInitializationResult",
@@ -320,6 +328,7 @@ __all__ = [
     "coupled_coulomb_coefficient_reduced",
     "coupled_dipole_coefficient_direct",
     "coupled_dipole_coefficient_reduced",
+    "coupled_two_radial_compatibility_metadata",
     "gather_two_radial_state",
     "get_size_NBO_Psi",
     "gather_two_radial_2d_state",
@@ -330,6 +339,7 @@ __all__ = [
     "phase_align_two_radial_state",
     "phase_aligned_two_radial_state_difference",
     "prepare_distributed_non_bo_diatomic_dynamics_initial_state",
+    "prepare_coupled_non_bo_diatomic_dynamics_initial_state",
     "prepare_non_bo_diatomic_dynamics_initial_state",
     "radial_potential",
     "redistribute_two_radial_2d_state",
