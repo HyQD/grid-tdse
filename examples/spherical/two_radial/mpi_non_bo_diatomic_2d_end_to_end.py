@@ -5,8 +5,10 @@ It intentionally does not run a serial comparison inside the MPI job; run the
 serial example separately when a cross-check is desired.
 
 Phase 9h snapshots and restart states are gathered to rank zero and written in
-the portable two-radial state format.  This is suitable for acceptance tests
-and modest examples.  Scalable distributed state I/O is deferred to Phase 10.
+the portable two-radial state format.  Wavefunction snapshots are retained at
+their selected steps, while periodic restart checkpoints atomically replace a
+single latest-checkpoint archive.  This is suitable for acceptance tests and
+modest examples.  Scalable distributed state I/O is deferred to Phase 10.
 
 For example::
 
@@ -115,6 +117,7 @@ if directory_error is not None:
 run_directory = Path(communicator.bcast(str(run_directory), root=0))
 paths = resolved_paths(values, run_directory)
 checkpoint_directory = run_directory / "checkpoints"
+checkpoint_path = checkpoint_directory / "checkpoint-latest.npz"
 if communicator.rank == 0:
     if paths["wavefunctions"] is not None:
         paths["wavefunctions"].mkdir(parents=True, exist_ok=True)
@@ -228,6 +231,7 @@ if communicator.rank == 0:
 
 snapshot_records = []
 checkpoint_records = []
+checkpoint_written = False
 physical_state = physical_state_metadata(setup)
 snapshot_selector = (
     None
@@ -243,6 +247,7 @@ snapshot_selector = (
 
 
 def retain_state(state, step, time, diagnostics, final):
+    global checkpoint_written
     del diagnostics
     global_step = step_offset + step
     snapshot_selected = (
@@ -280,19 +285,17 @@ def retain_state(state, step, time, diagnostics, final):
         if communicator.rank == 0:
             snapshot_records.append({**record, "path": str(saved)})
     if checkpoint_selected:
-        destination = checkpoint_directory / (
-            f"checkpoint-step-{global_step:08d}.npz"
-        )
         saved = save_distributed_two_radial_2d_state(
-            destination,
+            checkpoint_path,
             state,
             communicator,
             physical_state=physical_state,
             calculation={**record, "kind": "restart-state"},
-            overwrite=values.overwrite,
+            overwrite=values.overwrite or checkpoint_written,
         )
+        checkpoint_written = True
         if communicator.rank == 0:
-            checkpoint_records.append({**record, "path": str(saved)})
+            checkpoint_records[:] = [{**record, "path": str(saved)}]
 
 
 communicator.Barrier()
@@ -348,6 +351,12 @@ if communicator.rank == 0:
         "checkpoint_directory": (
             None if values.no_checkpoints else str(checkpoint_directory)
         ),
+        "checkpoint_path": (
+            None if values.no_checkpoints else str(checkpoint_path)
+        ),
+        "checkpoint_retention": (
+            None if values.no_checkpoints else "latest"
+        ),
         "checkpoint_states": checkpoint_records,
         "observables_path": str(observables_path),
         "radial_density_path": str(radial_density_path),
@@ -355,8 +364,8 @@ if communicator.rank == 0:
         "hamiltonian_profile": asdict(result.hamiltonian_profile),
         "reduction_profile": asdict(result.reduction_profile),
         "io_note": (
-            "Phase 9h snapshots/checkpoints gather the state to rank zero; "
-            "scalable distributed I/O is Phase 10."
+            "Phase 9h snapshots and the rolling latest checkpoint gather the "
+            "state to rank zero; scalable distributed I/O is Phase 10."
         ),
     }
     summary_path = write_json(run_directory / "summary.json", summary)
