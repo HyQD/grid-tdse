@@ -2,8 +2,8 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Step 1 is
-implemented on a dedicated feature branch; Steps 2-17 have not started.
+This document is a design, implementation, and validation plan. Steps 1-5 are
+implemented and covered by focused tests; Steps 6-17 have not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
@@ -761,6 +761,8 @@ individual magnetic projections are not quantum numbers in this basis.
 
 ### Step 5: implement the coupled Coulomb action
 
+Status: implemented and covered by focused unit tests.
+
 Reuse the existing `RadialCoulombMultipoles` data unchanged. First implement
 the direct Clebsch-Gordan sum in Section 5.2 as a coefficient oracle. Then add
 the reduced Wigner-symbol builder and sparse output-grouped transition table.
@@ -771,6 +773,16 @@ must preserve `L`, `M`, inversion parity, and homonuclear exchange parity.
 
 Exit gate: direct and reduced coefficients agree, the table is Hermitian, and
 the complete Coulomb action agrees with the transformed uncoupled action.
+
+`CoupledTwoRadialCoulombHamiltonian` reuses the prepared
+`RadialCoulombMultipoles` without modification. Its production coupling
+builder evaluates the scalar angular coefficient through reduced
+spherical-harmonic matrix elements and a Wigner 6-j symbol, while the direct
+Clebsch-Gordan sum remains a public validation oracle. The resulting real
+transition table is sparse and output-grouped, and its point-local action does
+not retain dense angular matrices. A coupled scalar interaction requires all
+magnetic components through the largest retained `lambda`; truncated `mu`
+expansions are rejected explicitly.
 
 ### Step 6: complete and validate the field-free Hamiltonian
 

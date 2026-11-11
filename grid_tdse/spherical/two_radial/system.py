@@ -429,6 +429,24 @@ class CoupledTwoRadialSystem:
             radial_operator_mode=radial_operator_mode,
         )
 
+    def coulomb_hamiltonian(
+        self,
+        *,
+        coefficient_method="reduced",
+        tolerance: float = 1.0e-12,
+        max_pairs: int = 20_000_000,
+    ):
+        """Build the coupled electron--nuclear Coulomb action."""
+
+        from .coupled_coulomb import CoupledTwoRadialCoulombHamiltonian
+
+        return CoupledTwoRadialCoulombHamiltonian(
+            self,
+            coefficient_method=coefficient_method,
+            tolerance=tolerance,
+            max_pairs=max_pairs,
+        )
+
 
 @dataclass(frozen=True)
 class TwoRadialSystem:

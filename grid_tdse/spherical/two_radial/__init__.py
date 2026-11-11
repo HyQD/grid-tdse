@@ -21,6 +21,14 @@ from .coupled_angular import (
     CoupledAngularTransform,
     UncoupledAngularState,
 )
+from .coupled_coulomb import (
+    CoupledCoulombCoefficientMethod,
+    CoupledCoulombCouplings,
+    CoupledTwoRadialCoulombHamiltonian,
+    build_coupled_coulomb_couplings,
+    coupled_coulomb_coefficient_direct,
+    coupled_coulomb_coefficient_reduced,
+)
 from .coupled_hamiltonian import CoupledTwoRadialOneBodyHamiltonian
 from .diatomic import (
     DavidsonPreconditionerName,
@@ -177,6 +185,9 @@ __all__ = [
     "CoupledAngularProjection",
     "CoupledAngularState",
     "CoupledAngularTransform",
+    "CoupledCoulombCoefficientMethod",
+    "CoupledCoulombCouplings",
+    "CoupledTwoRadialCoulombHamiltonian",
     "CoupledTwoRadialOneBodyHamiltonian",
     "CoupledTwoRadialSystem",
     "CartesianRealTimeCommunicator",
@@ -261,9 +272,12 @@ __all__ = [
     "TwoElectronAtomTDSE",
     "WavefunctionStorageSize",
     "angular_radial_potential",
+    "build_coupled_coulomb_couplings",
     "build_coulomb_couplings",
     "build_radial_coulomb_multipoles",
     "build_two_radial_real_time_preconditioner",
+    "coupled_coulomb_coefficient_direct",
+    "coupled_coulomb_coefficient_reduced",
     "gather_two_radial_state",
     "get_size_NBO_Psi",
     "gather_two_radial_2d_state",
