@@ -1188,8 +1188,20 @@ qualification reports. Thread-emulated 2-by-2 tests cover local components,
 length- and velocity-gauge trajectories, sampled observables, CAP loss, and a
 restart from a 1-by-1 to a 2-by-2 layout. A local four-process MPI component
 comparison also agrees with the serial coupled action to roundoff. The
-multi-node Olivia run remains the final machine-specific Step 16 gate; no
-multi-node scaling claim is made by the local validation.
+machine-specific Step 16 gate passed on Olivia on 2026-11-12 for deployment
+`20261112-104035-cpu-ompi508-coupled-step16`. Preparation job `2849982` and
+combined two-node job `2850231` both completed successfully, and the deployment
+was promoted to `current`. The 16-rank coupled result agreed with the one-rank
+reference to `6.206e-17` in the final
+state, `6.206e-17` after restart, and `1.776e-15` in the sampled time series;
+the maximum Hamiltonian-component error was `4.965e-16`. The general 16-rank
+two-node result achieved a `5.230` speedup over its one-rank reference while
+agreeing to `5.227e-15` in the final state and `7.550e-15` in the time series.
+These runs qualify correctness, restart portability, rank placement, and the
+Olivia `cm`/`ofi`/`cxi` transport. They do not establish production scaling for
+the deliberately small coupled problem. The aggregate evidence is recorded in
+the [Olivia coupled Step 16 qualification
+record](../benchmarks/data/olivia_coupled_step16/README.md).
 
 ### Step 17: optimize and qualify for production
 
