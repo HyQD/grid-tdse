@@ -6,9 +6,10 @@ This is a provisional diagnostic report for the unweighted atom-centered
 H2+ prototype introduced in `grid_tdse.spherical.one_radial_atomic`. The
 initial sweep was run on 2026-11-12 at commit `ba60576` on the
 `becke_partitioning` branch. The radial-extent follow-up was run at commit
-`2a493f6`; the solver code was unchanged between the two commits. This report
-is intended to identify the dominant error sources; it is not yet a
-production convergence study.
+`2a493f6`. The midpoint-centered comparison was extended through
+`l_max = 72` on 2026-11-13 at commit `a2d8cfc`. The solver code was unchanged
+between these commits. This report is intended to identify the dominant
+error sources; it is not yet a production convergence study.
 
 ## Question
 
@@ -256,6 +257,65 @@ The PySCF results do not remove the nonvariational behavior. Interior radial
 points avoid evaluating directly on shared FEM boundaries, but angular
 pruning and the numerical treatment of the off-center nuclear singularity
 still require further study.
+
+## Midpoint-centered non-Becke comparison
+
+For comparison, the existing midpoint-centered spherical FEM-DVR solver in
+`grid_tdse.spherical.one_radial` was run at the same internuclear distance,
+`R = 2.0` bohr. These calculations do not use Becke partitioning. Both
+nuclear cusps must instead be represented by a spherical-harmonic expansion
+about the bond midpoint.
+
+The common numerical settings were
+
+```text
+radial element boundaries       (0, 1, 2, ..., 14, 15) bohr
+element width                   1 bohr
+radial points per element       15
+interior radial points          209
+r_max                           15 bohr
+m                               0
+nuclear-potential method        analytic multipoles
+nuclear multipole cutoff        L_max = 2*l_max
+```
+
+The cases through `l_max = 20` used the existing dense diagonalization. The
+larger cases used a matrix-free restarted Davidson iteration acting through
+`OneElectronDiatomicHamiltonian.apply_fixed_m()`, with a diagonal
+kinetic-plus-potential preconditioner, a maximum subspace dimension of 48,
+and a residual tolerance of `1e-10`. A Davidson calculation at `l_max = 20`
+agreed with the dense result to `3.85e-11 Eh`.
+
+| `l_max` | `L_max` | Dimension | Solver | Electronic energy (Eh) | Error (microhartree) |
+|---:|---:|---:|---|---:|---:|
+| 4 | 8 | 1045 | Dense | -1.096437507157232 | +6196.7073 |
+| 8 | 16 | 1881 | Dense | -1.101263740379622 | +1370.4741 |
+| 12 | 24 | 2717 | Dense | -1.102136431159439 | +497.7833 |
+| 16 | 32 | 3553 | Dense | -1.102401139375083 | +233.0751 |
+| 20 | 40 | 4389 | Dense | -1.102507082112768 | +127.1324 |
+| 24 | 48 | 5225 | Davidson | -1.102557447447127 | +76.7670 |
+| 28 | 56 | 6061 | Davidson | -1.102584372564176 | +49.8419 |
+| 32 | 64 | 6897 | Davidson | -1.102600045685680 | +34.1688 |
+| 36 | 72 | 7733 | Davidson | -1.102609776962314 | +24.4375 |
+| 40 | 80 | 8569 | Davidson | -1.102616131812951 | +18.0827 |
+| 44 | 88 | 9405 | Davidson | -1.102620453268405 | +13.7612 |
+| 48 | 96 | 10241 | Davidson | -1.102623491179185 | +10.7233 |
+| 52 | 104 | 11077 | Davidson | -1.102625686914155 | +8.5276 |
+| 56 | 112 | 11913 | Davidson | -1.102627311962820 | +6.9025 |
+| 60 | 120 | 12749 | Davidson | -1.102628539636847 | +5.6749 |
+| 64 | 128 | 13585 | Davidson | -1.102629484120363 | +4.7304 |
+| 68 | 136 | 14421 | Davidson | -1.102630222700766 | +3.9918 |
+| 72 | 144 | 15257 | Davidson | -1.102630808921941 | +3.4056 |
+
+The midpoint sequence is smooth, monotonic, and variational, but converges
+slowly with angular cutoff. At `l_max = 72`, its error remains
+`3.406 microhartree` with 15257 basis functions. The atom-centered Becke
+calculation at `r_max = 15` uses 372 basis functions at `l_max = 2` and has a
+nominal error of `0.080 microhartree`, although its unresolved quadrature
+variation is itself on the microhartree scale. The midpoint calculation
+therefore provides the cleaner controlled upper bound, while the
+atom-centered representation reaches the same broad accuracy regime with a
+much smaller angular basis.
 
 ## Interpretation
 
