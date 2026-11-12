@@ -30,6 +30,13 @@ of 2 bohr is
 E_ref = -1.1026342144949464615 Eh.
 ```
 
+This is the nonrelativistic limit reported by O. Kullie, "High-precision
+minmax solution of the two-center Dirac equation," *Physical Review A*
+**110**, 052808 (2024),
+[doi:10.1103/PhysRevA.110.052808](https://doi.org/10.1103/PhysRevA.110.052808).
+The corresponding clamped-nuclei total energy is
+`-0.6026342144949464615 Eh` after adding the nuclear repulsion `1/R = 0.5 Eh`.
+
 All errors below are signed and reported in microhartree:
 
 ```text
