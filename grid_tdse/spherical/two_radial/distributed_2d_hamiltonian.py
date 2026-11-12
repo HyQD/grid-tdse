@@ -14,7 +14,11 @@ from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadialDistributed2DLayout,
 )
-from .system import CoulombKernelMode, RadialKernelMode
+from .system import (
+    CoulombKernelMode,
+    CoupledTwoRadialSystem,
+    RadialKernelMode,
+)
 
 
 _STATE_HALO_TAG = {1: 28201, 2: 28202}
@@ -131,12 +135,22 @@ class TwoRadialDistributed2DHamiltonian:
         if radial_kernel not in {"reference", "row-wise"}:
             raise ValueError("radial_kernel must be 'reference' or 'row-wise'")
         self.radial_kernel = radial_kernel
-        self.serial_hamiltonian = self.representation.hamiltonian(
-            tile_size=tile_size,
-            radial_operator_mode="element-local",
-            coulomb_kernel=coulomb_kernel,
-            radial_kernel=radial_kernel,
+        self._coupled = isinstance(
+            self.representation,
+            CoupledTwoRadialSystem,
         )
+        if self._coupled:
+            self.serial_hamiltonian = self.representation.hamiltonian(
+                radial_operator_mode="element-local",
+                absorbing_boundaries=absorbing_boundaries,
+            )
+        else:
+            self.serial_hamiltonian = self.representation.hamiltonian(
+                tile_size=tile_size,
+                radial_operator_mode="element-local",
+                coulomb_kernel=coulomb_kernel,
+                radial_kernel=radial_kernel,
+            )
         if communicator is not None:
             rank, size = _communicator_rank_size(communicator)
             if size != layout.n_ranks:
@@ -171,7 +185,14 @@ class TwoRadialDistributed2DHamiltonian:
         self._weak_receive_buffers = {}
         self._weak_send_buffers = {}
 
-        if self.representation.uses_compact_angular_storage:
+        if self._coupled:
+            self._h1_diagonal = np.ascontiguousarray(
+                self.serial_hamiltonian.one_body.diagonal1
+            )
+            self._h2_diagonal = np.ascontiguousarray(
+                self.serial_hamiltonian.one_body.diagonal2
+            )
+        elif self.representation.uses_compact_angular_storage:
             pairs = self.representation.angular_pairs.pairs
             channels1 = np.asarray([first for first, _ in pairs], dtype=int)
             channels2 = np.asarray([second for _, second in pairs], dtype=int)
@@ -186,7 +207,11 @@ class TwoRadialDistributed2DHamiltonian:
             self._h2_diagonal = self.representation.h2_diagonal
 
         ranks = range(layout.n_ranks) if self.rank is None else (self.rank,)
-        radial_values = self.serial_hamiltonian.radial_multipoles.values
+        radial_values = (
+            self.representation.radial_multipoles.values
+            if self._coupled
+            else self.serial_hamiltonian.radial_multipoles.values
+        )
         self._local_radial_coulomb = {}
         self._local_masks = {}
         self._local_caps = {}
@@ -428,11 +453,18 @@ class TwoRadialDistributed2DHamiltonian:
         if started is None:
             started = self._profile_start()
             self._validate_local_state(state)
-        values = self.serial_hamiltonian._apply_coulomb_values(
-            state.coefficients,
-            self._local_radial_coulomb[state.rank],
-            out=out,
-        )
+        if self._coupled:
+            values = self.serial_hamiltonian.coulomb.apply_radial_tile(
+                state.coefficients,
+                self._local_radial_coulomb[state.rank],
+                out=out,
+            )
+        else:
+            values = self.serial_hamiltonian._apply_coulomb_values(
+                state.coefficients,
+                self._local_radial_coulomb[state.rank],
+                out=out,
+            )
         self._profile_finish("coulomb", started)
         return values
 
@@ -841,18 +873,20 @@ class TwoRadialDistributed2DHamiltonian:
             if coordinate == 1
             else self.representation.grid2.weights[partition.owned_indices]
         )
-        prefactor = (
-            self.representation.kinetic_prefactor1
-            if coordinate == 1
-            else self.representation.kinetic_prefactor2
-        )
+        prefactor = self._kinetic_prefactor(coordinate)
         result = weak_owned * _reshape_for_axis(
             prefactor / weights,
             weak_owned.ndim,
             axis,
         )
         indices = partition.owned_indices
-        if coordinate == 1:
+        if self._coupled:
+            diagonal = (
+                self._h1_diagonal[:, indices, None]
+                if coordinate == 1
+                else self._h2_diagonal[:, None, indices]
+            )
+        elif coordinate == 1:
             diagonal = (
                 self._h1_diagonal[:, indices, None]
                 if self.representation.uses_compact_angular_storage
@@ -866,6 +900,40 @@ class TwoRadialDistributed2DHamiltonian:
             )
         result += diagonal * state.coefficients
         return result
+
+    @property
+    def replicated_angular_inventory(self) -> dict[str, int]:
+        """Return the deliberately rank-replicated angular-table footprint."""
+
+        if not self._coupled:
+            return {}
+        tables = self.serial_hamiltonian.coulomb.couplings
+        arrays = (
+            tables.output,
+            tables.offsets,
+            tables.input,
+            tables.radial_index,
+            tables.coefficient,
+        )
+        return {
+            "channels": self.representation.angular_basis.n_channels,
+            "coulomb_pairs": tables.n_pairs,
+            "coulomb_table_bytes": sum(array.nbytes for array in arrays),
+        }
+
+    def _kinetic_prefactor(self, coordinate: int) -> float:
+        if self._coupled:
+            specification = (
+                self.representation.coordinate1
+                if coordinate == 1
+                else self.representation.coordinate2
+            )
+            return specification.kinetic_prefactor
+        return (
+            self.representation.kinetic_prefactor1
+            if coordinate == 1
+            else self.representation.kinetic_prefactor2
+        )
 
     def _finish_first_derivative(
         self,
@@ -908,11 +976,7 @@ class TwoRadialDistributed2DHamiltonian:
             if coordinate == 1
             else self.representation.grid2.weights[partition.owned_indices[positions]]
         )
-        prefactor = (
-            self.representation.kinetic_prefactor1
-            if coordinate == 1
-            else self.representation.kinetic_prefactor2
-        )
+        prefactor = self._kinetic_prefactor(coordinate)
         _add_axis(
             result,
             axis,

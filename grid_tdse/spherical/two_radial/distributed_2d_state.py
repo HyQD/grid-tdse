@@ -18,15 +18,21 @@ from typing import Any, Protocol
 import numpy as np
 
 from .distributed_state import (
+    TwoRadialRepresentation,
     TwoRadialDistributedLayout,
     TwoRadialRankLayout,
+)
+from .coupled_state_archive import (
+    CoupledTwoRadialState,
+    load_coupled_two_radial_state,
+    save_coupled_two_radial_state,
 )
 from .state_archive import (
     TwoRadialState,
     load_two_radial_state,
     save_two_radial_state,
 )
-from .system import TwoRadialSystem
+from .system import CoupledTwoRadialSystem, TwoRadialSystem
 
 
 class CartesianCollectiveCommunicator(Protocol):
@@ -160,7 +166,7 @@ class TwoRadialDistributed2DLayout:
     is selected.
     """
 
-    representation: TwoRadialSystem
+    representation: TwoRadialRepresentation
     n_ranks: int
     process_grid: tuple[int, int] | None = None
     coordinate1_layout: TwoRadialDistributedLayout = field(
@@ -180,8 +186,14 @@ class TwoRadialDistributed2DLayout:
     layout_id: str = field(init=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.representation, TwoRadialSystem):
-            raise TypeError("representation must be a TwoRadialSystem")
+        if not isinstance(
+            self.representation,
+            (TwoRadialSystem, CoupledTwoRadialSystem),
+        ):
+            raise TypeError(
+                "representation must be a TwoRadialSystem or "
+                "CoupledTwoRadialSystem"
+            )
         n_ranks = _positive_integer(self.n_ranks, name="n_ranks")
         if self.representation.grid1.family != "femdvr":
             raise ValueError("two-dimensional distribution requires FEM-DVR grid1")
@@ -322,7 +334,7 @@ class TwoRadialDistributed2DLayout:
 
     def distribute(
         self,
-        state: np.ndarray | TwoRadialState,
+        state: np.ndarray | TwoRadialState | CoupledTwoRadialState,
     ) -> tuple["DistributedTwoRadial2DState", ...]:
         values = self._global_coefficients(state)
         return tuple(
@@ -400,7 +412,7 @@ class TwoRadialDistributed2DLayout:
         self,
         state: np.ndarray | TwoRadialState,
     ) -> np.ndarray:
-        if isinstance(state, TwoRadialState):
+        if isinstance(state, (TwoRadialState, CoupledTwoRadialState)):
             values = state.state_for(self.representation)
         else:
             values = np.asarray(state)
@@ -480,7 +492,7 @@ class DistributedTwoRadial2DState:
 def scatter_two_radial_2d_state(
     layout: TwoRadialDistributed2DLayout,
     communicator: CartesianCollectiveCommunicator,
-    state: np.ndarray | TwoRadialState | None = None,
+    state: np.ndarray | TwoRadialState | CoupledTwoRadialState | None = None,
     *,
     root: int = 0,
 ) -> DistributedTwoRadial2DState:
@@ -573,7 +585,11 @@ def load_distributed_two_radial_2d_state(
     error = None
     if rank == root:
         try:
-            archived = load_two_radial_state(path)
+            archived = (
+                load_coupled_two_radial_state(path)
+                if isinstance(layout.representation, CoupledTwoRadialSystem)
+                else load_two_radial_state(path)
+            )
             archived.validate_representation(layout.representation)
         except Exception as exc:
             original_error = exc
@@ -612,7 +628,15 @@ def save_distributed_two_radial_2d_state(
         try:
             archive_calculation = {} if calculation is None else dict(calculation)
             archive_calculation["distributed_layout"] = state.layout.archive_metadata
-            destination = save_two_radial_state(
+            save_function = (
+                save_coupled_two_radial_state
+                if isinstance(
+                    state.layout.representation,
+                    CoupledTwoRadialSystem,
+                )
+                else save_two_radial_state
+            )
+            destination = save_function(
                 path,
                 coefficients,
                 state.layout.representation,
@@ -668,7 +692,7 @@ def phase_aligned_two_radial_state_difference(
 
 
 def _select_process_grid(
-    representation: TwoRadialSystem,
+    representation: TwoRadialRepresentation,
     n_ranks: int,
 ) -> tuple[int, int]:
     n_elements1 = int(representation.grid1.dvr.n_intervals)
@@ -719,12 +743,18 @@ def _select_process_grid(
 
 
 def _estimated_costs(
-    representation: TwoRadialSystem,
+    representation: TwoRadialRepresentation,
     layout1: TwoRadialDistributedLayout,
     layout2: TwoRadialDistributedLayout,
 ) -> np.ndarray:
-    angular_blocks = int(representation.angular_pairs.n_pairs)
-    coulomb_terms = max(angular_blocks, int(representation.couplings.n_pairs))
+    if isinstance(representation, CoupledTwoRadialSystem):
+        angular_blocks = representation.angular_basis.n_channels
+        # Before the Hamiltonian is built, the radial-point count is a stable
+        # conservative proxy for sparse angular Coulomb work.
+        coulomb_terms = angular_blocks * len(representation.multipoles.lambdas)
+    else:
+        angular_blocks = int(representation.angular_pairs.n_pairs)
+        coulomb_terms = max(angular_blocks, int(representation.couplings.n_pairs))
     costs = []
     for part1 in layout1.partitions:
         for part2 in layout2.partitions:
@@ -803,17 +833,27 @@ def _cartesian_rank_layout(
     )
 
 
-def _representation_id(representation: TwoRadialSystem) -> str:
+def _representation_id(representation: TwoRadialRepresentation) -> str:
     digest = hashlib.sha256()
     digest.update(repr(representation.psi_shape).encode())
     digest.update(repr(representation.M_tot).encode())
+    angular_states = (
+        np.asarray(representation.angular_basis.states, dtype=np.int64)
+        if isinstance(representation, CoupledTwoRadialSystem)
+        else np.concatenate(
+            (
+                np.asarray(representation.basis1.states, dtype=np.int64),
+                np.asarray(representation.basis2.states, dtype=np.int64),
+            )
+        )
+    )
+    digest.update(type(representation).__name__.encode())
     for values in (
         representation.grid1.r,
         representation.grid1.weights,
         representation.grid2.r,
         representation.grid2.weights,
-        np.asarray(representation.basis1.states, dtype=np.int64),
-        np.asarray(representation.basis2.states, dtype=np.int64),
+        angular_states,
     ):
         contiguous = np.ascontiguousarray(values)
         digest.update(contiguous.dtype.str.encode())

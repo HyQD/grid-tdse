@@ -404,6 +404,15 @@ class TwoRadialDistributed2DRealTimeSolver:
 
     __call__ = run
 
+    @property
+    def replicated_angular_inventory(self) -> dict[str, int]:
+        """Return rank-local copies of coupled angular transition tables."""
+
+        result = dict(self.hamiltonian.replicated_angular_inventory)
+        if self.dipole_interaction is not None:
+            result.update(self.dipole_interaction.replicated_angular_inventory)
+        return result
+
     def _validate_state(self, state: DistributedTwoRadial2DState) -> None:
         if not isinstance(state, DistributedTwoRadial2DState):
             raise TypeError("state must be a DistributedTwoRadial2DState")

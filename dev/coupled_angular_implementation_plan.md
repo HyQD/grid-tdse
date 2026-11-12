@@ -1178,6 +1178,19 @@ angular cutoffs.
 Exit gate: serial and MPI states, samples, CAP loss, and restarts agree, and
 one-node qualification passes before any multi-node scaling claim.
 
+Implementation status: the coupled representation now uses the existing
+permanent Cartesian radial decomposition without partitioning the channel
+axis. Element-local kinetic actions, sparse Coulomb and axial-dipole tables,
+CAPs, distributed observables, coupled state archives, process-grid
+redistribution, and batched Krylov reductions are connected to that path.
+The replicated Coulomb channel-table footprint is exposed explicitly for
+qualification reports. Thread-emulated 2-by-2 tests cover local components,
+length- and velocity-gauge trajectories, sampled observables, CAP loss, and a
+restart from a 1-by-1 to a 2-by-2 layout. A local four-process MPI component
+comparison also agrees with the serial coupled action to roundoff. The
+multi-node Olivia run remains the final machine-specific Step 16 gate; no
+multi-node scaling claim is made by the local validation.
+
 ### Step 17: optimize and qualify for production
 
 Benchmark coupled and uncoupled representations at equivalent finite spaces.
