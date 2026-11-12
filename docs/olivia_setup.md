@@ -12,8 +12,13 @@ the Gaunt backend, `mpi4py` linked to Open MPI 5.0.8, and two MPI ranks launched
 successfully. The grid-tdse serial/MPI numerical-equivalence gate also passed
 with differences far below its `1e-8` threshold. Step 15 passed on 2026-11-10
 for 1, 2, 4, 8, and 16 ranks, with a best single-node speedup of `4.805` and
-serial differences no larger than `1.11e-14`. Multi-node qualification remains
-required before scientific production calculations.
+serial differences no larger than `1.11e-14`. Step 16 passed on 2026-11-12 for
+deployment `20261112-104035-cpu-ompi508-coupled-step16`: the full suite reported
+807 passing tests, serial/MPI equivalence passed, coupled and general two-node
+comparisons agreed with their references to roundoff, and the forced Olivia
+`cm`/`ofi`/`cxi` transport completed without provider errors. This deployment
+was promoted to `current` at `2026-11-12T15:23:35+01:00` and is qualified for
+scientific production calculations.
 
 After Olivia maintenance on 2026-11-12, a newly built container exposed a
 runtime ordering conflict between the container OpenSSL libraries and the
@@ -1457,6 +1462,28 @@ The gate passes only when:
 Retain the timings even if additional ranks do not improve this small problem.
 The purpose of the first multi-node run is to qualify correctness and transport;
 larger production-shaped scaling studies should follow only after it passes.
+
+The first complete Step 16 qualification passed on 2026-11-12 for deployment
+`20261112-104035-cpu-ompi508-coupled-step16`. The successful gate jobs were:
+
+| Gate | Job | Result |
+| --- | ---: | --- |
+| full test suite and two-rank launch | `2848231` | `807 passed`; `COMPLETED 0:0` |
+| serial/MPI equivalence | `2848232` | state difference `1.294e-18`; time-series difference `3.331e-16` |
+| single-node stress | `2848233` | 1--16 ranks; best speedup `4.805`; correctness passed |
+| Step 16 preparation | `2849982` | coupled and general one-node references passed |
+| combined two-node qualification | `2850231` | coupled and general correctness and transport passed |
+
+For the general Cartesian-MPI problem, the recorded wall times were
+`60.091487` s at one rank, `31.744866` s at two ranks on two nodes, and
+`11.490447` s at 16 ranks on two nodes. The corresponding two-node speedups
+were `1.893` and `5.230`. For the coupled problem, the 16-rank 4-by-4 run on
+two nodes completed in `0.311021` s; its maximum component error was
+`4.965e-16`, and its final-state, restart, and time-series differences were
+`6.206e-17`, `6.206e-17`, and `1.776e-15`, respectively. The combined job was
+allocated whole nodes and consumed 32.6 billed CPU-hours. These measurements
+qualify correctness and the Olivia transport path; the tiny coupled problem is
+not a production scaling benchmark.
 
 ## 17. Promote or roll back a deployment
 
