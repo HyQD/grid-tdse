@@ -1,17 +1,19 @@
 """Structural checks for Olivia qualification drivers."""
 
 from pathlib import Path
+import subprocess
 
-
-MULTI_NODE_SCRIPT = (
+QUALIFICATION_ROOT = (
     Path(__file__).parents[1]
     / "examples"
     / "spherical"
     / "two_radial"
     / "Olivia"
     / "qualification"
-    / "qualify_grid_tdse_multi_node.sh"
 )
+MULTI_NODE_SCRIPT = QUALIFICATION_ROOT / "qualify_grid_tdse_multi_node.sh"
+COUPLED_STEP16_SCRIPT = QUALIFICATION_ROOT / "qualify_grid_tdse_coupled_step16.sh"
+COUPLED_STEP16_DRIVER = QUALIFICATION_ROOT / "qualify_coupled_step16.py"
 
 
 def test_multi_node_mpi_probe_runs_inside_srun():
@@ -22,3 +24,48 @@ def test_multi_node_mpi_probe_runs_inside_srun():
     assert "from mpi4py import MPI" not in prelaunch
     assert "MPI.Get_library_version()" in placement_launch
     assert "communicator.rank == 0 and communicator.size == 2" in placement_launch
+
+
+def test_all_olivia_shell_drivers_source_deployment_runtime_environment():
+    for path in sorted(QUALIFICATION_ROOT.glob("qualify_grid_tdse*.sh")):
+        source = path.read_text(encoding="utf-8")
+        module_position = source.index('module load "${GRID_TDSE_MPI_MODULE}"')
+        runtime_position = source.index('source "${runtime_environment}"')
+        path_position = source.index('export PATH="${deployment_prefix}/bin:${PATH}"')
+
+        assert module_position < runtime_position < path_position, path.name
+        assert 'runtime_environment="${manifest_root}/runtime-environment.sh"' in source
+        assert 'test -s "${runtime_environment}"' in source
+
+
+def test_all_olivia_shell_drivers_have_valid_bash_syntax():
+    for path in sorted(QUALIFICATION_ROOT.glob("qualify_grid_tdse*.sh")):
+        subprocess.run(["bash", "-n", path], check=True)
+
+
+def test_coupled_step16_driver_is_launched_only_under_srun():
+    source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
+    prelaunch, separator, launch = source.partition("\n    srun \\")
+
+    assert separator
+    assert 'python "${driver}"' not in prelaunch
+    assert 'python "${driver}"' in launch
+    assert "run_case reference-1r 1 1 1 1 1 --write-reference" in source
+    assert "run_case one-node-4r 1 4 4 2 2" in source
+    assert "run_case two-node-16r 2 16 8 4 4" in source
+    assert "Coupled Step 16 Olivia qualification: PASS" in source
+
+
+def test_coupled_step16_python_driver_has_expected_gates():
+    source = COUPLED_STEP16_DRIVER.read_text(encoding="utf-8")
+
+    compile(source, str(COUPLED_STEP16_DRIVER), "exec")
+    assert "wf_representation" in source
+    assert "replicated_angular_inventory" in source
+    assert "TwoRadialAbsorbingBoundaries" in source
+    assert '"cap_norm_losses"' in source
+    assert '"total_dipoles_z"' in source
+    assert '"total_l_squared"' in source
+    assert "load_distributed_two_radial_2d_state" in source
+    assert "save_distributed_two_radial_2d_state" in source
+    assert '"restart_difference_from_uninterrupted"' in source

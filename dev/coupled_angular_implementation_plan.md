@@ -2,13 +2,13 @@
 
 ## Status and scope
 
-This document is a design, implementation, and validation plan. Steps 1-13
-and the finite-space representation-equivalence portion of Step 15 are
-implemented and covered by focused tests. The serial restart portion of Step
-13 is complete; its cross-process-grid restart check remains coupled to the
-MPI work in Step 16. The production convergence matrix in Step 14 and its
-length-versus-velocity gauge-convergence gate are deferred to cluster
-qualification. Steps 16-17 have not started.
+This document is a design, implementation, and validation plan. Steps 1-13,
+the finite-space representation-equivalence portion of Step 15, and the local
+implementation and validation portion of Step 16 are complete. Coupled state
+archives have been checked across Cartesian process grids locally. The
+production convergence matrix in Step 14 and its length-versus-velocity
+gauge-convergence gate are deferred to cluster qualification. Step 16 still
+requires its machine-specific multi-node Olivia gate; Step 17 has not started.
 
 The primary target systems are H2+, HD+, and D2+. The first coupled-angular
 representation will describe one electronic Jacobi coordinate and one
