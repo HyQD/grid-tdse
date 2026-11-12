@@ -4,9 +4,11 @@
 
 This is a provisional diagnostic report for the unweighted atom-centered
 H2+ prototype introduced in `grid_tdse.spherical.one_radial_atomic`. The
-sweep was run on 2026-11-12 at commit `ba60576` on the
-`becke_partitioning` branch. It is intended to identify the dominant error
-sources; it is not yet a production convergence study.
+initial sweep was run on 2026-11-12 at commit `ba60576` on the
+`becke_partitioning` branch. The radial-extent follow-up was run at commit
+`2a493f6`; the solver code was unchanged between the two commits. This report
+is intended to identify the dominant error sources; it is not yet a
+production convergence study.
 
 ## Question
 
@@ -16,7 +18,8 @@ is primarily caused by
 
 1. the radial FEM-DVR basis resolution;
 2. the spherical-harmonic cutoff `l_max`; or
-3. the radial or angular integration grid.
+3. the radial or angular integration grid; or
+4. the finite atom-centered basis radius.
 
 ## Reference and error convention
 
@@ -62,6 +65,68 @@ quadrature points = 470820
 ```
 
 ## Native-grid sweeps
+
+### Radial extent
+
+The initial sweeps fixed the atom-centered basis radius at 8 bohr. A
+follow-up extended the basis by appending outer elements without changing the
+inner mesh:
+
+```text
+r_max =  8: (0, 1, 2, 3, 4, 6, 8)
+r_max = 15: (0, 1, 2, 3, 4, 6, 8, 10, 12, 15)
+r_max = 20: (0, 1, 2, 3, 4, 6, 8, 10, 12, 15, 17.5, 20)
+```
+
+For H2+ at `R = 2` bohr, the corresponding integration grids extend to
+`r_max + R`, namely 10, 17, and 22 bohr. The basis used eight radial points
+per element and `l_max = 2` throughout.
+
+The default native quadrature gives
+
+| Basis `r_max` | Integration `r_max` | Basis size | Retained rank | `cond(S)` | Quadrature points | Electronic energy (Eh) | Error (microhartree) |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 8 | 10 | 246 | 246/246 | 4.810e7 | 470820 | -1.102634011684481 | +0.20281 |
+| 15 | 17 | 372 | 370/372 | 2.487e10 | 801220 | -1.102634134912691 | +0.07958 |
+| 20 | 22 | 456 | 453/456 | 3.763e11 | 1037220 | -1.102634134912475 | +0.07958 |
+
+Increasing the basis radius from 8 to 15 bohr lowers the energy by
+`0.12323 microhartree`. Increasing it further from 15 to 20 bohr has no
+resolved effect on the energy.
+
+The extent shift is reproducible with two different integration settings:
+
+| Grid backend and settings | Error at 8 bohr | Error at 15 bohr | Error at 20 bohr | 8-to-15 energy shift |
+|---|---:|---:|---:|---:|
+| Native, 10 radial points and Lebedev 41 | +0.20281 | +0.07958 | +0.07958 | -0.12323 |
+| Native, 14 radial points and Lebedev 47 | +3.22924 | +3.10641 | +3.10641 | -0.12283 |
+| PySCF/NWChem-pruned, 14 radial points and Lebedev 53 | +0.43001 | +0.30729 | +0.30729 | -0.12273 |
+
+All values and shifts in this table are in microhartree. Although the
+absolute errors depend on the integration grid, all three grids give an
+8-to-15-bohr correction of approximately `-0.123 microhartree`. This makes
+the finite-box effect much more robust than the absolute sub-microhartree
+error of any one grid.
+
+The larger boxes introduce severe near-linear dependencies. At the default
+relative overlap cutoff of `1e-8`, two directions are discarded for
+`r_max = 15` and three for `r_max = 20`. A cutoff check gave
+
+| Basis `r_max` | Relative cutoff | Retained rank | Retained condition number | Electronic energy (Eh) |
+|---:|---:|---:|---:|---:|
+| 15 | 1e-8 | 370/372 | 2.117e7 | -1.102634134912691 |
+| 15 | 1e-10 | 371/372 | 3.977e8 | -1.102634134912610 |
+| 15 | 1e-12 | failed | -- | -- |
+| 20 | 1e-8 | 453/456 | 3.319e7 | -1.102634134912475 |
+| 20 | 1e-10 | failed | -- | -- |
+| 20 | 1e-12 | failed | -- | -- |
+
+The `r_max = 15` energy changes by only about `8e-14 Eh` when the cutoff is
+tightened from `1e-8` to `1e-10`. The failed cases exceed the
+anti-Hermitian tolerance after canonical orthogonalization because the
+near-singular overlap amplifies roundoff. There is therefore no observed
+ground-state benefit from extending the basis beyond 15 bohr, while the
+conditioning worsens by more than an order of magnitude.
 
 ### Angular basis cutoff
 
@@ -187,7 +252,7 @@ still require further study.
 
 ## Interpretation
 
-The sweep supports three conclusions.
+The sweep supports four conclusions.
 
 1. **Angular-basis truncation dominates at low `l_max`.** Increasing
    `l_max` from 1 to 2 reduces the error by roughly `206.5 microhartree`, much
@@ -204,6 +269,15 @@ The sweep supports three conclusions.
    drives the energy below the benchmark on both grid backends. A converged
    integration must be established before the residual radial- and
    angular-basis errors can be separated reliably.
+
+4. **A basis radius of 15 bohr is sufficient for the present H2+ ground-state
+   calculation.** Extending the radius from 8 to 15 bohr lowers the energy by
+   a reproducible `0.123 microhartree`, whereas extending it from 15 to 20
+   bohr produces no resolved improvement and substantially worsens the
+   overlap conditioning. For the default native grid, the extent correction
+   reduces the signed benchmark error from `+0.203` to
+   `+0.080 microhartree`, but this absolute agreement still contains
+   quadrature-error cancellation.
 
 The most likely difficult term is the multicenter nuclear attraction: a grid
 centered on one nucleus must integrate the Coulomb cusp at the other nucleus.
@@ -223,6 +297,9 @@ the off-center nucleus.
    treatment around each nucleus.
 5. Repeat the radial and `l_max` sweeps only after quadrature changes affect
    the energy by substantially less than `0.1 microhartree`.
+6. Use `r_max = 15` rather than 20 for subsequent ground-state convergence
+   work unless a more stable treatment of the outer-box overlap spectrum is
+   introduced.
 
 ## Completion criterion
 
