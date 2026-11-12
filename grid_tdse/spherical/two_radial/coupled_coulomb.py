@@ -374,6 +374,61 @@ class CoupledTwoRadialCoulombHamiltonian:
         )
         return out
 
+    def apply_radial_tile(
+        self,
+        state: np.ndarray,
+        radial_multipoles: np.ndarray,
+        *,
+        out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Apply the sparse angular table on an arbitrary radial tile.
+
+        ``radial_multipoles`` has shape ``(n_multipoles, n_r, n_R)`` or its
+        flattened equivalent.  This is the point-local action needed by the
+        permanent Cartesian MPI decomposition; the coupled-channel axis is
+        intentionally retained in full on every rank.
+        """
+
+        values = np.asarray(state)
+        if values.ndim != 3 or values.shape[0] != self.psi_shape[0]:
+            raise ValueError(
+                "state must have shape (n_channels, local_nr, local_nR)"
+            )
+        radial = np.asarray(radial_multipoles)
+        if radial.ndim == 3:
+            radial = radial.reshape(radial.shape[0], -1)
+        if radial.ndim != 2:
+            raise ValueError("radial_multipoles must be two- or three-dimensional")
+        if radial.shape[0] != self._radial_flat.shape[0]:
+            raise ValueError("radial multipole count does not match")
+        if radial.shape[1] != values.shape[1] * values.shape[2]:
+            raise ValueError("radial multipole tile does not match state shape")
+        dtype = np.result_type(
+            values.dtype,
+            radial.dtype,
+            self.couplings.coefficient.dtype,
+        )
+        if out is None:
+            out = np.zeros(values.shape, dtype=dtype)
+        elif out.shape != values.shape:
+            raise ValueError(f"out has shape {out.shape}; expected {values.shape}")
+        elif not np.can_cast(dtype, out.dtype, casting="same_kind"):
+            raise TypeError(f"cannot accumulate {dtype} Coulomb action in {out.dtype}")
+        elif not out.flags.c_contiguous:
+            raise ValueError("out must be C-contiguous")
+
+        _apply_coupled_coulomb_kernel(
+            out.reshape(values.shape[0], -1),
+            values.reshape(values.shape[0], -1),
+            np.ascontiguousarray(radial),
+            self.couplings.output,
+            self.couplings.offsets,
+            self.couplings.input,
+            self.couplings.radial_index,
+            self.couplings.coefficient,
+        )
+        return out
+
 
 def _one_coordinate_allowed(l_out: int, l_in: int, lambda_: int) -> bool:
     return (

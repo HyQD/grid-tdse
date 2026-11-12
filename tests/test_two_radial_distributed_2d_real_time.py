@@ -11,6 +11,8 @@ from grid_tdse.spherical.two_radial import (
     CoordinateSpec,
     CoulombMultipoleSpec,
     CoulombTerm,
+    CoupledAngularBasisSpec,
+    CoupledTwoRadialAxialDipoleInteraction,
     DiatomicIonDynamicsObservableEvaluator,
     DiatomicIonDynamicsSampler,
     DiatomicIonDynamicsSamplingPolicy,
@@ -83,6 +85,51 @@ def _problem(*, M_tot=0):
     rng = np.random.default_rng(319)
     state = rng.normal(size=system.psi_shape) + 1j * rng.normal(size=system.psi_shape)
     state /= np.sqrt(system.inner_product(state, state).real)
+    return system, parameters, state
+
+
+def _coupled_problem():
+    parameters = _diatomic_parameters("HD+", "2022")
+    specification = TwoRadialSystemSpec(
+        coordinate1=CoordinateSpec(
+            grid=FEMDVRGridSpec([0.0, 1.0, 3.0], [4, 4]),
+            basis=AngularBasisSpec(1, 1),
+            kinetic_prefactor=-0.5 / parameters.electronic_reduced_mass,
+        ),
+        coordinate2=CoordinateSpec(
+            grid=FEMDVRGridSpec([0.0, 0.8, 2.5], [4, 4]),
+            basis=AngularBasisSpec(1, 1),
+            kinetic_prefactor=-0.5 / parameters.internuclear_reduced_mass,
+            one_body_terms=(
+                radial_potential(
+                    lambda radius: parameters.reference_charge
+                    * parameters.partner_charge
+                    / radius
+                ),
+            ),
+        ),
+        multipoles=CoulombMultipoleSpec(2, 2),
+        coulomb_terms=(
+            CoulombTerm(
+                parameters.reference_center_scale,
+                parameters.electron_charge * parameters.reference_charge,
+            ),
+            CoulombTerm(
+                parameters.partner_center_scale,
+                parameters.electron_charge * parameters.partner_charge,
+            ),
+        ),
+        M_tot=0,
+        radial_coulomb_method="analytic",
+    )
+    system = specification.build_coupled(
+        CoupledAngularBasisSpec(1, 1, 2, M_tot=0)
+    )
+    state = system.random_state(
+        np.random.default_rng(20261112),
+        dtype=np.complex128,
+        normalize=True,
+    )
     return system, parameters, state
 
 
@@ -172,7 +219,12 @@ def _propagator(final_time, integrator="sil"):
 def _serial_run(system, parameters, state, pulse, final_time, integrator="sil"):
     gauge = pulse.gauge
     hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
-    dipole = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+    interaction_type = (
+        CoupledTwoRadialAxialDipoleInteraction
+        if hasattr(system, "angular_basis")
+        else TwoRadialAxialDipoleInteraction
+    )
+    dipole = interaction_type.for_diatomic_ion(
         system,
         parameters,
         gauge=gauge,
@@ -185,6 +237,7 @@ def _serial_run(system, parameters, state, pulse, final_time, integrator="sil"):
         hamiltonian,
         gauge=gauge,
         fields=(pulse,),
+        velocity_action=(dipole.spatial_action if gauge == "velocity" else None),
         radial_operator_mode="element-local",
     )
     sampler = DiatomicIonDynamicsSampler(
@@ -223,6 +276,8 @@ def _distributed_run(
     final_time,
     integrator="sil",
     krylov_reduction_mode="batched",
+    absorbing_boundaries=None,
+    initial_time=0.0,
 ):
     n_ranks = process_grid[0] * process_grid[1]
     layout = TwoRadialDistributed2DLayout(
@@ -239,6 +294,7 @@ def _distributed_run(
             group.communicator(rank),
             fields=(pulse,),
             field_gauge=pulse.gauge,
+            initial_time=initial_time,
             final_time=final_time,
             time_step=0.01,
             integrator=integrator,
@@ -248,6 +304,7 @@ def _distributed_run(
             krylov_atol=1.0e-13,
             max_krylov_refinements=6,
             sampling_policy=DiatomicIonDynamicsSamplingPolicy(interval=1),
+            absorbing_boundaries=absorbing_boundaries,
             progress_interval=None,
             profile=True,
         )
@@ -297,6 +354,103 @@ def test_cartesian_length_gauge_action_matches_serial(process_grid, dipole_kerne
         atol=2.0e-14,
         rtol=2.0e-14,
     )
+
+
+def test_coupled_cartesian_components_and_length_action_match_serial():
+    system, parameters, state = _coupled_problem()
+    layout = TwoRadialDistributed2DLayout(system, 4, process_grid=(2, 2))
+    local = layout.distribute(state)
+    distributed_hamiltonian = TwoRadialDistributed2DHamiltonian(layout)
+    serial_hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
+
+    coordinate1, coordinate2, coulomb = (
+        distributed_hamiltonian.apply_components_all(local)
+    )
+    np.testing.assert_allclose(
+        layout.assemble(coordinate1),
+        serial_hamiltonian.apply_one_body_coordinate1(state),
+        atol=2.0e-12,
+        rtol=2.0e-12,
+    )
+    np.testing.assert_allclose(
+        layout.assemble(coordinate2),
+        serial_hamiltonian.apply_one_body_coordinate2(state),
+        atol=2.0e-12,
+        rtol=2.0e-12,
+    )
+    np.testing.assert_allclose(
+        layout.assemble(coulomb),
+        serial_hamiltonian.apply_coulomb(state),
+        atol=2.0e-12,
+        rtol=2.0e-12,
+    )
+
+    pulse = _Pulse()
+    distributed_dipole = TwoRadialDistributed2DLengthGaugeInteraction(
+        layout,
+        parameters,
+        fields=(pulse,),
+    )
+    serial_dipole = CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="length",
+        fields=(pulse,),
+    )
+    np.testing.assert_allclose(
+        layout.assemble(tuple(distributed_dipole(part, 0.013) for part in local)),
+        serial_dipole(state, 0.013),
+        atol=2.0e-13,
+        rtol=2.0e-13,
+    )
+    inventory = distributed_hamiltonian.replicated_angular_inventory
+    assert inventory["channels"] == system.angular_basis.n_channels
+    assert inventory["coulomb_pairs"] > 0
+    assert inventory["coulomb_table_bytes"] > 0
+    dipole_inventory = distributed_dipole.replicated_angular_inventory
+    assert dipole_inventory["dipole_pairs"] > 0
+    assert dipole_inventory["dipole_table_bytes"] > 0
+
+
+def test_coupled_cartesian_velocity_action_matches_serial():
+    system, parameters, state = _coupled_problem()
+    pulse = _VelocityPulse()
+    layout = TwoRadialDistributed2DLayout(system, 4, process_grid=(2, 2))
+    local = layout.distribute(state)
+    group = _ThreadCommunicatorGroup(4)
+    hamiltonians = tuple(
+        TwoRadialDistributed2DHamiltonian(layout, group.communicator(rank))
+        for rank in range(4)
+    )
+    interactions = tuple(
+        TwoRadialDistributed2DVelocityGaugeInteraction(
+            layout,
+            parameters,
+            hamiltonians[rank],
+            fields=(pulse,),
+        )
+        for rank in range(4)
+    )
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        actions = tuple(
+            executor.map(
+                lambda pair: pair[0](pair[1], 0.013),
+                zip(interactions, local, strict=True),
+            )
+        )
+    serial = CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="velocity",
+        fields=(pulse,),
+    )
+    np.testing.assert_allclose(
+        layout.assemble(actions),
+        serial(state, 0.013),
+        atol=3.0e-12,
+        rtol=3.0e-12,
+    )
+    assert interactions[0].replicated_angular_inventory["dipole_pairs"] > 0
 
 
 @pytest.mark.parametrize("M_tot", [None, 0])
@@ -601,6 +755,128 @@ def test_cartesian_short_time_series_and_final_state_match_serial():
                 atol=8.0e-11,
                 rtol=8.0e-11,
             )
+
+
+@pytest.mark.parametrize("pulse", [_Pulse(), _VelocityPulse()])
+def test_coupled_cartesian_short_trajectory_matches_serial(pulse):
+    system, parameters, state = _coupled_problem()
+    serial, serial_series, _ = _serial_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        0.02,
+    )
+    layout, _, distributed = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (2, 2),
+        0.02,
+    )
+
+    actual = layout.assemble(tuple(result.state for result in distributed))
+    np.testing.assert_allclose(actual, serial.state, atol=8.0e-11, rtol=8.0e-11)
+    serial_norms = [sample.snapshot.norm for sample in serial_series.samples]
+    serial_energies = [
+        sample.snapshot.energy_numerator for sample in serial_series.samples
+    ]
+    for result in distributed:
+        np.testing.assert_allclose(
+            [sample.snapshot.norm for sample in result.time_series.samples],
+            serial_norms,
+            atol=8.0e-11,
+            rtol=8.0e-11,
+        )
+        np.testing.assert_allclose(
+            [
+                sample.snapshot.energy_numerator
+                for sample in result.time_series.samples
+            ],
+            serial_energies,
+            atol=8.0e-10,
+            rtol=8.0e-10,
+        )
+
+
+def test_coupled_cartesian_cap_loss_matches_serial():
+    system, parameters, state = _coupled_problem()
+    pulse = _Pulse()
+    boundaries = TwoRadialAbsorbingBoundaries(
+        system,
+        cap1=-0.02j * (system.grid1.r / system.grid1.r[-1]) ** 3,
+        cap2=-0.03j * (system.grid2.r / system.grid2.r[-1]) ** 3,
+    )
+    hamiltonian = system.hamiltonian(radial_operator_mode="element-local")
+    dipole = CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="length",
+        fields=(pulse,),
+    )
+    serial = _propagator(0.02, "sia").propagate(
+        state,
+        lambda values, time: (
+            hamiltonian(values)
+            + dipole(values, time)
+            + boundaries.cap_action(values)
+        ),
+        system.inner_product,
+    )
+    layout, _, distributed = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (2, 2),
+        0.02,
+        "sia",
+        absorbing_boundaries=boundaries,
+    )
+
+    actual = layout.assemble(tuple(result.state for result in distributed))
+    np.testing.assert_allclose(actual, serial.state, atol=8.0e-11, rtol=8.0e-11)
+    for result in distributed:
+        assert result.norm == pytest.approx(serial.norm, abs=8.0e-11)
+        assert result.norm < 1.0
+
+
+def test_coupled_cartesian_restart_across_process_grids_matches_uninterrupted():
+    system, parameters, state = _coupled_problem()
+    pulse = _Pulse()
+    full_layout, _, full = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (2, 2),
+        0.02,
+    )
+    one_layout, _, first = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        (1, 1),
+        0.01,
+    )
+    checkpoint = one_layout.assemble(tuple(result.state for result in first))
+    restart_layout, _, restarted = _distributed_run(
+        system,
+        parameters,
+        checkpoint,
+        pulse,
+        (2, 2),
+        0.02,
+        initial_time=0.01,
+    )
+
+    uninterrupted = full_layout.assemble(tuple(result.state for result in full))
+    resumed = restart_layout.assemble(
+        tuple(result.state for result in restarted)
+    )
+    np.testing.assert_allclose(resumed, uninterrupted, atol=8.0e-11, rtol=8.0e-11)
 
 
 @pytest.mark.parametrize("integrator", ["sia", "cf4-sia"])

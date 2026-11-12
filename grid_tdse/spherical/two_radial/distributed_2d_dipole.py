@@ -7,12 +7,14 @@ from collections.abc import Callable, Iterable
 import numpy as np
 
 from .diatomic import DiatomicIonParameters
+from .coupled_dipole import CoupledTwoRadialAxialDipoleInteraction
 from .dipole import DipoleKernelMode, TwoRadialAxialDipoleInteraction
 from .distributed_2d_state import (
     DistributedTwoRadial2DState,
     TwoRadialDistributed2DLayout,
 )
 from .distributed_2d_hamiltonian import TwoRadialDistributed2DHamiltonian
+from .system import CoupledTwoRadialSystem
 
 
 class TwoRadialDistributed2DLengthGaugeInteraction:
@@ -42,14 +44,27 @@ class TwoRadialDistributed2DLengthGaugeInteraction:
         self.layout = layout
         self.representation = layout.representation
         self.parameters = parameters
-        self.serial_interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
-            self.representation,
-            parameters,
-            gauge="length",
-            fields=fields,
-            radial_operator_mode="element-local",
-            dipole_kernel=dipole_kernel,
-        )
+        if isinstance(self.representation, CoupledTwoRadialSystem):
+            self.serial_interaction = (
+                CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+                    self.representation,
+                    parameters,
+                    gauge="length",
+                    fields=fields,
+                    radial_operator_mode="element-local",
+                )
+            )
+        else:
+            self.serial_interaction = (
+                TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+                    self.representation,
+                    parameters,
+                    gauge="length",
+                    fields=fields,
+                    radial_operator_mode="element-local",
+                    dipole_kernel=dipole_kernel,
+                )
+            )
         self.fields = self.serial_interaction.fields
         self.coordinate_operators = self.serial_interaction.coordinate_operators
 
@@ -100,6 +115,12 @@ class TwoRadialDistributed2DLengthGaugeInteraction:
             )
         return DistributedTwoRadial2DState(self.layout, state.rank, result)
 
+    @property
+    def replicated_angular_inventory(self) -> dict[str, int]:
+        """Return rank-replicated coupled dipole transition storage."""
+
+        return _coupled_dipole_inventory(self.coordinate_operators)
+
     def _validate_state(self, state: DistributedTwoRadial2DState) -> None:
         if not isinstance(state, DistributedTwoRadial2DState):
             raise TypeError("state must be a DistributedTwoRadial2DState")
@@ -146,14 +167,27 @@ class TwoRadialDistributed2DVelocityGaugeInteraction:
         self.representation = layout.representation
         self.parameters = parameters
         self.derivative_operator = derivative_operator
-        self.serial_interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
-            self.representation,
-            parameters,
-            gauge="velocity",
-            fields=fields,
-            radial_operator_mode="element-local",
-            dipole_kernel=dipole_kernel,
-        )
+        if isinstance(self.representation, CoupledTwoRadialSystem):
+            self.serial_interaction = (
+                CoupledTwoRadialAxialDipoleInteraction.for_diatomic_ion(
+                    self.representation,
+                    parameters,
+                    gauge="velocity",
+                    fields=fields,
+                    radial_operator_mode="element-local",
+                )
+            )
+        else:
+            self.serial_interaction = (
+                TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+                    self.representation,
+                    parameters,
+                    gauge="velocity",
+                    fields=fields,
+                    radial_operator_mode="element-local",
+                    dipole_kernel=dipole_kernel,
+                )
+            )
         self.fields = self.serial_interaction.fields
         self.coordinate_operators = self.serial_interaction.coordinate_operators
 
@@ -183,6 +217,12 @@ class TwoRadialDistributed2DVelocityGaugeInteraction:
                 derivative.coefficients,
             )
         return DistributedTwoRadial2DState(self.layout, state.rank, result)
+
+    @property
+    def replicated_angular_inventory(self) -> dict[str, int]:
+        """Return rank-replicated coupled dipole transition storage."""
+
+        return _coupled_dipole_inventory(self.coordinate_operators)
 
     def __call__(
         self,
@@ -214,3 +254,29 @@ class TwoRadialDistributed2DVelocityGaugeInteraction:
             raise TypeError("state must be a DistributedTwoRadial2DState")
         if state.layout.layout_id != self.layout.layout_id:
             raise ValueError("state belongs to a different distributed layout")
+
+
+def _coupled_dipole_inventory(operators) -> dict[str, int]:
+    if not operators or not hasattr(operators[0], "couplings"):
+        return {}
+    pairs = 0
+    nbytes = 0
+    for operator in operators:
+        table = operator.couplings
+        pairs += table.n_pairs
+        nbytes += sum(
+            array.nbytes
+            for array in (
+                table.output,
+                table.offsets,
+                table.input,
+                table.coefficient,
+            )
+        )
+        angular2 = getattr(operator, "_velocity_angular2", None)
+        if angular2 is not None:
+            nbytes += angular2.nbytes
+    return {
+        "dipole_pairs": pairs,
+        "dipole_table_bytes": nbytes,
+    }

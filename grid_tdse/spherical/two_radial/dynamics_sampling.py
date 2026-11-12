@@ -17,7 +17,7 @@ from .observables import (
     DiatomicIonObservableEvaluator,
     DiatomicIonObservableNumerators,
 )
-from .system import RadialOperatorMode, TwoRadialSystem
+from .system import CoupledTwoRadialSystem, RadialOperatorMode, TwoRadialSystem
 
 
 @dataclass(frozen=True)
@@ -936,11 +936,39 @@ def _distributed_angular_populations(state, reductions):
     else:
         weights_r = representation.grid1.weights
         weights_R = representation.grid2.weights[partition.owned_indices]
-    local = _uncoupled_angular_population_arrays(
-        representation,
-        state.coefficients,
-        weights_r[:, None] * weights_R[None, :],
-    )
+    weights = weights_r[:, None] * weights_R[None, :]
+    if isinstance(representation, CoupledTwoRadialSystem):
+        channel = np.einsum(
+            "cab,cab,ab->c",
+            state.coefficients.conj(),
+            state.coefficients,
+            weights,
+            optimize=True,
+        ).real
+        basis = representation.angular_basis
+        local = (
+            np.bincount(
+                [angular_state[2] for angular_state in basis.states],
+                weights=channel,
+                minlength=basis.L_max + 1,
+            ),
+            np.bincount(
+                [angular_state[0] for angular_state in basis.states],
+                weights=channel,
+                minlength=basis.l1_max + 1,
+            ),
+            np.bincount(
+                [angular_state[1] for angular_state in basis.states],
+                weights=channel,
+                minlength=basis.l2_max + 1,
+            ),
+        )
+    else:
+        local = _uncoupled_angular_population_arrays(
+            representation,
+            state.coefficients,
+            weights,
+        )
     sizes = tuple(values.size for values in local)
     combined = reductions.global_sum(
         np.concatenate(local),

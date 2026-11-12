@@ -17,12 +17,20 @@ from typing import Any, Mapping, Protocol, Sequence
 
 import numpy as np
 
+from .coupled_state_archive import (
+    CoupledTwoRadialState,
+    load_coupled_two_radial_state,
+    save_coupled_two_radial_state,
+)
 from .state_archive import (
     TwoRadialState,
     load_two_radial_state,
     save_two_radial_state,
 )
-from .system import TwoRadialSystem
+from .system import CoupledTwoRadialSystem, TwoRadialSystem
+
+
+TwoRadialRepresentation = TwoRadialSystem | CoupledTwoRadialSystem
 
 
 class CollectiveCommunicator(Protocol):
@@ -119,7 +127,7 @@ class TwoRadialDistributedLayout:
     to that rank; halos are not part of the permanent state storage.
     """
 
-    representation: TwoRadialSystem
+    representation: TwoRadialRepresentation
     n_ranks: int
     partitioned_coordinate: int = 2
     partitions: tuple[TwoRadialRankLayout, ...] = field(init=False, repr=False)
@@ -128,8 +136,14 @@ class TwoRadialDistributedLayout:
     layout_id: str = field(init=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.representation, TwoRadialSystem):
-            raise TypeError("representation must be a TwoRadialSystem")
+        if not isinstance(
+            self.representation,
+            (TwoRadialSystem, CoupledTwoRadialSystem),
+        ):
+            raise TypeError(
+                "representation must be a TwoRadialSystem or "
+                "CoupledTwoRadialSystem"
+            )
         coordinate = self.partitioned_coordinate
         if isinstance(coordinate, (bool, np.bool_)) or not isinstance(
             coordinate, (int, np.integer)
@@ -342,9 +356,9 @@ class TwoRadialDistributedLayout:
         return result
 
     def _global_coefficients(
-        self, state: np.ndarray | TwoRadialState
+        self, state: np.ndarray | TwoRadialState | CoupledTwoRadialState
     ) -> np.ndarray:
-        if isinstance(state, TwoRadialState):
+        if isinstance(state, (TwoRadialState, CoupledTwoRadialState)):
             values = state.state_for(self.representation)
         else:
             values = np.asarray(state)
@@ -442,7 +456,7 @@ class DistributedTwoRadialState:
 def scatter_two_radial_state(
     layout: TwoRadialDistributedLayout,
     communicator: CollectiveCommunicator,
-    state: np.ndarray | TwoRadialState | None = None,
+    state: np.ndarray | TwoRadialState | CoupledTwoRadialState | None = None,
     *,
     root: int = 0,
 ) -> DistributedTwoRadialState:
@@ -508,7 +522,11 @@ def load_distributed_two_radial_state(
     error = None
     if rank == root:
         try:
-            archived = load_two_radial_state(path)
+            archived = (
+                load_coupled_two_radial_state(path)
+                if isinstance(layout.representation, CoupledTwoRadialSystem)
+                else load_two_radial_state(path)
+            )
             archived.validate_representation(layout.representation)
         except Exception as exc:  # keep all ranks on the same collective path
             original_error = exc
@@ -545,7 +563,15 @@ def save_distributed_two_radial_state(
     error = None
     if rank == root:
         try:
-            destination = save_two_radial_state(
+            save_function = (
+                save_coupled_two_radial_state
+                if isinstance(
+                    state.layout.representation,
+                    CoupledTwoRadialSystem,
+                )
+                else save_two_radial_state
+            )
+            destination = save_function(
                 path,
                 coefficients,
                 state.layout.representation,
@@ -668,13 +694,23 @@ def _layout_id(
     digest.update(repr(layout.representation.M_tot).encode())
     digest.update(repr(layout.partitioned_coordinate).encode())
     digest.update(repr(element_ranges).encode())
+    angular_states = (
+        np.asarray(layout.representation.angular_basis.states, dtype=np.int64)
+        if isinstance(layout.representation, CoupledTwoRadialSystem)
+        else np.concatenate(
+            (
+                np.asarray(layout.representation.basis1.states, dtype=np.int64),
+                np.asarray(layout.representation.basis2.states, dtype=np.int64),
+            )
+        )
+    )
+    digest.update(type(layout.representation).__name__.encode())
     for values in (
         layout.representation.grid1.r,
         layout.representation.grid1.weights,
         layout.representation.grid2.r,
         layout.representation.grid2.weights,
-        np.asarray(layout.representation.basis1.states, dtype=np.int64),
-        np.asarray(layout.representation.basis2.states, dtype=np.int64),
+        angular_states,
     ):
         contiguous = np.ascontiguousarray(values)
         digest.update(contiguous.dtype.str.encode())

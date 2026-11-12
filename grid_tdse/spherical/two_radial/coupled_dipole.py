@@ -294,6 +294,91 @@ class CoupledAxialCoordinateDipole:
         )
         return out
 
+    def apply_length_gauge_radial_tile(
+        self,
+        state: np.ndarray,
+        radial: np.ndarray,
+        *,
+        out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Apply the length-gauge operator on an owned radial tile."""
+
+        if self.gauge != "length":
+            raise ValueError("operator is not configured for length gauge")
+        values, radial, out = self._validate_radial_tile(
+            state, radial, out, complex_output=False
+        )
+        _apply_coupled_length_dipole_kernel(
+            out,
+            values,
+            radial,
+            self.coordinate,
+            self.couplings.output,
+            self.couplings.offsets,
+            self.couplings.input,
+            self.couplings.coefficient,
+        )
+        return out
+
+    def apply_velocity_gauge_radial_tile(
+        self,
+        state: np.ndarray,
+        radial: np.ndarray,
+        derivative: np.ndarray,
+        *,
+        out: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Apply the velocity-gauge operator on an owned radial tile."""
+
+        if self.gauge != "velocity":
+            raise ValueError("operator is not configured for velocity gauge")
+        values, radial, out = self._validate_radial_tile(
+            state, radial, out, complex_output=True
+        )
+        derivative = np.asarray(derivative)
+        if derivative.shape != values.shape:
+            raise ValueError("derivative shape must match the radial tile")
+        divided = values / (
+            radial[None, :, None]
+            if self.coordinate == 1
+            else radial[None, None, :]
+        )
+        _apply_coupled_velocity_dipole_kernel(
+            out,
+            derivative - divided,
+            divided,
+            self.couplings.output,
+            self.couplings.offsets,
+            self.couplings.input,
+            self.couplings.coefficient,
+            self._velocity_angular2,
+        )
+        return out
+
+    def _validate_radial_tile(self, state, radial, out, *, complex_output):
+        values = np.asarray(state)
+        if values.ndim != 3 or values.shape[0] != self.couplings.n_input_channels:
+            raise ValueError(
+                "state must have shape (n_channels, local_nr, local_nR)"
+            )
+        radial = np.ascontiguousarray(np.asarray(radial))
+        if radial.ndim != 1 or radial.size != values.shape[self.coordinate]:
+            raise ValueError("radial coordinates do not match the tile")
+        dtype = np.result_type(
+            values.dtype,
+            self.couplings.coefficient.dtype,
+            complex if complex_output else float,
+        )
+        if out is None:
+            out = np.zeros(values.shape, dtype=dtype)
+        elif out.shape != values.shape:
+            raise ValueError(f"out has shape {out.shape}; expected {values.shape}")
+        elif not np.can_cast(dtype, out.dtype, casting="same_kind"):
+            raise TypeError(f"cannot accumulate {dtype} dipole action in {out.dtype}")
+        elif not out.flags.c_contiguous:
+            raise ValueError("out must be C-contiguous")
+        return values, radial, out
+
     __call__ = apply
 
 

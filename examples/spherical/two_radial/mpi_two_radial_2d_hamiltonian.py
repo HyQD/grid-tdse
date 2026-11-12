@@ -6,6 +6,10 @@ For a four-rank H2+ comparison against the serial element-local action, run::
         examples/spherical/two_radial/mpi_two_radial_2d_hamiltonian.py \
         --process-grid 2 2 --l-max 1
 
+Add ``--wf-representation coupled`` to exercise the coupled-channel path.
+The channel axis remains local on every rank; only the two radial axes are
+partitioned.
+
 The example scatters a deterministic complex state, applies the two radial
 terms and Coulomb interaction on the Cartesian layout, and compares every
 component with the serial implementation on rank zero.
@@ -39,6 +43,12 @@ parser.add_argument(
     help="one-coordinate angular cutoff (default: 1)",
 )
 parser.add_argument(
+    "--wf-representation",
+    choices=("uncoupled", "coupled"),
+    default="uncoupled",
+    help="angular representation (default: uncoupled)",
+)
+parser.add_argument(
     "--process-grid",
     type=int,
     nargs=2,
@@ -59,8 +69,29 @@ if arguments.l_max < 0:
 communicator = MPI.COMM_WORLD
 identical_pair = arguments.system != "HD+"
 l_max = arguments.l_max
+angular_options = (
+    {
+        "l1_max": l_max,
+        "l2_max": l_max,
+        "L_max": 2 * l_max,
+        "M_tot": 0,
+        "lambda_max": 2 * l_max,
+    }
+    if arguments.wf_representation == "coupled"
+    else {
+        "l_max": l_max,
+        "m_max": l_max,
+        "M_tot": 0,
+        "lambda_max": 2 * l_max,
+        "mu_max": 2 * l_max,
+        "symmetry_adapted_basis": identical_pair,
+        "integrator": "sil",
+        "use_preconditioner": False,
+    }
+)
 calculation = NonBornOppenheimerDiatomicIonGroundState(
     arguments.system,
+    wf_representation=arguments.wf_representation,
     electronic_grid=FEMDVRGridSpec(
         nodes=[0.0, 2.0, 5.0],
         n_points=[5, 5],
@@ -71,18 +102,11 @@ calculation = NonBornOppenheimerDiatomicIonGroundState(
     ),
     inversion_parity=+1,
     pair_exchange_parity=+1 if identical_pair else None,
-    symmetry_adapted_basis=identical_pair,
-    l_max=l_max,
-    m_max=l_max,
-    lambda_max=2 * l_max,
-    mu_max=2 * l_max,
-    M_tot=0,
     radial_coulomb_method="analytic",
     radial_operator_mode="element-local",
     codata_set="2018",
     initial_state="product",
-    integrator="sil",
-    use_preconditioner=False,
+    **angular_options,
 )
 representation = calculation.representation
 process_grid = (
@@ -134,10 +158,19 @@ if communicator.rank == 0:
 
     print(f"MPI ranks:                   {communicator.size}")
     print(f"System:                      {arguments.system}")
+    print(f"Wavefunction representation: {arguments.wf_representation}")
     print(f"l_max:                       {l_max}")
     print(f"Process grid:                {layout.process_grid}")
     print(f"Global coefficients:         {np.prod(layout.global_shape)}")
     print(f"Local coefficients:          {counts.min()}--{counts.max()}")
+    if hamiltonian.replicated_angular_inventory:
+        inventory = hamiltonian.replicated_angular_inventory
+        print(f"Coupled channels/rank:       {inventory['channels']}")
+        print(f"Coulomb transitions/rank:    {inventory['coulomb_pairs']}")
+        print(
+            "Coulomb table bytes/rank:    "
+            f"{inventory['coulomb_table_bytes']}"
+        )
     print(
         "Coordinate-1 max error:     "
         f"{np.max(np.abs(coordinate1 - expected_coordinate1)):.3e}"

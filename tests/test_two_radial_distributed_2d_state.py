@@ -6,6 +6,7 @@ from grid_tdse.spherical.two_radial import (
     CoordinateSpec,
     CoulombMultipoleSpec,
     CoulombTerm,
+    CoupledAngularBasisSpec,
     DistributedTwoRadial2DState,
     FEMDVRGridSpec,
     RadialSincDVRGridSpec,
@@ -13,6 +14,7 @@ from grid_tdse.spherical.two_radial import (
     TwoRadialSystemSpec,
     gather_two_radial_2d_state,
     load_distributed_two_radial_2d_state,
+    load_coupled_two_radial_state,
     load_two_radial_state,
     phase_align_two_radial_state,
     phase_aligned_two_radial_state_difference,
@@ -46,6 +48,27 @@ def _state(system):
         system.psi_shape
     )
     return values + 1j * (values + 0.25)
+
+
+def _coupled_system():
+    specification = TwoRadialSystemSpec(
+        CoordinateSpec(
+            FEMDVRGridSpec([0.0, 2.0, 5.0], [4, 4]),
+            AngularBasisSpec(1, 1),
+            -0.5,
+        ),
+        CoordinateSpec(
+            FEMDVRGridSpec([0.0, 1.0, 3.0], [4, 4]),
+            AngularBasisSpec(1, 1),
+            -0.25,
+        ),
+        CoulombMultipoleSpec(2, 2),
+        (CoulombTerm(1.0, 1.0),),
+        M_tot=0,
+    )
+    return specification.build_coupled(
+        CoupledAngularBasisSpec(1, 1, 2, M_tot=0)
+    )
 
 
 def _physical_state():
@@ -318,6 +341,45 @@ def test_serial_collectives_preserve_existing_archive_format(tmp_path):
         **layout.archive_metadata,
         "process_grid": [1, 1],
     }
+
+
+def test_coupled_checkpoint_round_trip_preserves_archive_and_layout(tmp_path):
+    system = _coupled_system()
+    source = TwoRadialDistributed2DLayout(system, 1, process_grid=(1, 1))
+    communicator = _SerialCommunicator()
+    state = system.random_state(
+        np.random.default_rng(20261112),
+        dtype=np.complex128,
+        normalize=True,
+    )
+    local = scatter_two_radial_2d_state(source, communicator, state)
+    archive_path = tmp_path / "coupled-checkpoint.npz"
+
+    save_distributed_two_radial_2d_state(
+        archive_path,
+        local,
+        communicator,
+        physical_state=_physical_state(),
+        calculation={"time": 0.125, "converged": True},
+    )
+    loaded = load_distributed_two_radial_2d_state(
+        archive_path,
+        source,
+        communicator,
+    )
+    archived = load_coupled_two_radial_state(archive_path)
+
+    np.testing.assert_array_equal(loaded.coefficients, state)
+    np.testing.assert_array_equal(archived.coefficients, state)
+    assert archived.calculation["time"] == 0.125
+    assert archived.calculation["distributed_layout"] == {
+        **source.archive_metadata,
+        "process_grid": [1, 1],
+    }
+
+    four_rank = TwoRadialDistributed2DLayout(system, 4, process_grid=(2, 2))
+    restarted = four_rank.distribute(archived)
+    np.testing.assert_array_equal(four_rank.assemble(restarted), state)
 
 
 def test_phase_aligned_equivalence_helpers_remove_global_phase():
