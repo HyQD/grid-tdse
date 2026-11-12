@@ -63,6 +63,17 @@ def test_coupled_step16_driver_is_launched_only_under_srun():
     assert "Coupled Step 16 Olivia qualification: PASS" in source
 
 
+def test_coupled_step16_support_driver_uses_slurm_submission_directory():
+    source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
+
+    assert (
+        'script_root="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is not set}"'
+        in source
+    )
+    assert 'dirname -- "${BASH_SOURCE[0]}"' not in source
+    assert 'driver="${script_root}/qualify_coupled_step16.py"' in source
+
+
 def test_coupled_step16_python_driver_has_expected_gates():
     source = COUPLED_STEP16_DRIVER.read_text(encoding="utf-8")
 
