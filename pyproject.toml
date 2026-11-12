@@ -43,6 +43,9 @@ dev = [
 mpi = [
     "mpi4py>=4,<5",
 ]
+pyscf = [
+    "pyscf>=2.11,<2.12",
+]
 
 [tool.setuptools]
 include-package-data = true

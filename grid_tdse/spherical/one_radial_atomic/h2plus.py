@@ -16,6 +16,7 @@ from grid_lib.pseudospectral_grids import (
     GaussLegendreLobatto,
     Linear_map,
 )
+from scipy.integrate import lebedev_rule
 from scipy.special import sph_harm_y
 
 from ..one_radial_becke import (
@@ -266,8 +267,16 @@ def solve_atomic_h2plus(
     switch_iterations=3,
     overlap_cutoff=1.0e-8,
     hermiticity_tolerance=1.0e-11,
+    grid_backend="native",
+    pyscf_prune="nwchem",
 ):
-    """Solve H2+ with an unweighted atomic basis and Becke quadrature."""
+    """Solve H2+ with an unweighted atomic basis and Becke quadrature.
+
+    ``grid_backend="pyscf"`` uses the same user-controlled radial element
+    layout with interior Gauss-Legendre integration points, while PySCF
+    supplies Lebedev grids, angular pruning, Becke weights, and spatial
+    grouping.
+    """
 
     distance = _positive_real(internuclear_distance, "internuclear_distance")
     integration_spacing = _positive_real(
@@ -285,6 +294,12 @@ def solve_atomic_h2plus(
     switch_iterations = _positive_integer(
         switch_iterations, "switch_iterations"
     )
+    if grid_backend not in ("native", "pyscf"):
+        raise ValueError("grid_backend must be 'native' or 'pyscf'")
+    if grid_backend == "pyscf" and switch_iterations != 3:
+        raise ValueError(
+            "PySCF's original Becke scheme uses exactly three switch iterations"
+        )
 
     basis_specification = FEMDVRQuadratureSpec(
         radial_nodes,
@@ -301,16 +316,44 @@ def solve_atomic_h2plus(
         integration_nodes,
         [integration_radial_n_points] * parent_elements.size,
     )
-    quadrature = BeckeMulticenterQuadrature(
-        BeckePartition(centers, switch_iterations=switch_iterations),
-        integration_specification,
-        lebedev_order,
-    )
-
     started = perf_counter()
-    points, weights, owners, owner_parents = _quadrature_arrays(
-        quadrature, parent_elements
-    )
+    if grid_backend == "native":
+        quadrature = BeckeMulticenterQuadrature(
+            BeckePartition(centers, switch_iterations=switch_iterations),
+            integration_specification,
+            lebedev_order,
+        )
+        points, weights, owners, owner_parents = _quadrature_arrays(
+            quadrature, parent_elements
+        )
+        quadrature_size = quadrature.point_count
+    else:
+        from .pyscf_grid import (
+            GENERIC_LEBEDEV_ROTATION,
+            build_pyscf_becke_grid,
+            composite_gauss_legendre,
+        )
+
+        radial_data = composite_gauss_legendre(integration_specification)
+
+        def radial_rule(_atom_index, _atomic_number):
+            return radial_data
+
+        angular_points = lebedev_rule(lebedev_order)[1].size
+        grid = build_pyscf_becke_grid(
+            centers,
+            [1, 1],
+            radial_rule,
+            angular_points=angular_points,
+            prune=pyscf_prune,
+            radii_adjust=None,
+            rotation=GENERIC_LEBEDEV_ROTATION,
+        )
+        points = grid.coordinates
+        weights = grid.weights
+        owners = grid.origin_atoms
+        owner_parents = np.full(points.shape[0], -1, dtype=int)
+        quadrature_size = grid.point_count
     displacements = points[:, np.newaxis, :] - centers[np.newaxis, :, :]
     distances = np.linalg.norm(displacements, axis=-1)
     unit_vectors = displacements / distances[..., np.newaxis]
@@ -390,7 +433,7 @@ def solve_atomic_h2plus(
         potential=potential,
         hamiltonian=hamiltonian,
         basis_size=basis_size,
-        quadrature_size=quadrature.point_count,
+        quadrature_size=quadrature_size,
         element_group_count=signatures.shape[0],
         overlap_condition_number=condition_number,
         assembly_seconds=assembly_seconds,
