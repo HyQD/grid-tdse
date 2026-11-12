@@ -63,13 +63,11 @@ def test_coupled_step16_driver_is_launched_only_under_srun():
     assert "Coupled Step 16 preparation: PASS" in source
 
 
-def test_coupled_step16_support_driver_uses_slurm_submission_directory():
+def test_coupled_step16_support_driver_uses_batch_working_directory():
     source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
 
-    assert (
-        'script_root="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is not set}"'
-        in source
-    )
+    assert 'script_root="${PWD}"' in source
+    assert "SLURM_SUBMIT_DIR" not in source
     assert 'dirname -- "${BASH_SOURCE[0]}"' not in source
     assert 'driver="${script_root}/qualify_coupled_step16.py"' in source
 
@@ -104,7 +102,7 @@ def test_multi_node_driver_reuses_preparation_and_runs_representative_layouts():
 
     assert "#SBATCH --time=00:10:00" in source
     assert "GRID_TDSE_PREPARATION_JOB_ID" in source
-    assert 'script_root="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is not set}"' in source
+    assert 'script_root="${PWD}"' in source
     assert 'coupled_driver="${script_root}/qualify_coupled_step16.py"' in source
     assert 'python "${coupled_driver}"' in source
     assert "--process-grid 4 4" in source
@@ -117,6 +115,16 @@ def test_multi_node_driver_reuses_preparation_and_runs_representative_layouts():
     assert "export OMPI_MCA_pml=cm" in source
     assert "export OMPI_MCA_mtl=ofi" in source
     assert "export FI_PROVIDER=cxi" in source
+
+
+def test_preparation_general_reference_removes_cache_argument_before_exec():
+    source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
+    general_launch = source.split(
+        "Preparing the general H2+ reference and ground state", maxsplit=1
+    )[1]
+
+    assert "cache_root=$1\n        shift" in general_launch
+    assert "exec \"$@\"" in general_launch
 
 
 def test_coupled_step16_python_driver_has_expected_gates():

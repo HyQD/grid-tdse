@@ -1341,6 +1341,8 @@ Install, validate, and submit the tracked script from a login node:
         "${job_root}/qualify_coupled_step16.py"
     rm -- "${temporary_driver}"
 
+    cd "${job_root}"
+
     preparation_job_id=$(
         sbatch \
             --parsable \

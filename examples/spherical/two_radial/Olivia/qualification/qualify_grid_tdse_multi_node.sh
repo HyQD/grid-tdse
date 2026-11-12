@@ -24,7 +24,7 @@ deployment_prefix="${GRID_TDSE_ENV_ROOT}/${GRID_TDSE_DEPLOYMENT}"
 manifest_root="${GRID_TDSE_ROOT}/manifests/${GRID_TDSE_DEPLOYMENT}"
 source_manifest="${manifest_root}/source-commits.txt"
 runtime_environment="${manifest_root}/runtime-environment.sh"
-script_root="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is not set}"
+script_root="${PWD}"
 coupled_driver="${script_root}/qualify_coupled_step16.py"
 
 test -d "${deployment_prefix}"
