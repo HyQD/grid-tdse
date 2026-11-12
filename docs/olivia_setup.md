@@ -15,6 +15,14 @@ for 1, 2, 4, 8, and 16 ranks, with a best single-node speedup of `4.805` and
 serial differences no larger than `1.11e-14`. Multi-node qualification remains
 required before scientific production calculations.
 
+After Olivia maintenance on 2026-11-12, a newly built container exposed a
+runtime ordering conflict between the container OpenSSL libraries and the
+host libraries reached through site Open MPI. The deployment procedure below
+therefore records and sources `runtime-environment.sh`, which places the
+matched host `/usr/lib64` pair before MPI is imported. This is required even
+when `pip check` succeeds: package metadata does not detect dynamic-library
+ABI conflicts.
+
 Olivia differs from Saga in two important ways:
 
 - Sigma2 does not permit native user Conda or pip environments on Olivia.
@@ -817,16 +825,43 @@ Conda MPI implementation as a workaround. Preserve the build log and consult
 Sigma2 support about exposing the current `NRIS/CPU` Open MPI toolchain to the
 HPC-container-wrapper build.
 
-Verify the library reported by `mpi4py`:
+Create the deployment runtime environment after the final container update.
+Every compute job must source this file after loading `NRIS/CPU` and Open MPI,
+but before invoking a deployment wrapper:
+
+```bash
+printf '%s\n' \
+    '#!/bin/bash' \
+    '# Keep Olivia host SSL dependencies internally consistent when loading host MPI.' \
+    'export LD_LIBRARY_PATH="/usr/lib64:/lib64:${LD_LIBRARY_PATH-}"' \
+    > "${manifest_root}/runtime-environment.sh"
+
+chmod 0644 "${manifest_root}/runtime-environment.sh"
+bash -n "${manifest_root}/runtime-environment.sh"
+source "${manifest_root}/runtime-environment.sh"
+```
+
+The generated HPC-container-wrapper `common.sh` propagates the caller's
+`LD_LIBRARY_PATH` into the container through
+`SINGULARITYENV_LD_LIBRARY_PATH`; do not edit the generated wrappers.
+
+Verify the library reported by `mpi4py` in an import order that first loads
+the numerical stack:
 
 ```bash
 export PATH="${deployment_prefix}/bin:${PATH}"
 hash -r
 
 python - <<'PY'
+import ssl
+import grid_lib
+import grid_tdse
 import mpi4py
 from mpi4py import MPI
 
+print("OpenSSL:", ssl.OPENSSL_VERSION)
+print("grid-lib:", grid_lib.__file__)
+print("grid-tdse:", grid_tdse.__file__)
 print("mpi4py:", mpi4py.__version__, mpi4py.__file__)
 print(MPI.Get_library_version().rstrip("\x00"))
 PY
@@ -839,7 +874,9 @@ python -m pip check > "${manifest_root}/pip-check.txt"
 
 The output must identify the Olivia Open MPI implementation selected above.
 Finding MPICH, a Conda Open MPI, or a different site Open MPI is a failed
-qualification.
+qualification. An error in which host `libssl.so.3` requests a symbol from a
+container `libcrypto.so.3` means `runtime-environment.sh` was not sourced at
+the required point.
 
 ## 13. Run the serial and single-node MPI qualification job
 
@@ -1667,6 +1704,22 @@ conda-containerize update \
     --post-install "${manifest_root}/install-mpi.sh"
 ```
 
+Create and select the deployment-specific runtime environment. This keeps
+the host libraries reached through site Open MPI internally consistent even
+when the numerical Python stack is imported first:
+
+```bash
+printf '%s\n' \
+    '#!/bin/bash' \
+    '# Keep Olivia host SSL dependencies internally consistent when loading host MPI.' \
+    'export LD_LIBRARY_PATH="/usr/lib64:/lib64:${LD_LIBRARY_PATH-}"' \
+    > "${manifest_root}/runtime-environment.sh"
+
+chmod 0644 "${manifest_root}/runtime-environment.sh"
+bash -n "${manifest_root}/runtime-environment.sh"
+source "${manifest_root}/runtime-environment.sh"
+```
+
 Select and verify the completed candidate:
 
 ```bash
@@ -1675,11 +1728,17 @@ hash -r
 
 python -m pip check
 python - <<'PY'
+import ssl
+import grid_lib
+import grid_tdse
 import mpi4py
 import py3nj
 from grid_lib.spherical_coordinates.angular_momentum import get_gaunt_backend
 from mpi4py import MPI
 
+print("OpenSSL:", ssl.OPENSSL_VERSION)
+print("grid-lib:", grid_lib.__file__)
+print("grid-tdse:", grid_tdse.__file__)
 print("mpi4py:", mpi4py.__version__)
 print(MPI.Get_library_version().rstrip("\x00"))
 print("py3nj:", py3nj.__version__)
@@ -1695,9 +1754,15 @@ Exit the compute allocation after these checks complete.
 
 ### 18.8 Run the qualification gates
 
-Back on the login node, refresh the tracked scripts in the work area. Submit
-the test-suite/MPI-launch job, numerical-equivalence job, representative
-single-node gate, and two-node gate as an `afterok` chain:
+Back on the login node, refresh the tracked drivers in the work area. An
+immutable candidate may intentionally pin an older grid-tdse commit than the
+support commit containing a corrected qualification driver. Fetch
+`origin/main` without pulling it into the pinned source worktree, then extract
+the drivers with `git show`. The batch jobs continue to verify the candidate's
+five pinned source commits; the separately recorded support commit identifies
+the exact qualification logic. Submit the test-suite/MPI-launch job,
+numerical-equivalence job, representative single-node gate, coupled Step 16
+gate, and general two-node regression gate as an `afterok` chain:
 
 ```bash
 (
@@ -1710,38 +1775,57 @@ single-node gate, and two-node gate as an `afterok` chain:
 
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
     manifest_root="${GRID_TDSE_ROOT}/manifests/${deployment_id}"
-    qualification_source="${GRID_TDSE_SRC_ROOT}/grid-tdse/examples/spherical/two_radial/Olivia/qualification"
+    repository_root="${GRID_TDSE_SRC_ROOT}/grid-tdse"
+    qualification_path="examples/spherical/two_radial/Olivia/qualification"
     job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+
+    git -C "${repository_root}" fetch origin main
+    qualification_commit=$(git -C "${repository_root}" rev-parse origin/main)
+    printf '%s\n' "${qualification_commit}" \
+        > "${manifest_root}/qualification-support-commit.txt"
 
     source_scripts=(
         qualify_grid_tdse.sh
         qualify_grid_tdse_equivalence.sh
         qualify_grid_tdse_single_node.sh
+        qualify_grid_tdse_coupled_step16.sh
         qualify_grid_tdse_multi_node.sh
     )
     installed_scripts=(
         qualify-grid-tdse.sh
         qualify-grid-tdse-equivalence.sh
         qualify-grid-tdse-single-node.sh
+        qualify-grid-tdse-coupled-step16.sh
         qualify-grid-tdse-multi-node.sh
     )
 
     mkdir -p "${job_root}"
     for index in "${!source_scripts[@]}"
     do
-        source_script="${qualification_source}/${source_scripts[index]}"
         installed_script="${job_root}/${installed_scripts[index]}"
+        temporary_script=$(mktemp "${job_root}/.qualification.XXXXXX")
 
-        if [[ ! -s "${source_script}" ]]
-        then
-            echo "STOP: qualification source is missing or empty: ${source_script}" >&2
-            exit 1
-        fi
+        git -C "${repository_root}" show \
+            "${qualification_commit}:${qualification_path}/${source_scripts[index]}" \
+            > "${temporary_script}"
 
-        install -m 0755 "${source_script}" "${installed_script}"
+        test -s "${temporary_script}"
+        bash -n "${temporary_script}"
+        install -m 0755 "${temporary_script}" "${installed_script}"
+        rm -- "${temporary_script}"
         test -s "${installed_script}"
         bash -n "${installed_script}"
     done
+
+    temporary_driver=$(mktemp "${job_root}/.coupled-step16.XXXXXX")
+    git -C "${repository_root}" show \
+        "${qualification_commit}:${qualification_path}/qualify_coupled_step16.py" \
+        > "${temporary_driver}"
+    test -s "${temporary_driver}"
+    install -m 0644 \
+        "${temporary_driver}" \
+        "${job_root}/qualify_coupled_step16.py"
+    rm -- "${temporary_driver}"
 
     cd "${job_root}"
 
@@ -1774,10 +1858,20 @@ single-node gate, and two-node gate as an `afterok` chain:
     )
     [[ "${single_node_job_id}" =~ ^[0-9]+$ ]]
 
-    multi_node_job_id=$(
+    coupled_step16_job_id=$(
         sbatch \
             --parsable \
             --dependency="afterok:${single_node_job_id}" \
+            --account="${GRID_TDSE_PROJECT_ID}" \
+            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
+            qualify-grid-tdse-coupled-step16.sh
+    )
+    [[ "${coupled_step16_job_id}" =~ ^[0-9]+$ ]]
+
+    multi_node_job_id=$(
+        sbatch \
+            --parsable \
+            --dependency="afterok:${coupled_step16_job_id}" \
             --account="${GRID_TDSE_PROJECT_ID}" \
             --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
             qualify-grid-tdse-multi-node.sh
@@ -1787,6 +1881,7 @@ single-node gate, and two-node gate as an `afterok` chain:
     printf 'Qualification job: %s\n' "${qualification_job_id}"
     printf 'Equivalence job:   %s\n' "${equivalence_job_id}"
     printf 'Single-node job:   %s\n' "${single_node_job_id}"
+    printf 'Coupled Step 16:   %s\n' "${coupled_step16_job_id}"
     printf 'Multi-node job:    %s\n' "${multi_node_job_id}"
     printf '%s\n' "${qualification_job_id}" \
         > "${manifest_root}/qualification-job-id.txt"
@@ -1794,12 +1889,14 @@ single-node gate, and two-node gate as an `afterok` chain:
         > "${manifest_root}/equivalence-job-id.txt"
     printf '%s\n' "${single_node_job_id}" \
         > "${manifest_root}/single-node-job-id.txt"
+    printf '%s\n' "${coupled_step16_job_id}" \
+        > "${manifest_root}/coupled-step16-job-id.txt"
     printf '%s\n' "${multi_node_job_id}" \
         > "${manifest_root}/multi-node-job-id.txt"
 )
 ```
 
-When all four jobs leave the queue, verify their states and outputs:
+When all five jobs leave the queue, verify their states and outputs:
 
 ```bash
 source /cluster/projects/<project-id>/<username>/grid-tdse/olivia_grid_tdse_paths.sh
@@ -1808,9 +1905,10 @@ manifest_root="${GRID_TDSE_ROOT}/manifests/${deployment_id}"
 qualification_job_id=$(cat "${manifest_root}/qualification-job-id.txt")
 equivalence_job_id=$(cat "${manifest_root}/equivalence-job-id.txt")
 single_node_job_id=$(cat "${manifest_root}/single-node-job-id.txt")
+coupled_step16_job_id=$(cat "${manifest_root}/coupled-step16-job-id.txt")
 multi_node_job_id=$(cat "${manifest_root}/multi-node-job-id.txt")
 
-job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id},${multi_node_job_id}"
+job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id},${coupled_step16_job_id},${multi_node_job_id}"
 sacct -X \
     -j "${job_ids}" \
     --format=JobID,JobName%30,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,NodeList
@@ -1819,6 +1917,7 @@ for job_id in \
     "${qualification_job_id}" \
     "${equivalence_job_id}" \
     "${single_node_job_id}" \
+    "${coupled_step16_job_id}" \
     "${multi_node_job_id}"
 do
     output_file=$(find "${GRID_TDSE_WORK_ROOT}/jobs" \
@@ -1831,10 +1930,12 @@ do
 done
 ```
 
-Do not promote unless all four jobs are `COMPLETED` with exit code `0:0`, the
+Do not promote unless all five jobs are `COMPLETED` with exit code `0:0`, the
 test suite passes, the equivalence output contains
-`Grid-tdse serial/MPI equivalence: PASS`, and the scaling output contains
-both `Single-node stress correctness: PASS` and
+`Grid-tdse serial/MPI equivalence: PASS`, the single-node output contains
+`Single-node stress correctness: PASS`, the coupled output contains
+`Coupled Step 16 Olivia qualification: PASS`, and the general multi-node
+output contains
 `Multi-node stress correctness: PASS`.
 
 ### 18.9 Promote the new prefix by changing `current`
@@ -1967,8 +2068,10 @@ provenance_root="${run_root}/provenance"
 
 test -d "${deployment_prefix}"
 test -s "${manifest_root}/source-commits.txt"
+test -s "${manifest_root}/runtime-environment.sh"
 mkdir -p "${provenance_root}" "${run_root}/results"
 
+source "${manifest_root}/runtime-environment.sh"
 export PATH="${deployment_prefix}/bin:${PATH}"
 hash -r
 
@@ -1980,6 +2083,8 @@ printf '%s\n' "${deployment_prefix}" \
     > "${provenance_root}/deployment-prefix.txt"
 cp "${manifest_root}/source-commits.txt" \
     "${provenance_root}/source-commits.txt"
+cp "${manifest_root}/runtime-environment.sh" \
+    "${provenance_root}/runtime-environment.sh"
 cp "$0" "${provenance_root}/submitted-job-script.sh"
 
 date --iso-8601=seconds > "${provenance_root}/started-at.txt"

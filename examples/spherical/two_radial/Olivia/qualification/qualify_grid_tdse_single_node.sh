@@ -54,6 +54,10 @@ do
     fi
 done < "${source_manifest}"
 
+runtime_environment="${manifest_root}/runtime-environment.sh"
+test -s "${runtime_environment}"
+source "${runtime_environment}"
+
 export PATH="${deployment_prefix}/bin:${PATH}"
 hash -r
 
