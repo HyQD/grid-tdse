@@ -43,6 +43,13 @@ def test_all_olivia_shell_drivers_have_valid_bash_syntax():
         subprocess.run(["bash", "-n", path], check=True)
 
 
+def test_large_partition_drivers_do_not_request_memory():
+    for path in sorted(QUALIFICATION_ROOT.glob("qualify_grid_tdse*.sh")):
+        source = path.read_text(encoding="utf-8")
+        if "#SBATCH --partition=large" in source:
+            assert "#SBATCH --mem" not in source, path.name
+
+
 def test_coupled_step16_driver_is_launched_only_under_srun():
     source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
     prelaunch, separator, launch = source.partition("\n    srun \\")

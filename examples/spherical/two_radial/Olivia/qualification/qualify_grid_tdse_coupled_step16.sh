@@ -7,7 +7,6 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=4G
 #SBATCH --output=grid_tdse_coupled_step16-%j.out
 
 set -euo pipefail
