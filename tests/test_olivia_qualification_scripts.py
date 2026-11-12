@@ -59,8 +59,8 @@ def test_coupled_step16_driver_is_launched_only_under_srun():
     assert 'python "${driver}"' in launch
     assert "run_case reference-1r 1 1 1 1 1 --write-reference" in source
     assert "run_case one-node-4r 1 4 4 2 2" in source
-    assert "run_case two-node-16r 2 16 8 4 4" in source
-    assert "Coupled Step 16 Olivia qualification: PASS" in source
+    assert "run_case two-node-16r" not in source
+    assert "Coupled Step 16 preparation: PASS" in source
 
 
 def test_coupled_step16_support_driver_uses_slurm_submission_directory():
@@ -74,21 +74,49 @@ def test_coupled_step16_support_driver_uses_slurm_submission_directory():
     assert 'driver="${script_root}/qualify_coupled_step16.py"' in source
 
 
-def test_coupled_step16_selects_open_mpi_transport_by_node_count():
+def test_coupled_step16_preparation_uses_small_partition_and_shared_memory():
     source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
 
-    assert "if ((nodes == 1))" in source
-    assert "transport=single-node-ob1" in source
-    assert "transport=multi-node-cxi" in source
+    assert "#SBATCH --partition=small" in source
+    assert "#SBATCH --nodes=1" in source
+    assert "#SBATCH --ntasks=4" in source
+    assert "#SBATCH --time=00:10:00" in source
     assert "export OMPI_MCA_pml=ob1" in source
     assert "export OMPI_MCA_btl=sm,self" in source
+    assert "export OMPI_MCA_pml=cm" not in source
+    assert "export FI_PROVIDER=cxi" not in source
+    assert "unset FI_PROVIDER" in source
+    assert "unset FI_CXI_RX_MATCH_MODE" in source
+
+
+def test_only_combined_multi_node_driver_uses_large_partition():
+    large_drivers = []
+    for path in sorted(QUALIFICATION_ROOT.glob("qualify_grid_tdse*.sh")):
+        source = path.read_text(encoding="utf-8")
+        if "#SBATCH --partition=large" in source:
+            large_drivers.append(path.name)
+
+    assert large_drivers == ["qualify_grid_tdse_multi_node.sh"]
+
+
+def test_multi_node_driver_reuses_preparation_and_runs_representative_layouts():
+    source = MULTI_NODE_SCRIPT.read_text(encoding="utf-8")
+
+    assert "#SBATCH --time=00:10:00" in source
+    assert "GRID_TDSE_PREPARATION_JOB_ID" in source
+    assert 'script_root="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is not set}"' in source
+    assert 'coupled_driver="${script_root}/qualify_coupled_step16.py"' in source
+    assert 'python "${coupled_driver}"' in source
+    assert "--process-grid 4 4" in source
+    assert "Coupled Step 16 Olivia qualification: PASS" in source
+    assert "ranks=(2 16)" in source
+    assert "tasks_per_node=(1 8)" in source
+    assert "process_grids=(1x2 4x4)" in source
+    assert "--initial-state-policy require" in source
+    assert "ranks=(2 4 8 16)" not in source
     assert "export OMPI_MCA_pml=cm" in source
     assert "export OMPI_MCA_mtl=ofi" in source
     assert "export FI_PROVIDER=cxi" in source
-    assert "unset FI_PROVIDER" in source
-    assert "unset FI_CXI_RX_MATCH_MODE" in source
-    assert "Unknown Open MPI transport" in source
-    assert "' bash \"${cache_root}\" \"${label}\" \"${transport}\" \\" in source
 
 
 def test_coupled_step16_python_driver_has_expected_gates():

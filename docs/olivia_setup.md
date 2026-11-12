@@ -1270,15 +1270,20 @@ initialization and fails at `fi_domain` with error 38. The tracked gate obtains
 and prints `MPI.Get_library_version()` from rank zero inside its first
 two-node `srun` placement check.
 
-The multi-node gate requests two whole CPU nodes and runs 2, 4, 8, and 16
-ranks, evenly divided between the nodes. Each layout performs an MPI collective
-placement check followed by the same 100-step H2+ propagation used in Step 15.
-Every result is compared with the serial implementation using the validated
-Krylov tolerances.
+To avoid paying for serial and one-node work on whole `large` nodes, the
+qualification is split into two jobs. A four-rank `small` preparation job
+creates the coupled one-rank reference, checks the coupled `2x2` layout, and
+creates the H2+ ground state and one-rank dynamics reference. One combined
+two-node `large` job then runs the coupled `4x4` Step 16 case and only the
+representative 2- and 16-rank general layouts. The single-node gate in Step 15
+already covers the intermediate 4- and 8-rank layouts.
 
 Olivia `large` jobs are allocated and billed as whole nodes regardless of how
-few ranks they launch. This two-node run is therefore a controlled transport,
-correctness, and scaling qualification, not an allocation-efficiency claim.
+few ranks they launch. Only the combined two-node job uses `large`, with a
+10-minute limit. Its maximum request is therefore 512 cores for one sixth of
+an hour, or about 85.3 CPU-hours. The preparation job uses `small` and requests
+four CPU cores for 10 minutes. These are controlled transport and correctness
+checks, not allocation-efficiency claims.
 See the official
 [large-job documentation](https://documentation.sigma2.no/jobs/job_scripts/olivia_job_scripts.html#large)
 before changing its resources.
@@ -1295,54 +1300,64 @@ Install, validate, and submit the tracked script from a login node:
     source "${GRID_TDSE_PATHS_FILE}"
 
     repository_root="${GRID_TDSE_SRC_ROOT}/grid-tdse"
-    script_path="examples/spherical/two_radial/Olivia/qualification/qualify_grid_tdse_multi_node.sh"
+    qualification_path="examples/spherical/two_radial/Olivia/qualification"
     job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+    preparation_script="${job_root}/qualify-grid-tdse-coupled-step16.sh"
     multi_node_script="${job_root}/qualify-grid-tdse-multi-node.sh"
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
 
     mkdir -p "${job_root}"
     git -C "${repository_root}" fetch origin main
 
-    if ! git -C "${repository_root}" cat-file -e \
-        "origin/main:${script_path}"
-    then
-        echo "STOP: the multi-node script is not present on origin/main" >&2
-        exit 1
-    fi
+    source_scripts=(
+        qualify_grid_tdse_coupled_step16.sh
+        qualify_grid_tdse_multi_node.sh
+    )
+    installed_scripts=(
+        "${preparation_script}"
+        "${multi_node_script}"
+    )
+    for index in "${!source_scripts[@]}"
+    do
+        temporary_script=$(mktemp "${job_root}/.qualification.XXXXXX")
+        git -C "${repository_root}" show \
+            "origin/main:${qualification_path}/${source_scripts[index]}" \
+            > "${temporary_script}"
+        test -s "${temporary_script}"
+        bash -n "${temporary_script}"
+        install -m 0755 \
+            "${temporary_script}" \
+            "${installed_scripts[index]}"
+        rm -- "${temporary_script}"
+    done
 
-    temporary_script=$(mktemp \
-        "${job_root}/.qualify-grid-tdse-multi-node.XXXXXX")
-
-    cleanup()
-    {
-        if [[ -e "${temporary_script}" ]]
-        then
-            rm -- "${temporary_script}"
-        fi
-    }
-    trap cleanup EXIT
-
+    temporary_driver=$(mktemp "${job_root}/.coupled-step16.XXXXXX")
     git -C "${repository_root}" show \
-        "origin/main:${script_path}" \
-        > "${temporary_script}"
+        "origin/main:${qualification_path}/qualify_coupled_step16.py" \
+        > "${temporary_driver}"
+    test -s "${temporary_driver}"
+    install -m 0644 \
+        "${temporary_driver}" \
+        "${job_root}/qualify_coupled_step16.py"
+    rm -- "${temporary_driver}"
 
-    if [[ ! -s "${temporary_script}" ]]
-    then
-        echo "STOP: extracted multi-node script is empty" >&2
-        exit 1
-    fi
-
-    bash -n "${temporary_script}"
-    install -m 0755 "${temporary_script}" "${multi_node_script}"
-    test -s "${multi_node_script}"
-    bash -n "${multi_node_script}"
-
-    multi_node_job_id=$(
+    preparation_job_id=$(
         sbatch \
             --parsable \
             --chdir="${job_root}" \
             --account="${GRID_TDSE_PROJECT_ID}" \
             --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
+            "${preparation_script}"
+    )
+    [[ "${preparation_job_id}" =~ ^[0-9]+$ ]]
+
+    multi_node_job_id=$(
+        sbatch \
+            --parsable \
+            --dependency="afterok:${preparation_job_id}" \
+            --chdir="${job_root}" \
+            --account="${GRID_TDSE_PROJECT_ID}" \
+            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id},GRID_TDSE_PREPARATION_JOB_ID=${preparation_job_id}" \
             "${multi_node_script}"
     )
 
@@ -1352,12 +1367,15 @@ Install, validate, and submit the tracked script from a login node:
         exit 1
     fi
 
-    printf 'Multi-node job: %s\n' "${multi_node_job_id}"
+    printf 'Preparation job: %s\n' "${preparation_job_id}"
+    printf 'Multi-node job:   %s\n' "${multi_node_job_id}"
+    printf '%s\n' "${preparation_job_id}" \
+        > "${job_root}/latest-multi-node-preparation-job-id.txt"
     printf '%s\n' "${multi_node_job_id}" \
         > "${job_root}/latest-multi-node-job-id.txt"
 
     squeue \
-        -j "${multi_node_job_id}" \
+        -j "${preparation_job_id},${multi_node_job_id}" \
         --format='%.18i %.30j %.10T %.10M %.10l %.24R'
 )
 ```
@@ -1380,10 +1398,18 @@ rank-placement records:
 
     deployment_id=$(cat "${GRID_TDSE_ROOT}/latest-candidate-deployment.txt")
     job_root="${GRID_TDSE_WORK_ROOT}/jobs"
+    preparation_job_id=$(cat \
+        "${job_root}/latest-multi-node-preparation-job-id.txt")
     multi_node_job_id=$(cat "${job_root}/latest-multi-node-job-id.txt")
+    preparation_output="${job_root}/grid_tdse_coupled_step16-${preparation_job_id}.out"
     output_file="${job_root}/grid_tdse_multi_node-${multi_node_job_id}.out"
     run_root="${GRID_TDSE_WORK_ROOT}/qualification/${deployment_id}/multi-node-${multi_node_job_id}"
 
+    if [[ ! "${preparation_job_id}" =~ ^[0-9]+$ ]]
+    then
+        echo "STOP: invalid recorded preparation job ID: ${preparation_job_id}" >&2
+        exit 1
+    fi
     if [[ ! "${multi_node_job_id}" =~ ^[0-9]+$ ]]
     then
         echo "STOP: invalid recorded job ID: ${multi_node_job_id}" >&2
@@ -1391,20 +1417,21 @@ rank-placement records:
     fi
 
     sacct \
-        -j "${multi_node_job_id}" \
+        -j "${preparation_job_id},${multi_node_job_id}" \
         --format=JobID,JobName%30,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,NodeList
 
+    test -f "${preparation_output}"
     test -f "${output_file}"
     grep --text -n -E \
         'Traceback|FAILED|ERROR|Error|AssertionError|MemoryError|MPI_ABORT|CANCELLED|TIMEOUT|OUT_OF_MEMORY|exceeds tolerance' \
-        "${output_file}" || true
+        "${preparation_output}" "${output_file}" || true
     grep --text -E \
-        'Allocated node:|MPI library:|Status:|MPI ranks:|Serial state difference:|Time-series maximum difference:|Distributed wall time:|Two-node production-grid scaling|Multi-node stress correctness:' \
-        "${output_file}" || true
+        'Coupled Step 16 preparation:|Coupled Step 16 Olivia qualification:|Two-node production-grid scaling|Multi-node stress correctness:' \
+        "${preparation_output}" "${output_file}" || true
     tail -n 200 "${output_file}"
 
     find "${run_root}" \
-        -maxdepth 2 \
+        -maxdepth 4 \
         -type f \
         -print |
     sort
@@ -1413,14 +1440,17 @@ rank-placement records:
 
 The gate passes only when:
 
-1. Slurm reports `COMPLETED` with exit code `0:0`;
+1. both Slurm jobs report `COMPLETED` with exit code `0:0`;
 2. every placement record contains the requested number of ranks on exactly
    two nodes;
 3. the forced `cm`/`ofi` and `cxi` transport initializes without fallback or
    provider errors;
 4. every rank layout agrees with the serial state and observable time series
    below `1e-8`;
-5. the output contains `Multi-node stress correctness: PASS`.
+5. the preparation output contains `Coupled Step 16 preparation: PASS`;
+6. the combined output contains both
+   `Coupled Step 16 Olivia qualification: PASS` and
+   `Multi-node stress correctness: PASS`.
 
 Retain the timings even if additional ranks do not improve this small problem.
 The purpose of the first multi-node run is to qualify correctness and transport;
@@ -1761,8 +1791,9 @@ support commit containing a corrected qualification driver. Fetch
 the drivers with `git show`. The batch jobs continue to verify the candidate's
 five pinned source commits; the separately recorded support commit identifies
 the exact qualification logic. Submit the test-suite/MPI-launch job,
-numerical-equivalence job, representative single-node gate, coupled Step 16
-gate, and general two-node regression gate as an `afterok` chain:
+numerical-equivalence job, representative single-node gate, small-partition
+reference preparation, and one combined two-node regression gate as an
+`afterok` chain:
 
 ```bash
 (
@@ -1858,7 +1889,7 @@ gate, and general two-node regression gate as an `afterok` chain:
     )
     [[ "${single_node_job_id}" =~ ^[0-9]+$ ]]
 
-    coupled_step16_job_id=$(
+    preparation_job_id=$(
         sbatch \
             --parsable \
             --dependency="afterok:${single_node_job_id}" \
@@ -1866,14 +1897,14 @@ gate, and general two-node regression gate as an `afterok` chain:
             --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
             qualify-grid-tdse-coupled-step16.sh
     )
-    [[ "${coupled_step16_job_id}" =~ ^[0-9]+$ ]]
+    [[ "${preparation_job_id}" =~ ^[0-9]+$ ]]
 
     multi_node_job_id=$(
         sbatch \
             --parsable \
-            --dependency="afterok:${coupled_step16_job_id}" \
+            --dependency="afterok:${preparation_job_id}" \
             --account="${GRID_TDSE_PROJECT_ID}" \
-            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id}" \
+            --export="ALL,GRID_TDSE_PATHS_FILE=${GRID_TDSE_PATHS_FILE},GRID_TDSE_DEPLOYMENT=${deployment_id},GRID_TDSE_PREPARATION_JOB_ID=${preparation_job_id}" \
             qualify-grid-tdse-multi-node.sh
     )
     [[ "${multi_node_job_id}" =~ ^[0-9]+$ ]]
@@ -1881,16 +1912,16 @@ gate, and general two-node regression gate as an `afterok` chain:
     printf 'Qualification job: %s\n' "${qualification_job_id}"
     printf 'Equivalence job:   %s\n' "${equivalence_job_id}"
     printf 'Single-node job:   %s\n' "${single_node_job_id}"
-    printf 'Coupled Step 16:   %s\n' "${coupled_step16_job_id}"
-    printf 'Multi-node job:    %s\n' "${multi_node_job_id}"
+    printf 'Preparation job:   %s\n' "${preparation_job_id}"
+    printf 'Combined two-node: %s\n' "${multi_node_job_id}"
     printf '%s\n' "${qualification_job_id}" \
         > "${manifest_root}/qualification-job-id.txt"
     printf '%s\n' "${equivalence_job_id}" \
         > "${manifest_root}/equivalence-job-id.txt"
     printf '%s\n' "${single_node_job_id}" \
         > "${manifest_root}/single-node-job-id.txt"
-    printf '%s\n' "${coupled_step16_job_id}" \
-        > "${manifest_root}/coupled-step16-job-id.txt"
+    printf '%s\n' "${preparation_job_id}" \
+        > "${manifest_root}/multi-node-preparation-job-id.txt"
     printf '%s\n' "${multi_node_job_id}" \
         > "${manifest_root}/multi-node-job-id.txt"
 )
@@ -1905,10 +1936,10 @@ manifest_root="${GRID_TDSE_ROOT}/manifests/${deployment_id}"
 qualification_job_id=$(cat "${manifest_root}/qualification-job-id.txt")
 equivalence_job_id=$(cat "${manifest_root}/equivalence-job-id.txt")
 single_node_job_id=$(cat "${manifest_root}/single-node-job-id.txt")
-coupled_step16_job_id=$(cat "${manifest_root}/coupled-step16-job-id.txt")
+preparation_job_id=$(cat "${manifest_root}/multi-node-preparation-job-id.txt")
 multi_node_job_id=$(cat "${manifest_root}/multi-node-job-id.txt")
 
-job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id},${coupled_step16_job_id},${multi_node_job_id}"
+job_ids="${qualification_job_id},${equivalence_job_id},${single_node_job_id},${preparation_job_id},${multi_node_job_id}"
 sacct -X \
     -j "${job_ids}" \
     --format=JobID,JobName%30,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,NodeList
@@ -1917,7 +1948,7 @@ for job_id in \
     "${qualification_job_id}" \
     "${equivalence_job_id}" \
     "${single_node_job_id}" \
-    "${coupled_step16_job_id}" \
+    "${preparation_job_id}" \
     "${multi_node_job_id}"
 do
     output_file=$(find "${GRID_TDSE_WORK_ROOT}/jobs" \
@@ -1933,9 +1964,9 @@ done
 Do not promote unless all five jobs are `COMPLETED` with exit code `0:0`, the
 test suite passes, the equivalence output contains
 `Grid-tdse serial/MPI equivalence: PASS`, the single-node output contains
-`Single-node stress correctness: PASS`, the coupled output contains
-`Coupled Step 16 Olivia qualification: PASS`, and the general multi-node
-output contains
+`Single-node stress correctness: PASS`, the preparation output contains
+`Coupled Step 16 preparation: PASS`, and the combined multi-node output
+contains both `Coupled Step 16 Olivia qualification: PASS` and
 `Multi-node stress correctness: PASS`.
 
 ### 18.9 Promote the new prefix by changing `current`
