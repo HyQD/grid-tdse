@@ -127,6 +127,16 @@ def test_preparation_general_reference_removes_cache_argument_before_exec():
     assert "exec \"$@\"" in general_launch
 
 
+def test_combined_coupled_launch_removes_cache_argument_before_exec():
+    source = MULTI_NODE_SCRIPT.read_text(encoding="utf-8")
+    coupled_launch = source.split(
+        "Running coupled Step 16 with 16 ranks across two nodes", maxsplit=1
+    )[1].split("# The single-node gate", maxsplit=1)[0]
+
+    assert "cache_root=$1\n        shift" in coupled_launch
+    assert "exec \"$@\"" in coupled_launch
+
+
 def test_coupled_step16_python_driver_has_expected_gates():
     source = COUPLED_STEP16_DRIVER.read_text(encoding="utf-8")
 

@@ -144,6 +144,7 @@ srun \
     --kill-on-bad-exit=1 \
     bash -c '
         cache_root=$1
+        shift
         rank_cache="${cache_root}/coupled-16r-${SLURM_PROCID}"
         mkdir -p \
             "${rank_cache}/numba" \
