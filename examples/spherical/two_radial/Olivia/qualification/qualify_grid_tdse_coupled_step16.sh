@@ -67,15 +67,6 @@ export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export NUMBA_NUM_THREADS=1
 
-# Force the documented Olivia multi-node Slingshot transport.  Failure is
-# preferable to an unnoticed fallback to TCP.
-export OMPI_MCA_pml=cm
-export OMPI_MCA_mtl=ofi
-export OMPI_MCA_mtl_ofi_av=table
-export PRTE_MCA_ras_base_launch_orted_on_hn=1
-export FI_PROVIDER=cxi
-export FI_CXI_RX_MATCH_MODE=hybrid
-
 run_root="${GRID_TDSE_WORK_ROOT}/qualification/${GRID_TDSE_DEPLOYMENT}/coupled-step16-${SLURM_JOB_ID}"
 result_root="${run_root}/results"
 state_root="${run_root}/states"
@@ -98,7 +89,7 @@ printf 'Allocated node: %s\n' "${allocated_nodes[@]}"
 echo "Python: $(command -v python)"
 echo "Deployment: ${deployment_prefix}"
 echo "Runtime environment: ${runtime_environment}"
-echo "Open MPI transport: cm/ofi"
+echo "Open MPI transport: selected per one- or two-node run"
 module list
 python -m pip check
 
@@ -112,10 +103,20 @@ run_case()
     local process_columns=$6
     shift 6
 
+    # Olivia initializes Slingshot for multi-node launches.  One-node steps use
+    # Open MPI shared memory instead of forcing the cxi provider.
+    local transport
+    if ((nodes == 1))
+    then
+        transport=single-node-ob1
+    else
+        transport=multi-node-cxi
+    fi
+
     local result_json="${result_root}/${label}.json"
-    printf '\nRunning %s with %s ranks on %s node(s), grid %sx%s\n' \
+    printf '\nRunning %s with %s ranks on %s node(s), grid %sx%s, transport %s\n' \
         "${label}" "${ranks}" "${nodes}" \
-        "${process_rows}" "${process_columns}"
+        "${process_rows}" "${process_columns}" "${transport}"
 
     srun \
         --exact \
@@ -129,7 +130,31 @@ run_case()
         bash -c '
             cache_root=$1
             label=$2
-            shift 2
+            transport=$3
+            shift 3
+            case "${transport}" in
+                single-node-ob1)
+                    export OMPI_MCA_pml=ob1
+                    export OMPI_MCA_btl=sm,self
+                    unset OMPI_MCA_mtl
+                    unset OMPI_MCA_mtl_ofi_av
+                    unset PRTE_MCA_ras_base_launch_orted_on_hn
+                    unset FI_PROVIDER
+                    unset FI_CXI_RX_MATCH_MODE
+                    ;;
+                multi-node-cxi)
+                    export OMPI_MCA_pml=cm
+                    export OMPI_MCA_mtl=ofi
+                    export OMPI_MCA_mtl_ofi_av=table
+                    export PRTE_MCA_ras_base_launch_orted_on_hn=1
+                    export FI_PROVIDER=cxi
+                    export FI_CXI_RX_MATCH_MODE=hybrid
+                    ;;
+                *)
+                    echo "Unknown Open MPI transport: ${transport}" >&2
+                    exit 2
+                    ;;
+            esac
             rank_cache="${cache_root}/${label}-${SLURM_PROCID}"
             mkdir -p \
                 "${rank_cache}/numba" \
@@ -139,7 +164,7 @@ run_case()
             export MPLCONFIGDIR="${rank_cache}/matplotlib"
             export PYTHONPYCACHEPREFIX="${rank_cache}/pycache"
             exec "$@"
-        ' bash "${cache_root}" "${label}" \
+        ' bash "${cache_root}" "${label}" "${transport}" \
         python "${driver}" \
             --process-grid "${process_rows}" "${process_columns}" \
             --reference-archive "${reference_archive}" \

@@ -74,6 +74,23 @@ def test_coupled_step16_support_driver_uses_slurm_submission_directory():
     assert 'driver="${script_root}/qualify_coupled_step16.py"' in source
 
 
+def test_coupled_step16_selects_open_mpi_transport_by_node_count():
+    source = COUPLED_STEP16_SCRIPT.read_text(encoding="utf-8")
+
+    assert "if ((nodes == 1))" in source
+    assert "transport=single-node-ob1" in source
+    assert "transport=multi-node-cxi" in source
+    assert "export OMPI_MCA_pml=ob1" in source
+    assert "export OMPI_MCA_btl=sm,self" in source
+    assert "export OMPI_MCA_pml=cm" in source
+    assert "export OMPI_MCA_mtl=ofi" in source
+    assert "export FI_PROVIDER=cxi" in source
+    assert "unset FI_PROVIDER" in source
+    assert "unset FI_CXI_RX_MATCH_MODE" in source
+    assert "Unknown Open MPI transport" in source
+    assert "' bash \"${cache_root}\" \"${label}\" \"${transport}\" \\" in source
+
+
 def test_coupled_step16_python_driver_has_expected_gates():
     source = COUPLED_STEP16_DRIVER.read_text(encoding="utf-8")
 
