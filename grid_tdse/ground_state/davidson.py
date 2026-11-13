@@ -179,6 +179,7 @@ class DavidsonGroundStateSolver(LanczosGroundStateSolver):
         hamiltonian_actions = 0
         preconditioner_applications = 0
         preconditioner_fallbacks = 0
+        regularized_denominators = 0
         restarts = 0
 
         final_state = basis[0]
@@ -272,6 +273,13 @@ class DavidsonGroundStateSolver(LanczosGroundStateSolver):
                     )
                     preconditioner_applications += 1
                     preconditioner_fallbacks += int(used_fallback)
+                    regularized_denominators += int(
+                        getattr(
+                            preconditioner,
+                            "last_regularized_entries",
+                            0,
+                        )
+                    )
                     if correction is None:
                         expansion_failed = True
                         termination_reason = "invariant_subspace"
@@ -293,6 +301,13 @@ class DavidsonGroundStateSolver(LanczosGroundStateSolver):
                     )
                     preconditioner_applications += 1
                     preconditioner_fallbacks += int(used_fallback)
+                    regularized_denominators += int(
+                        getattr(
+                            preconditioner,
+                            "last_regularized_entries",
+                            0,
+                        )
+                    )
                     if correction is None:
                         expansion_failed = True
                         termination_reason = "invariant_subspace"
@@ -311,6 +326,7 @@ class DavidsonGroundStateSolver(LanczosGroundStateSolver):
                 hamiltonian_actions=hamiltonian_actions,
                 preconditioner_applications=preconditioner_applications,
                 preconditioner_fallbacks=preconditioner_fallbacks,
+                regularized_denominators=regularized_denominators,
                 wall_time=perf_counter() - iteration_started,
             )
             history.append(record)

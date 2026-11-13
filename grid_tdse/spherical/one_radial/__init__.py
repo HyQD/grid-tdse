@@ -1,5 +1,7 @@
 """One-radial-coordinate spherical TDSE representations."""
 
+from grid_tdse.systems import OneElectronDiatomicSystem
+
 from .ground_state import (
     OneElectronDiatomicEigenstates,
     diagonalize_fixed_m,
@@ -8,8 +10,6 @@ from .hamiltonian import (
     NuclearPotentialMethod,
     OneElectronDiatomicHamiltonian,
 )
-from .system import OneElectronDiatomicSystem
-
 __all__ = [
     "NuclearPotentialMethod",
     "OneElectronDiatomicEigenstates",

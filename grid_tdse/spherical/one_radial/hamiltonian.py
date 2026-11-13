@@ -15,8 +15,7 @@ from grid_lib.spherical_coordinates import (
     radial_Coulomb,
 )
 
-from .system import OneElectronDiatomicSystem
-
+from grid_tdse.systems import OneElectronDiatomicSystem
 
 NuclearPotentialMethod = Literal["analytic", "poisson"]
 

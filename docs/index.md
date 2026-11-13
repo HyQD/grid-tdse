@@ -10,7 +10,7 @@ foundation:
 
 - [Runtime dependencies](runtime_dependencies.md)
 - [Installation](installation.md)
-- [One-electron diatomic ground-state validation](one_electron_diatomic_validation.md)
+- [One-electron diatomic stationary-state validation](one_electron_diatomic_validation.md)
 - [Saga environment setup and updates](saga_setup.md)
 - [Olivia environment setup, qualification, and updates](olivia_setup.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)
