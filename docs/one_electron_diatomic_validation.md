@@ -326,3 +326,71 @@ for diatomic quantum scattering problems. II. Time-dependent treatment of
 single- and two-photon ionization of H2+," *Physical Review A* **80**,
 013402 (2009),
 [doi:10.1103/PhysRevA.80.013402](https://doi.org/10.1103/PhysRevA.80.013402).
+
+### Heteronuclear two-centre validation
+
+The same Hamiltonian implementation supports unequal positive charges. The
+heteronuclear comparison is reproduced with
+
+```bash
+python \
+    examples/prolate_spheroidal/one_electron_diatomic_heteronuclear_validation.py
+```
+
+Every case uses `m=0` and the same validation grid:
+
+```text
+xi element boundaries:       [1, 4, 14, 24]
+xi points per element:       18
+eta Gauss--Legendre points:  24
+```
+
+Campos et al. tabulate nonrelativistic electronic eigenvalues for HeH2+,
+LiH3+, and BeH4+ at fixed internuclear distances. Their convention excludes
+the nuclear repulsion. The clamped-nuclei total energy reported here is
+
+```math
+E_{\mathrm{BO}}=E_{\mathrm{el}}+\frac{Z_1Z_2}{R}.
+```
+
+The direct eigensolver is used as a deterministic validation oracle. The
+results are
+
+| System | State | `R` (bohr) | Root in `m=0` sector | Calculated `E_el` (`E_h`) | Reference `E_el` (`E_h`) | Absolute error (`E_h`) | Calculated `E_BO` (`E_h`) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| HeH2+ | `1s sigma` | 2 | 0 | -2.512193016590 | -2.512193016590 | 3.14e-13 | -1.512193016590 |
+| LiH3+ | `1s sigma` | 2 | 0 | -5.002042016848 | -5.002042016849 | 8.29e-13 | -3.502042016848 |
+| LiH3+ | `1s sigma` | 4 | 0 | -4.750111784802 | -4.750111784789 | 1.34e-11 | -4.000111784802 |
+| BeH4+ | `1s sigma` | 2 | 0 | -8.500592345518 | -8.500592345526 | 7.99e-12 | -6.500592345518 |
+| BH5+ | `3p sigma` | `sqrt(10)/3` | 4 | -2.000000000000 | -2 exactly | 1.32e-13 | 2.743416490252 |
+
+The largest electronic-energy discrepancy is `1.34e-11 E_h`, while the
+largest eigenstate residual in the recorded run is `1.05e-12`. These results
+validate unequal charges, the charge-dependent nuclear-repulsion shift, and
+low excited-state ordering in the fixed-`m` representation.
+
+The BH5+ entry is qualitatively different from the other entries. Khoma
+reports Demkov's exact analytic solution for `Z1=1`, `Z2=5`,
+`R=sqrt(10)/3`, and the `3p sigma` state:
+
+```math
+E_{\mathrm{el}}=-2\ E_h,
+\qquad
+\lambda=-\frac{10}{3}.
+```
+
+The calculated state is root 4 when the `m=0` eigenvalues are sorted in
+ascending order. It provides an exact heteronuclear excited-state benchmark,
+whereas the other four entries test tabulated ground-state energies.
+
+References:
+
+- J. A. Campos, D. L. Nascimento, D. T. Cavalcante, A. L. A. Fonseca,
+  and A. O. C. Nunes, "Determination of Electronic Energy Levels for the
+  Heteromolecular Ions HeH2+, LiH3+, and BeH4+ From the Hamilton--Jacobi
+  Equation," *International Journal of Quantum Chemistry* **106**, 2587--2596
+  (2006),
+  [doi:10.1002/qua.21015](https://doi.org/10.1002/qua.21015).
+- M. V. Khoma, "Generalized spheroidal wave equation for real and complex
+  valued parameters. An algorithm based on the analytic derivatives for the
+  eigenvalues," [arXiv:2503.18280](https://arxiv.org/abs/2503.18280).

@@ -647,6 +647,13 @@ Provide the executable comparison in
 use the direct solver as a deterministic reference oracle; Davidson remains
 the production default and is demonstrated by the ground-state example.
 
+Provide the heteronuclear gate in
+`examples/prolate_spheroidal/one_electron_diatomic_heteronuclear_validation.py`.
+It must compare the HeH2+, LiH3+, and BeH4+ tabulated ground-state energies
+of Campos et al. and Demkov's exact BH5+ `3p sigma` solution. Report
+electronic and clamped-nuclei total energies separately so that the nuclear
+repulsion convention is unambiguous.
+
 Do not use the H2 Hartree--Fock iteration as the primary one-electron
 validation oracle.
 
