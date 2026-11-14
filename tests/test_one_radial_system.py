@@ -2,6 +2,11 @@ import numpy as np
 import pytest
 
 from grid_tdse.spherical.one_radial import OneElectronDiatomicSystem
+from grid_tdse.systems import OneElectronDiatomicSystem as SharedSystem
+
+
+def test_spherical_import_is_shared_system_compatibility_alias():
+    assert OneElectronDiatomicSystem is SharedSystem
 
 
 def test_h2_plus_geometry_and_derived_properties():

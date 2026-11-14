@@ -1,7 +1,9 @@
 import grid_tdse
 from grid_tdse import ground_state
+from grid_tdse import prolate_spheroidal
 from grid_tdse import real_time
 from grid_tdse import spherical
+from grid_tdse import systems
 from grid_tdse.spherical import one_radial
 from grid_tdse.spherical import two_radial
 
@@ -9,15 +11,29 @@ from grid_tdse.spherical import two_radial
 def test_package_exports_spherical_two_radial_namespace():
     assert grid_tdse.__version__ == "0.0.0"
     assert grid_tdse.ground_state is ground_state
+    assert grid_tdse.prolate_spheroidal is prolate_spheroidal
     assert grid_tdse.real_time is real_time
     assert grid_tdse.spherical is spherical
+    assert grid_tdse.systems is systems
     assert spherical.one_radial is one_radial
     assert spherical.two_radial is two_radial
     assert one_radial.OneElectronDiatomicSystem.__module__ == (
-        "grid_tdse.spherical.one_radial.system"
+        "grid_tdse.systems.one_electron_diatomic"
+    )
+    assert (
+        one_radial.OneElectronDiatomicSystem
+        is systems.OneElectronDiatomicSystem
     )
     assert one_radial.OneElectronDiatomicHamiltonian.__module__ == (
         "grid_tdse.spherical.one_radial.hamiltonian"
+    )
+    assert (
+        prolate_spheroidal.OneElectronDiatomicSystem
+        is systems.OneElectronDiatomicSystem
+    )
+    assert (
+        prolate_spheroidal.ProlateSpheroidalOneElectronHamiltonian.__module__
+        == "grid_tdse.prolate_spheroidal.hamiltonian"
     )
     assert one_radial.diagonalize_fixed_m.__module__ == (
         "grid_tdse.spherical.one_radial.ground_state"

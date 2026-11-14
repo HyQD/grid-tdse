@@ -30,6 +30,7 @@ class GroundStateEigenIteration:
     hamiltonian_actions: int = 0
     preconditioner_applications: int = 0
     preconditioner_fallbacks: int = 0
+    regularized_denominators: int = 0
     collective_reductions: int = 0
     reduced_values: int = 0
     wall_time: float = 0.0
@@ -160,6 +161,14 @@ class GroundStateEigenResult:
         if not self.history:
             return 0
         return self.history[-1].preconditioner_fallbacks
+
+    @property
+    def regularized_denominators(self) -> int:
+        """Cumulative safeguarded diagonal entries in Davidson steps."""
+
+        if not self.history:
+            return 0
+        return self.history[-1].regularized_denominators
 
 
 __all__ = [

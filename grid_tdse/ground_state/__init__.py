@@ -1,5 +1,10 @@
 """Ground-state solvers independent of a spatial representation."""
 
+from .block_davidson import (
+    BlockDavidsonIteration,
+    BlockDavidsonResult,
+    BlockDavidsonSolver,
+)
 from .davidson import (
     DavidsonGroundStateSolver,
     DavidsonPreconditioner,
@@ -36,6 +41,9 @@ from .subspace import (
 
 __all__ = [
     "BatchedInnerProducts",
+    "BlockDavidsonIteration",
+    "BlockDavidsonResult",
+    "BlockDavidsonSolver",
     "DavidsonGroundStateSolver",
     "DavidsonPreconditioner",
     "DiagonalDavidsonPreconditioner",

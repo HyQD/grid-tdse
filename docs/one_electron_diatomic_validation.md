@@ -1,6 +1,7 @@
-# One-electron diatomic ground-state validation
+# One-electron diatomic stationary-state validation
 
-The `grid_tdse.spherical.one_radial` package represents the clamped-nuclei
+The `grid_tdse.spherical.one_radial` and
+`grid_tdse.prolate_spheroidal` packages represent the clamped-nuclei
 one-electron Hamiltonian
 
 ```math
@@ -17,8 +18,8 @@ where
 R=2a.
 ```
 
-This document validates the initial spherical implementation for the H2+
-ground state at `R=2` bohr, with `Z1=Z2=1`, `a=1`, `mu=1`, and `m=0`.
+This document validates the spherical and prolate-spheroidal implementations
+for H2+ stationary states at `R=2` bohr, with `Z1=Z2=1`, `a=1`, `mu=1`.
 The clamped-nuclei total energy is
 
 ```math
@@ -27,7 +28,7 @@ E_{\mathrm{BO}}=\epsilon_0+\frac{1}{R},
 
 where `epsilon_0` is the electronic eigenvalue.
 
-## Reference energy
+## High-precision ground-state reference
 
 Kullie reports the nonrelativistic electronic energy at `R=2` as
 
@@ -49,6 +50,8 @@ Dirac equation," *Physical Review A* **110**, 052808 (2024),
 The reference calculation uses a two-centre finite-element representation
 and reports the nonrelativistic limit separately from the relativistic
 energy.
+
+## Spherical one-radial ground-state validation
 
 ## Reproducing the validation
 
@@ -205,3 +208,121 @@ This independent coordinate representation confirms the Hamiltonian
 conventions, the nuclear-repulsion shift, and the published benchmark. The
 spherical sequence approaches the same value with its expected slower
 angular convergence.
+
+## Prolate-spheroidal stationary-state validation
+
+The prolate-spheroidal implementation places the two nuclei at the coordinate
+foci. It therefore represents both electron--nuclear singularities directly,
+without the midpoint spherical partial-wave expansion or a nuclear
+multipole cutoff.
+
+### Davidson ground state
+
+Run the user-facing Davidson calculation with
+
+```bash
+python examples/prolate_spheroidal/one_electron_diatomic_ground_state.py
+```
+
+The development calculation uses
+
+```text
+R:                            2 bohr
+xi element boundaries:       [1, 4, 14, 24]
+xi points per element:       14
+eta Gauss--Legendre points:  9
+m:                            0
+active state shape:           (39, 9)
+```
+
+This compact grid gives
+
+| Quantity | Calculated (`E_h`) | Kullie reference (`E_h`) | Difference (`E_h`) |
+|---|---:|---:|---:|
+| Electronic energy | -1.102634214485352 | -1.102634214494946 | 9.594e-12 |
+| Total energy | -0.602634214485352 | -0.602634214494946 | 9.594e-12 |
+
+The Davidson residual norm is `8.264e-11` for this run. The agreement should
+be interpreted as a validation of the Hamiltonian, metric, boundary
+conditions, and eigensolver on this grid. It is not a general convergence
+claim for other bond lengths, charges, or excited states.
+
+### Excitation energies from Tao, McCurdy, and Rescigno
+
+Table II of Tao, McCurdy, and Rescigno reports selected H2+ electronic and
+excitation energies at `R=2` bohr. Their fixed-nuclei time-dependent method
+uses a finite-element DVR in prolate spheroidal coordinates. The present
+comparison is reproduced with
+
+```bash
+python examples/prolate_spheroidal/one_electron_diatomic_excited_states.py
+```
+
+The comparison grid follows the published Table-I discretization used by the
+grid-lib validation:
+
+```text
+xi elements:                  one element from 1 to 2,
+                              ten equal elements from 2 to 80
+xi points per element:       15
+eta Gauss--Legendre points:  9
+active state shape:           (154, 9) in each fixed-m sector
+sectors:                      m=0 and m=1
+```
+
+The direct solver is used here as a deterministic validation oracle for the
+low-lying spectrum. Davidson remains the default stationary-state solver.
+Excitation energies are formed from the more precise calculated ground-state
+energy,
+
+```math
+\Delta E_n = E_n-E_0,
+\qquad
+E_0=-1.102634214493190\ E_h.
+```
+
+The constant nuclear repulsion cancels in every excitation energy. The
+published values are rounded to the digits shown in Table II.
+
+| Table-II state | `m` | Calculated symmetry | Calculated `E_n` (`E_h`) | Table-II `E_n` (`E_h`) | Calculated `Delta E_n` (`E_h`) | Table-II `Delta E_n` (`E_h`) |
+|---|---:|:---:|---:|---:|---:|---:|
+| `2p sigma_u` | 0 | `u` | -0.667534392201 | -0.667534 | 0.435099822292 | 0.43510 |
+| `3p sigma_u` | 0 | `u` | -0.255413165086 | -0.255413 | 0.847221049407 | 0.84722 |
+| `4p sigma_u` entry | 0 | `g` | -0.177681045126 | -0.177681 | 0.924953169367 | 0.92495 |
+| `4f sigma_u` | 0 | `u` | -0.126643870150 | -0.126644 | 0.975990344344 | 0.97599 |
+| `2p pi_u` | 1 | `u` | -0.428771819896 | -0.428772 | 0.673862394597 | 0.67386 |
+| `3p pi_u` | 1 | `u` | -0.200864829911 | -0.200865 | 0.901769384582 | 0.90177 |
+| `4f pi_u` | 1 | `u` | -0.126198920530 | -0.126199 | 0.976435293964 | 0.97643 |
+
+The largest difference from a printed Table-II excitation energy is
+`5.3e-6 E_h`. This is consistent with the limited precision of the published
+entries and the use of the more precise calculated ground-state energy.
+
+There is one important state-label qualification. The numerical eigenstate
+at `-0.177681045126 E_h`, which matches the energy printed for
+`4p sigma_u`, has inversion expectation
+
+```math
+\langle P\rangle=+1,
+```
+
+and is therefore gerade. The nearest computed ungerade `Sigma` root instead
+has
+
+```text
+E_n       = -0.137312924277 E_h
+Delta E_n =  0.965321290216 E_h.
+```
+
+The example reports this as an apparent reference-label inconsistency rather
+than silently assigning the published label by numerical proximity. Every
+state in the comparison is classified using inversion of the computed
+wavefunction. For a fixed magnetic quantum number, inversion combines
+reflection of the prolate `eta` coordinate with the azimuthal phase
+`(-1)^m`.
+
+Reference: L. Tao, C. W. McCurdy, and T. N. Rescigno, "Grid-based methods
+for diatomic quantum scattering problems. II. Time-dependent treatment of
+single- and two-photon ionization of H2+," *Physical Review A* **80**,
+013402 (2009),
+[doi:10.1103/PhysRevA.80.013402](https://doi.org/10.1103/PhysRevA.80.013402).
