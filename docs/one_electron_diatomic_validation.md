@@ -327,6 +327,122 @@ single- and two-photon ionization of H2+," *Physical Review A* **80**,
 013402 (2009),
 [doi:10.1103/PhysRevA.80.013402](https://doi.org/10.1103/PhysRevA.80.013402).
 
+### Delta-kick real-time spectral validation
+
+The stationary excitation energies above provide an internal oracle for the
+real-time implementation. Run the axial linear-response calculation with
+
+```bash
+python \
+    examples/prolate_spheroidal/h2plus_delta_kick_spectrum.py
+```
+
+The example uses the same Tao-comparable `R=2` grid, constructs the ground
+state with Davidson, and applies the exact nodal transformation
+
+```math
+\Psi(0^+)=\exp(-iKz)\Psi_0,
+\qquad
+z=a\xi\eta.
+```
+
+It propagates paired `+K` and `-K` states and forms
+
+```math
+\chi(t)=\frac{d_{+K}(t)-d_{-K}(t)}{2K}.
+```
+
+The defaults compare `K=1e-3` and `K=5e-4`, propagate for `1000` a.u. with
+SIA, and use a cubic CAP. A no-kick run checks that the CAP does not affect
+the ground state. The output archive contains the raw induced responses,
+positive-frequency transforms, norm histories, CAP-region probabilities,
+CAP norm-loss rates, and JSON metadata. The accompanying plot marks the
+allowed ungerade `Sigma` excitation energies listed above and the
+symmetry-forbidden gerade root at `0.924953169367 E_h`.
+
+For a rapid workflow test, use
+
+```bash
+python \
+    examples/prolate_spheroidal/h2plus_delta_kick_spectrum.py \
+    --final-time 20 \
+    --time-step 0.1 \
+    --kick-strengths 1e-3 \
+    --output H2plus_delta_kick_smoke.npz \
+    --plot H2plus_delta_kick_smoke.pdf
+```
+
+This short run does not have enough frequency resolution to validate the
+excitation energies. For a propagation duration `T`, the nominal Fourier
+spacing is `2*pi/T`; window broadening must also be included when setting
+peak tolerances. The two near-threshold allowed roots at approximately
+`0.9653` and `0.9760 E_h` may require `T=2000` a.u. or a separately validated
+harmonic-fitting analysis.
+
+#### Production delta-kick qualification
+
+Step 11 was qualified on 2026-11-15 using a `T=2000`, `dt=0.1` reference
+record and independent `T=1000` controls. Each calculation uses the grid and
+ground state specified above, SIA with a maximum Krylov dimension of 50, and
+paired analytic axial kicks. Threaded numerical libraries were restricted to
+one thread per independent trajectory.
+
+| Case | `T` | `dt` | `xi_max` | Outer `xi` elements | CAP onset fraction | CAP strength |
+|---|---:|---:|---:|---:|---:|---:|
+| reference | 2000 | 0.1 | 80 | 10 | 0.80 | `1e-3` |
+| time-step control | 1000 | 0.05 | 80 | 10 | 0.80 | `1e-3` |
+| onset control | 1000 | 0.1 | 80 | 10 | 0.75 | `1e-3` |
+| strength control | 1000 | 0.1 | 80 | 10 | 0.80 | `2e-3` |
+| box control | 1000 | 0.1 | 100 | 13 | 0.80 | `1e-3` |
+
+The reference uses both `K=1e-3` and `K=5e-4`. Its relative L2 kick-sign
+antisymmetry errors are `9.25e-9` and `1.00e-9`, respectively. The two
+central-difference responses agree to `8.75e-7` in relative L2. The no-kick
+final norm differs from unity by `1.79e-14`.
+
+The complete-record Fourier spacing is `0.00314159 E_h`. The late record
+starts at `t=500` and has spacing `0.00418879 E_h`. Local spectral maxima are
+
+| State | Stationary `Delta E` (`E_h`) | Full-record peak (`E_h`) | Absolute error | Late-record peak (`E_h`) | Absolute error |
+|---|---:|---:|---:|---:|---:|
+| `2p sigma_u` | 0.435099822292 | 0.433539786195 | 0.00156004 | 0.435634181298 | 0.000534359 |
+| `3p sigma_u` | 0.847221049407 | 0.848230016469 | 0.00100897 | 0.846135621367 | 0.00108543 |
+| additional `Sigma_u` root | 0.965321290216 | 0.964468944652 | 0.000852346 | 0.963421747101 | 0.00189954 |
+| `4f sigma_u` | 0.975990344344 | 0.977035315266 | 0.00104497 | 0.975988117715 | 0.00000223 |
+
+Every peak is within one Fourier bin of its stationary value in both
+records. Full-versus-late shifts are at most `0.00209440 E_h`, also less than
+one late-record bin. At the symmetry-forbidden gerade energy, the sampled
+full-record power is `3.15e-6` of the weakest allowed peak and
+`1.21e-14` of the dominant allowed peak; it is not a local maximum in the
+complete spectrum.
+
+Relative L2 changes of the entire `T=1000` response from the reference are
+
+| Control | Relative L2 response change | Shift of either resolved low peak |
+|---|---:|---:|
+| `dt=0.05` | `1.67e-4` | 0 Fourier bins |
+| CAP onset `0.75` | `2.96e-5` | 0 Fourier bins |
+| CAP strength `2e-3` | `1.13e-5` | 0 Fourier bins |
+| `xi_max=100` | `8.63e-5` | 0 Fourier bins |
+
+During the final quarter of the reference propagation, the mean CAP loss
+rate is `6.16e-5` of its maximum and the mean CAP-region probability is
+`2.93e-4` of its maximum. This confirms that the initial outgoing transient
+has been absorbed before the late-record analysis.
+
+The machine-readable report is generated with
+
+```bash
+python \
+    examples/prolate_spheroidal/analyze_h2plus_delta_kick_qualification.py \
+    output/step11_qualification
+```
+
+It enforces all 15 kick, spectrum, symmetry, absorber, time-step, and box
+acceptance gates and writes
+`output/step11_qualification/qualification_report.json`.
+
 ### Heteronuclear two-centre validation
 
 The same Hamiltonian implementation supports unequal positive charges. The

@@ -93,3 +93,14 @@ def test_local_coulomb_weak_diagonal_matches_direct_quadrature(hamiltonian):
     expected = hamiltonian.fixed_m_metric_weights(m) * potential
 
     assert np.allclose(local_diagonal, expected, rtol=2e-14, atol=2e-14)
+
+
+def test_public_matrix_copy_cannot_mutate_cached_actions(hamiltonian):
+    state = np.ones(hamiltonian.fixed_m_shape(0))
+    expected = hamiltonian.apply_fixed_m(state)
+
+    exposed = hamiltonian.fixed_m_matrix(0, representation="strong")
+    exposed.data[:] = 0.0
+
+    np.testing.assert_allclose(hamiltonian.apply_fixed_m(state), expected)
+    assert hamiltonian.fixed_m_matrix(0, representation="strong").nnz > 0

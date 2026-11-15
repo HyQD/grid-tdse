@@ -439,32 +439,48 @@ quadrature on small grids.
 
 ## 8. Absorber and outer-domain policy
 
-Use the physical prolate semi-major coordinate
+Use two explicitly distinguished absorber geometries. The initial post-step
+mask follows Eq. (42) of Zhang et al. and uses the Cartesian radius from the
+bond midpoint,
+
+```math
+r=a\sqrt{\xi^2+\eta^2-1}.
+```
+
+The production CAP uses the physical prolate semi-major coordinate
 
 ```math
 q=a\xi
 ```
 
-to parameterize the first absorber. Constant `q`, like constant `xi`, defines
-an ellipsoid, but using `q` gives the absorber parameters dimensions of length
-and makes their interpretation less dependent on the chosen bond length.
-Document the corresponding `xi` value and the minimum and maximum Cartesian
-radii of the onset surface.
+to parameterize its ellipsoidal onset. Constant `q`, like constant `xi`,
+defines an ellipsoid, but using `q` gives the CAP parameters dimensions of
+length and makes their interpretation less dependent on the chosen bond
+length. Document the corresponding `xi` value and the minimum and maximum
+Cartesian radii of the CAP onset surface.
 
 ### 8.1 Initial mask option
 
-A post-step mask is an acceptable first absorber. It can use the same cosine
-profile as the existing spherical implementation,
+A post-step mask is the first absorber. Use Eq. (42) of Zhang et al.,
+Computer Physics Communications 194, 84--96 (2015),
+doi:10.1016/j.cpc.2015.04.008:
 
 ```math
-M(q)=
+M(r)=
 \begin{cases}
-1, & q < q_0,\\
+1, & r\le r_{\mathrm{mask}},\\
 \cos\!\left[
-\dfrac{\pi(q-q_0)}{2(q_{\max}-q_0)}
-\right]^{1/n}, & q_0\le q\le q_{\max}.
+\dfrac{\pi(r-r_{\mathrm{mask}})}
+{2(r_{\max}-r_{\mathrm{mask}})}
+\right]^{1/8}, & r_{\mathrm{mask}}<r\le r_{\max},
 \end{cases}
 ```
+
+with `r_max = a * xi_max`. Evaluate the existing grid-lib radial cosine
+profile on the flattened two-dimensional Cartesian-radius array, then reshape
+and restrict it to the active prolate grid. This reuses the established mask
+function without replacing the requested spherical onset by a `xi`-only
+ellipsoid.
 
 The representation-independent real-time propagator already provides a
 post-step transformation hook suitable for applying this diagonal mask. This
@@ -475,10 +491,10 @@ A fixed mask applied after every step has an effective absorption strength
 that depends on the time step and application frequency. It must therefore
 not be treated as a converged production absorber without explicit time-step
 and mask-parameter studies. A more controlled split absorber can instead be
-derived from a nonnegative rate `W(q)` through
+derived from a nonnegative rate `W(r)` through
 
 ```math
-M_{\Delta t}(q)=\exp[-\Delta t\,W(q)].
+M_{\Delta t}(r)=\exp[-\Delta t\,W(r)].
 ```
 
 This makes the intended continuous-time absorption rate explicit, although a
@@ -507,7 +523,8 @@ SIA or CF4-SIA rather than SIL.
 The recommended progression is therefore:
 
 1. no absorber for field-free and short norm-conservation tests;
-2. a `q`-based cosine mask for the first outgoing-wave smoke tests;
+2. the Zhang Eq. (42) Cartesian-radius cosine mask for the first
+   outgoing-wave smoke tests;
 3. a `q`-based cubic CAP for production dynamics;
 4. comparison with a Cartesian-radius CAP if ellipsoidal-onset effects are
    measurable.
@@ -657,32 +674,205 @@ repulsion convention is unambiguous.
 Do not use the H2 Hartree--Fock iteration as the primary one-electron
 validation oracle.
 
-### Step 8: implement axial length-gauge coupling
+### Step 8: implement axial length-gauge coupling -- complete
 
 Add the field-independent `z` action and a temporal-field wrapper compatible
 with `electromagnetic-fields`. Test selection rules, metric Hermiticity,
 homonuclear parity changes, and zero-field equivalence.
 
-### Step 9: add real-time propagation
+Implemented by the fixed-`m` `z = a xi eta` action and
+`ProlateSpheroidalAxialLengthGaugeInteraction`. The temporal field remains
+separate from the spatial action. The wrapper records the bond-midpoint
+origin and the static nuclear dipole; the heteronuclear nuclear term is an
+explicit opt-in scalar because it changes only the global phase for clamped
+nuclei.
+
+### Step 9: add real-time propagation -- complete
 
 Connect the representation to `RealTimePropagator`. Qualify field-free phase
 evolution and norm conservation with SIL/SIA, then a weak short pulse without
 an absorber. Compare with the spherical one-radial implementation.
 
-### Step 10: implement and qualify mask and CAP absorption
+Implemented by `ProlateSpheroidalFixedMTimeDependentHamiltonian`, which
+combines the field-free strong action and optional axial length-gauge action
+while exposing the physical metric inner product required by
+`RealTimePropagator`. Field-free SIL and SIA tests verify eigenstate phase and
+norm preservation. A one-cycle weak-pulse test verifies SIL/SIA agreement and
+an independent one-radial spherical comparison checks the ground-state
+survival probability and dipole time series. No absorber is present; masks
+and CAPs remain Step 10.
 
-First add the `q`-based cosine mask through the existing post-step hook and
-use it for short outgoing-wave smoke tests. Then add the `q`-based cubic CAP,
-require SIA or CF4-SIA for its non-Hermitian propagation, and make the CAP the
-production default. Test reflection, norm loss, time-step sensitivity, onset
-sensitivity, absorber strength, and box enlargement. Preserve only the latest
-restart checkpoint according to the current checkpoint policy.
+### Step 10: implement and qualify mask and CAP absorption -- complete
 
-### Step 11: implement dynamics observables and HHG output
+First add the Zhang Eq. (42) Cartesian-radius cosine mask through the existing
+post-step hook and use it for short outgoing-wave smoke tests. Then add the
+`q`-based cubic CAP, require SIA or CF4-SIA for its non-Hermitian propagation,
+and make the CAP the production default. Test reflection, norm loss,
+time-step sensitivity, onset sensitivity, absorber strength, and box
+enlargement. Preserve only the latest restart checkpoint according to the
+current checkpoint policy.
 
-Add dipole sampling, state populations, CAP diagnostics, and windowed Fourier
-analysis inputs. Validate sampling and archive restart behavior before making
-an HHG production example.
+Implemented by `CartesianRadiusCosineMask`,
+`ProlateSpheroidalCubicCAP`, and
+`ProlateSpheroidalAbsorbingBoundaries`. The mask reuses grid-lib's radial
+cosine profile with exponent `1/8` on
+`r = a * sqrt(xi**2 + eta**2 - 1)`. The CAP reuses grid-lib's cubic profile
+on `q = a * xi` and is included directly in the time-dependent Hamiltonian.
+The propagation wrapper applies the mask after every accepted step and
+rejects CAP propagation unless SIA or CF4-SIA is selected. Automated tests
+cover norm loss, mask application-frequency dependence, CAP time-step
+refinement, onset and strength changes, hard-wall reflection suppression,
+box enlargement, and a single atomically replaced rolling checkpoint.
+
+### Step 11: delta-kick linear-response spectroscopy -- complete
+
+Use an impulsive axial field as the first independent spectral validation of
+the real-time implementation. This test compares frequencies extracted from
+time propagation directly with the already validated Davidson spectrum,
+without depending on the pulse conventions or observables of an external
+dynamics calculation.
+
+For the current length-gauge convention,
+
+```math
+H(t)=H_0+E(t)z,
+\qquad
+z=a\xi\eta.
+```
+
+An electric-field impulse `E(t) = K delta(t)` therefore gives the exact
+instantaneous transformation
+
+```math
+\Psi(0^+)=\exp(-iKz)\Psi_0.
+```
+
+Implement this analytic kick as a pointwise phase multiplication on the
+prolate DVR and use it as the reference. It must preserve the diagonal-metric
+norm to floating-point accuracy. Also support a narrow, area-normalized
+finite pulse as a secondary test of the ordinary temporal-field path. Do not
+represent a numerical delta pulse by making the field nonzero at only one
+sampled time: the result would depend on the propagator quadrature nodes and
+on endpoint conventions. Require the finite-pulse result to approach the
+analytic kick as the pulse duration is reduced at fixed integrated field
+area.
+
+Run paired weak kicks and form the odd linear response,
+
+```math
+\chi(t)=\frac{d_{+K}(t)-d_{-K}(t)}{2K}.
+```
+
+Start with `K = 1e-3` and repeat with `K = 5e-4`. The normalized spectra must
+agree within the chosen numerical tolerance before the result is described
+as linear response. Record the unnormalized dipole numerator as well as the
+normalized expectation. The unnormalized quantity is the formally
+appropriate response when a mask or CAP has removed probability, even though
+the distinction enters only beyond linear order for a sufficiently weak
+kick.
+
+The initial qualification system is clamped-nuclei H2+ at `R = 2` bohr in
+the `m = 0` sector. Use the Tao-comparable stationary-state grid:
+
+```text
+xi elements:                  one element from 1 to 2,
+                              ten equal elements from 2 to 80
+xi points per element:       15
+eta Gauss--Legendre points:  9
+active state shape:           (154, 9)
+```
+
+The gerade ground state and the ungerade axial operator imply that only
+ungerade `Sigma` states may appear. Compare spectral peaks with the computed
+Davidson/direct-solver excitation energies, including
+
+| State | Expected excitation energy (`E_h`) |
+|---|---:|
+| `2p sigma_u` | 0.435099822292 |
+| `3p sigma_u` | 0.847221049407 |
+| additional computed `Sigma_u` root | 0.965321290216 |
+| `4f sigma_u` | 0.975990344344 |
+
+Peak visibility depends on the transition-dipole matrix element. The state at
+`0.924953169367 E_h`, which the stationary validation identifies as gerade,
+must be absent, as must the `Pi_u` states because an axial kick preserves
+`m = 0`.
+
+Use SIA for the time-independent post-kick Hamiltonian and initially
+propagate for `T = 1000` a.u. Compare at least two time steps, starting with
+`dt = 0.1` and `dt = 0.05`, and sample the dipole often enough that the
+Nyquist frequency comfortably exceeds the electronic ionization threshold.
+The nominal Fourier spacing is
+
+```math
+\Delta\omega=\frac{2\pi}{T},
+```
+
+which is `0.00628 E_h` at `T = 1000` a.u. This is sufficient for the first
+two peaks, but the two near-threshold peaks may require `T = 2000` a.u. or a
+separately validated harmonic-fitting method. Account explicitly for the
+additional broadening introduced by the selected time window when defining
+peak-position tolerances.
+
+Use the cubic CAP for the primary absorbed calculation because a repeatedly
+applied mask has an explicitly time-step-dependent effective strength. The
+delta kick has broadband content and creates a small outgoing continuum
+component, so require all of the following absorber checks:
+
+1. a no-kick propagation showing that the ground state is unaffected;
+2. at least two CAP onsets and strengths;
+3. a larger-box comparison;
+4. stabilization of norm loss and probability in the CAP region;
+5. agreement of bound peak positions from the complete dipole signal and
+   from a late-time signal after the outgoing component has been absorbed.
+
+The complete signal is the physical impulse response. Treat a late-time
+transform only as a secondary means of isolating bound oscillations, and
+record its shifted time origin and reduced effective duration. Add dipole
+sampling, state populations, CAP diagnostics, configurable windowing, and
+positive-frequency Fourier output. Preserve all sampling, kick, absorber,
+window, grid, time-step, and propagation metadata across archives and
+restarts.
+
+Production qualification requires kick-sign antisymmetry, kick-strength linearity,
+time-step and absorber stability, absence of symmetry-forbidden peaks, and
+agreement of allowed peak positions with the stationary-state spectrum at a
+tolerance consistent with the finite propagation time and window. Complete
+this internally closed validation before making an HHG production example.
+
+Implemented by `AxialDeltaKick`, `AreaNormalizedSineSquareImpulse`,
+`ProlateSpheroidalDynamicsObservables`,
+`paired_kick_linear_response`, and
+`windowed_positive_frequency_spectrum`. The analytic kick applies the exact
+local `exp(-i*K*z)` phase, while the finite sine-square impulse has an exact
+integrated field area for convergence tests. Named real-time samplers retain
+raw and normalized dipoles, selected-state populations, CAP-region
+probability, and the instantaneous CAP norm-loss rate in rolling
+checkpoints. The windowed transform uses the exact finite-record angular-
+frequency grid and emits only positive frequencies.
+
+The example
+`examples/prolate_spheroidal/h2plus_delta_kick_spectrum.py` runs the no-kick
+CAP control and paired-kick calculations on the Tao-comparable H2+ grid,
+writes a metadata-complete NPZ archive, and plots the spectrum with allowed
+and forbidden stationary-state markers. Automated tests cover metric
+unitarity, inversion of opposite kicks, finite-impulse convergence, sampler
+and checkpoint persistence, CAP diagnostics, central differencing, and
+Fourier peak recovery.
+
+Production qualification was completed with a `T=2000`, `dt=0.1` reference,
+paired kicks `K=1e-3` and `5e-4`, and a late-time transform starting at
+`t=500`. Independent `T=1000` controls used `dt=0.05`, CAP onset fractions
+`0.75` and `0.8`, CAP strengths `1e-3` and `2e-3`, and boxes ending at
+`xi=80` and `xi=100`. The analyzer
+`examples/prolate_spheroidal/analyze_h2plus_delta_kick_qualification.py`
+records and enforces the acceptance metrics. All gates pass: kick-strength
+linearity is `8.75e-7` in relative L2, the largest time-step/CAP/box response
+change is `1.67e-4`, the no-kick norm error is `1.79e-14`, all four allowed
+peaks agree with the stationary spectrum within one Fourier bin in both the
+full and late records, and the forbidden-frequency power is `3.15e-6` of the
+weakest allowed peak. The detailed numerical record is in
+`docs/one_electron_diatomic_validation.md`.
 
 ### Step 12: validate the target system family
 
@@ -756,8 +946,8 @@ The initial implementation decisions are:
 6. the bond midpoint is the coordinate and dipole origin, and heteronuclear
    archives record that origin and the constant nuclear dipole explicitly;
 7. the field-free API accepts arbitrary positive `Z1` and `Z2` directly;
-8. a `q = a xi` cosine mask is permitted for initial absorption tests, while
-   a cubic CAP in the same coordinate is the production target;
+8. the initial mask is the Zhang Eq. (42) Cartesian-radius cosine mask, while
+   a cubic CAP in `q = a xi` is the production target;
 9. velocity gauge and non-axial polarization are later milestones;
 10. Davidson is the primary ground-state and stationary-state solver from the
     start. The existing single-root solver is used for the ground state, and

@@ -166,6 +166,27 @@ class ProlateSpheroidalRepresentation:
             * self.metric_weights(m).reshape(weight_shape)
         )
 
+    def inner_products(self, left, right, m=0) -> np.ndarray:
+        """Return overlaps of several left states with one right state.
+
+        This batched form avoids one Python callback per Krylov basis vector
+        during Arnoldi and Lanczos orthogonalization.
+        """
+
+        right_values = self.validate_fixed_m_state(right, m)
+        if right_values.ndim != 2:
+            raise ValueError("right must contain exactly one fixed-m state")
+        left_values = np.asarray(left)
+        if left_values.ndim != 3:
+            raise ValueError("left must be a sequence of fixed-m states")
+        self.validate_fixed_m_state(left_values, m)
+        weighted_right = (
+            right_values * self.metric_weights(m)
+        ).reshape(-1)
+        return left_values.reshape((left_values.shape[0], -1)).conj() @ (
+            weighted_right
+        )
+
     def invert(self, state, m=0) -> np.ndarray:
         """Apply spatial inversion to one or more fixed-``m`` states.
 
