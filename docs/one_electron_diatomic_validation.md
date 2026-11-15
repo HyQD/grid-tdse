@@ -360,6 +360,20 @@ CAP norm-loss rates, and JSON metadata. The accompanying plot marks the
 allowed ungerade `Sigma` excitation energies listed above and the
 symmetry-forbidden gerade root at `0.924953169367 E_h`.
 
+The corresponding Lorentz-broadened axial absorption spectrum is shown
+below. It is reconstructed from the validated stationary states as the
+`zz` contribution to Eq. (24) of Repisky et al., normalized to unit maximum
+over the plotted interval. The single logarithmic intensity axis exposes the
+weak higher excitations without changing their relative scale. Orange lines
+mark dipole-active ungerade states, and the dashed line marks the ionization
+threshold.
+
+![Relative axial absorption spectrum of clamped-nuclei H2+](images/h2plus_axial_absorption_spectrum.png)
+
+*Relative axial absorption spectrum of clamped-nuclei H2+ at `R=2 a0`, with
+Lorentzian FWHM `0.005 E_h`. Only the molecular-axis response is included; no
+perpendicular polarization was computed.*
+
 For a rapid workflow test, use
 
 ```bash

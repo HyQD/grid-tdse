@@ -45,7 +45,6 @@ def arguments():
     parser.add_argument("--sample-step", type=float, default=0.1)
     parser.add_argument("--lorentzian-fwhm", type=float, default=0.005)
     parser.add_argument("--maximum-energy", type=float, default=1.2)
-    parser.add_argument("--magnified-minimum-energy", type=float, default=0.6)
     parser.add_argument("--kick-strength", type=float, default=1.0e-3)
     parser.add_argument(
         "--output",
@@ -68,11 +67,6 @@ def main():
         raise ValueError("final time and sample step must be positive")
     if options.lorentzian_fwhm <= 0.0:
         raise ValueError("Lorentzian FWHM must be positive")
-    if not 0.0 < options.magnified_minimum_energy < options.maximum_energy:
-        raise ValueError(
-            "magnified minimum energy must lie between zero and the "
-            "maximum energy"
-        )
     if options.kick_strength == 0.0:
         raise ValueError("kick strength must be nonzero")
 
@@ -147,8 +141,6 @@ def main():
     if peak_strength <= 0.0:
         raise RuntimeError("the computed zz absorption strength is not positive")
     relative_eq24_zz_intensity = eq24_zz_dipole_strength / peak_strength
-    magnified = selected & (omega >= options.magnified_minimum_energy)
-    magnified_peak = float(relative_eq24_zz_intensity[magnified].max())
     metadata = {
         "system": hamiltonian.archive_metadata(),
         "number_of_states": options.number_of_states,
@@ -191,10 +183,6 @@ def main():
             ),
             "normalization_maximum_energy_hartree": options.maximum_energy,
             "normalization_factor": peak_strength,
-            "magnified_axis_minimum_energy_hartree": (
-                options.magnified_minimum_energy
-            ),
-            "magnified_axis_maximum_relative_intensity": magnified_peak,
         },
     }
     options.output.parent.mkdir(parents=True, exist_ok=True)
@@ -245,30 +233,19 @@ def main():
         xlabel=r"Excitation energy ($E_h$)",
         ylabel=r"Relative $zz$ absorption intensity",
         xlim=(0.0, options.maximum_energy),
-        ylim=(0.0, 1.05),
         title=(
             r"Clamped-nuclei $\mathrm{H}_2^+$ relative axial absorption, "
             rf"$R=2a_0$, Lorentzian FWHM="
             rf"${options.lorentzian_fwhm:g}\,E_h$"
         ),
     )
+    positive_intensity = displayed_intensity[displayed_intensity > 0.0]
+    if not positive_intensity.size:
+        raise RuntimeError("the plotted absorption intensity is not positive")
+    axis.set_yscale("log")
+    axis.set_ylim(0.5 * positive_intensity.min(), 1.2)
     axis.grid(alpha=0.2)
     axis.legend()
-    magnified_axis = axis.twinx()
-    magnified_axis.plot(
-        omega[magnified],
-        relative_eq24_zz_intensity[magnified],
-        color="tab:purple",
-        linewidth=1.15,
-    )
-    magnified_axis.set_ylim(0.0, 1.08 * magnified_peak)
-    magnified_axis.set_ylabel(
-        rf"Relative intensity (magnified, $\omega\geq"
-        rf"{options.magnified_minimum_energy:g}\,E_h$)",
-        color="tab:purple",
-    )
-    magnified_axis.tick_params(axis="y", colors="tab:purple")
-    magnified_axis.spines["right"].set_color("tab:purple")
     axis.text(
         0.985,
         0.965,
@@ -303,11 +280,7 @@ def main():
     print(f"Speed of light:       {SPEED_OF_LIGHT_AU:.12f} a.u.")
     print("Strength definition:  Repisky Eq. (24), zz contribution only")
     print("Plot normalization:   maximum zz strength in plotted range = 1")
-    print(
-        "Magnified right axis:  "
-        f"omega >= {options.magnified_minimum_energy:g} Eh; "
-        f"upper scale = {1.08 * magnified_peak:.6g}"
-    )
+    print("Plot y-axis:          logarithmic relative intensity")
     print(f"Ionization threshold:{-states.electronic_energy:18.12f} Eh")
     print("\nDipole-active bound-state lines:")
     threshold = -states.electronic_energy
