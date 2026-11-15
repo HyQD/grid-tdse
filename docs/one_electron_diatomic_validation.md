@@ -374,6 +374,13 @@ threshold.
 Lorentzian FWHM `0.005 E_h`. Only the molecular-axis response is included; no
 perpendicular polarization was computed.*
 
+The absorption-strength convention follows M. Repisky, L. Konecny,
+M. Kadek, S. Komorovsky, O. L. Malkin, V. G. Malkin, and K. Ruud,
+"Excitation Energies from Real-Time Propagation of the Four-Component
+Dirac--Kohn--Sham Equation," *Journal of Chemical Theory and Computation*
+**11**, 980--991 (2015),
+[doi:10.1021/ct501078d](https://doi.org/10.1021/ct501078d).
+
 For a rapid workflow test, use
 
 ```bash
