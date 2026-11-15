@@ -99,6 +99,28 @@ def test_periodic_checkpoint_contains_state_observables_and_metadata(tmp_path):
     assert segment.integrator["method"] == "crank_nicolson"
 
 
+def test_long_uniform_time_grid_survives_periodic_checkpoint_validation(
+    tmp_path,
+):
+    path = tmp_path / "long-time-grid.chkpt"
+    result = _sia_propagator(
+        final_time=200.0,
+        time_step=0.1,
+    ).propagate(
+        np.array([1.0, 0.2j]),
+        _hamiltonian,
+        np.vdot,
+        checkpoint_path=path,
+        checkpoint_interval=1000,
+        compatibility_metadata=COMPATIBILITY,
+        dynamics_metadata=DYNAMICS,
+    )
+
+    stored = load_real_time_checkpoint(path)
+    assert stored.current_time == pytest.approx(200.0)
+    np.testing.assert_allclose(stored.latest_segment.times, result.times)
+
+
 def test_exact_resume_matches_uninterrupted_propagation(tmp_path):
     path = tmp_path / "interrupted.chkpt"
     initial = np.array([1.0, -0.3j])

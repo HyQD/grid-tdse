@@ -52,3 +52,23 @@ def test_active_embedding_and_restriction_round_trip(representation):
     assert full.shape == representation.grid.shape
     assert np.all(full[-1] == -1.0)
     assert np.array_equal(representation.restrict_full_grid(full, 0), state)
+
+
+def test_batched_inner_products_match_individual_overlaps(representation):
+    generator = np.random.default_rng(918)
+    shape = representation.fixed_m_shape(0)
+    left = generator.normal(size=(5, *shape))
+    left = left + 1j * generator.normal(size=left.shape)
+    right = generator.normal(size=shape)
+    right = right + 1j * generator.normal(size=shape)
+
+    expected = np.asarray(
+        [representation.inner_product(state, right) for state in left]
+    )
+
+    np.testing.assert_allclose(
+        representation.inner_products(left, right),
+        expected,
+        rtol=2.0e-14,
+        atol=2.0e-14,
+    )

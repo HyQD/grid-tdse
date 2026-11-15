@@ -54,6 +54,7 @@ class ProlateSpheroidalOneElectronHamiltonian:
         self.grid = self.representation.grid
         self.m_max = self.representation.m_max
         self._matrices: dict[tuple[int, str], sparse.csr_matrix] = {}
+        self._z_coordinates: dict[int, np.ndarray] = {}
 
     def fixed_m_shape(self, m=0) -> tuple[int, int]:
         """Return the active nodal state shape for signed ``m``."""
@@ -83,13 +84,13 @@ class ProlateSpheroidalOneElectronHamiltonian:
         )
         return (kinetic + potential).tocsr()
 
-    def fixed_m_matrix(
+    def _fixed_m_matrix(
         self,
         m=0,
         *,
         representation: MatrixRepresentation = "strong",
     ) -> sparse.csr_matrix:
-        """Return a weak, strong, or symmetric fixed-``m`` matrix."""
+        """Return the cached weak, strong, or symmetric fixed-``m`` matrix."""
 
         m = self.representation.validate_m(m)
         if representation not in self._MATRIX_REPRESENTATIONS:
@@ -110,7 +111,24 @@ class ProlateSpheroidalOneElectronHamiltonian:
                 inverse_sqrt = sparse.diags(1.0 / np.sqrt(metric))
                 matrix = inverse_sqrt @ weak @ inverse_sqrt
             self._matrices[key] = matrix.tocsr()
-        return self._matrices[key].copy()
+        return self._matrices[key]
+
+    def fixed_m_matrix(
+        self,
+        m=0,
+        *,
+        representation: MatrixRepresentation = "strong",
+    ) -> sparse.csr_matrix:
+        """Return a defensive copy of a fixed-``m`` matrix.
+
+        Internal Hamiltonian actions reuse the cached matrix directly. Public
+        callers receive a copy so accidental mutation cannot corrupt later
+        actions or solver results.
+        """
+
+        return self._fixed_m_matrix(
+            m, representation=representation
+        ).copy()
 
     def _apply_matrix(self, matrix, states, m=0) -> np.ndarray:
         values = self.representation.validate_fixed_m_state(states, m)
@@ -123,22 +141,53 @@ class ProlateSpheroidalOneElectronHamiltonian:
         """Apply the weak matrix ``A`` to nodal states."""
 
         return self._apply_matrix(
-            self.fixed_m_matrix(m, representation="weak"), states, m
+            self._fixed_m_matrix(m, representation="weak"), states, m
         )
 
     def apply_fixed_m(self, states, m=0) -> np.ndarray:
         """Apply the physical strong action ``S**-1 A``."""
 
         return self._apply_matrix(
-            self.fixed_m_matrix(m, representation="strong"), states, m
+            self._fixed_m_matrix(m, representation="strong"), states, m
         )
 
     def apply_symmetric_fixed_m(self, states, m=0) -> np.ndarray:
         """Apply ``S**-1/2 A S**-1/2`` to Euclidean states."""
 
         return self._apply_matrix(
-            self.fixed_m_matrix(m, representation="symmetric"), states, m
+            self._fixed_m_matrix(m, representation="symmetric"), states, m
         )
+
+    def fixed_m_z(self, m=0) -> np.ndarray:
+        r"""Return the read-only axial coordinate ``z = a xi eta``.
+
+        The values have the active nodal shape for the selected signed
+        magnetic quantum number. Multiplication by this array is local and
+        preserves ``m`` for an electric field parallel to the molecular axis.
+        """
+
+        m = self.representation.validate_m(m)
+        if m not in self._z_coordinates:
+            xi = self.grid.xi[:, None]
+            eta = self.grid.eta[None, :]
+            full_z = self.system.half_bond_length * xi * eta
+            values = full_z.reshape(-1)[
+                self.representation.active_indices(m)
+            ].reshape(self.fixed_m_shape(m))
+            values.setflags(write=False)
+            self._z_coordinates[m] = values
+        return self._z_coordinates[m]
+
+    def apply_z_fixed_m(self, states, m=0) -> np.ndarray:
+        r"""Apply the field-independent coordinate operator ``z``.
+
+        Public states are physical nodal values, so the local prolate
+        coordinate operator is an elementwise multiplication. Leading batch
+        dimensions are preserved.
+        """
+
+        values = self.representation.validate_fixed_m_state(states, m)
+        return values * self.fixed_m_z(m)
 
     def fixed_m_diagonal(
         self,
@@ -148,7 +197,7 @@ class ProlateSpheroidalOneElectronHamiltonian:
     ) -> np.ndarray:
         """Return a matrix diagonal reshaped like one fixed-``m`` state."""
 
-        diagonal = self.fixed_m_matrix(
+        diagonal = self._fixed_m_matrix(
             m, representation=representation
         ).diagonal()
         result = np.asarray(diagonal).reshape(self.fixed_m_shape(m))
@@ -159,6 +208,11 @@ class ProlateSpheroidalOneElectronHamiltonian:
         """Return the physical overlap of two nodal states."""
 
         return self.representation.inner_product(left, right, m)
+
+    def inner_products(self, left, right, m=0) -> np.ndarray:
+        """Return physical overlaps with several left nodal states."""
+
+        return self.representation.inner_products(left, right, m)
 
     def invert(self, state, m=0) -> np.ndarray:
         """Apply spatial inversion to fixed-``m`` nodal states."""

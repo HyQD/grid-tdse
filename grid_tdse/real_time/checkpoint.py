@@ -167,18 +167,28 @@ class RealTimeCheckpointSegment:
             raise ValueError("checkpoint step wall times must be non-negative")
         if not np.all(np.diff(times) > 0.0):
             raise ValueError("checkpoint segment times must be strictly increasing")
-        if times.size > 1 and not np.allclose(
-            np.diff(times),
-            time_step,
-            rtol=1.0e-13,
-            atol=1.0e-14,
+        time_scale = max(
+            1.0,
+            abs(initial_time),
+            abs(target_final_time),
+            times.size * time_step,
+        )
+        time_tolerance = 64.0 * np.finfo(float).eps * time_scale
+        expected_times = initial_time + time_step * np.arange(times.size)
+        if not np.allclose(
+            times,
+            expected_times,
+            rtol=0.0,
+            atol=time_tolerance,
         ):
             raise ValueError(
                 "checkpoint segment times are inconsistent with its time step"
             )
-        if not np.isclose(times[0], initial_time, rtol=0.0, atol=1.0e-13):
+        if not np.isclose(
+            times[0], initial_time, rtol=0.0, atol=time_tolerance
+        ):
             raise ValueError("checkpoint segment initial time is inconsistent")
-        if times[-1] > target_final_time + 1.0e-13:
+        if times[-1] > target_final_time + time_tolerance:
             raise ValueError("checkpoint segment extends beyond its target final time")
 
         checked_samples = {}
