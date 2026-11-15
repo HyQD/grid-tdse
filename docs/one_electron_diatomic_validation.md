@@ -329,16 +329,14 @@ single- and two-photon ionization of H2+," *Physical Review A* **80**,
 
 ### Delta-kick real-time spectral validation
 
-The stationary excitation energies above provide an internal oracle for the
-real-time implementation. Run the axial linear-response calculation with
+Three related spectrum constructions are used here. They have the same
+linear-response limit but must not be conflated: the eigenstate construction
+is the reference result, the one-sided kick is the protocol described by
+Repisky et al., and the paired-kick construction is an additional numerical
+central difference used to qualify the propagator.
 
-```bash
-python \
-    examples/prolate_spheroidal/h2plus_delta_kick_spectrum.py
-```
-
-The example uses the same Tao-comparable `R=2` grid, constructs the ground
-state with Davidson, and applies the exact nodal transformation
+All three use the axial interaction `H(t)=H0+E(t)z`. A field impulse with
+integrated area `K` applies the exact nodal transformation
 
 ```math
 \Psi(0^+)=\exp(-iKz)\Psi_0,
@@ -346,27 +344,55 @@ state with Davidson, and applies the exact nodal transformation
 z=a\xi\eta.
 ```
 
-It propagates paired `+K` and `-K` states and forms
+For a causal response `chi_zz(t)`, introduce exponential damping with
+Lorentzian FWHM `Gamma` and define
 
 ```math
-\chi(t)=\frac{d_{+K}(t)-d_{-K}(t)}{2K}.
+\widetilde{\chi}_{zz}^{(\Gamma)}(\omega)
+=\int_0^T
+e^{i\omega t}e^{-\Gamma t/2}
+[\chi_{zz}(t)-\chi_{zz}(0)]\,dt.
 ```
 
-The defaults compare `K=1e-3` and `K=5e-4`, propagate for `1000` a.u. with
-SIA, and use a cubic CAP. A no-kick run checks that the CAP does not affect
-the ground state. The output archive contains the raw induced responses,
-positive-frequency transforms, norm histories, CAP-region probabilities,
-CAP norm-loss rates, and JSON metadata. The accompanying plot marks the
-allowed ungerade `Sigma` excitation energies listed above and the
-symmetry-forbidden gerade root at `0.924953169367 E_h`.
+The axial contribution to the absorption-strength function is
 
-The corresponding Lorentz-broadened axial absorption spectrum is shown
-below. It is reconstructed from the validated stationary states as the
-`zz` contribution to Eq. (24) of Repisky et al., normalized to unit maximum
-over the plotted interval. The single logarithmic intensity axis exposes the
-weak higher excitations without changing their relative scale. Orange lines
-mark dipole-active ungerade states, and the dashed line marks the ionization
-threshold.
+```math
+S_{zz}(\omega)
+=\frac{4\pi\omega}{3c}
+\operatorname{Im}\widetilde{\chi}_{zz}^{(\Gamma)}(\omega).
+```
+
+The implementation stores the transform with the `exp(-i*omega*t)` FFT
+convention, so it uses `-Im` of that stored transform. Equation (24) of
+Repisky et al. contains the full Cartesian trace. Only `alpha_zz` is computed
+here; no `x`- or `y`-polarized propagation is implied.
+
+#### Eigenstate construction: reference spectrum
+
+Diagonalization supplies excitation energies
+`omega_n0 = E_n-E_0` and transition moments `z_n0 = <n|z|0>`. The exact
+linear response within that finite eigenstate basis is
+
+```math
+\chi_{zz}^{\mathrm{eig}}(t)
+=2\sum_{n>0}|z_{n0}|^2\sin(\omega_{n0}t).
+```
+
+Fourier transforming this response with the damping above is equivalent to
+placing Lorentzian lines at the eigenstate excitation energies with weights
+set by the transition moments. It is independent of propagation time-step,
+Krylov, CAP, and finite-kick errors. It is therefore the reference spectrum
+against which both real-time constructions are assessed. It remains subject
+to the finite spatial grid, number of eigenstates, and chosen Lorentzian
+width.
+
+The reference figure below uses 80 stationary states, `T=4000` a.u., and
+`Gamma=0.005 E_h`. It is produced by
+`h2plus_delta_kick_absorption_spectrum.py`; it is not produced from a
+numerically propagated dipole history. The single logarithmic axis exposes
+the weak higher excitations without changing their relative scale. Orange
+lines mark dipole-active ungerade states, and the dashed line marks the
+ionization threshold.
 
 ![Relative axial absorption spectrum of clamped-nuclei H2+](images/h2plus_axial_absorption_spectrum.png)
 
@@ -374,12 +400,74 @@ threshold.
 Lorentzian FWHM `0.005 E_h`. Only the molecular-axis response is included; no
 perpendicular polarization was computed.*
 
-The absorption-strength convention follows M. Repisky, L. Konecny,
-M. Kadek, S. Komorovsky, O. L. Malkin, V. G. Malkin, and K. Ruud,
+#### One-sided delta kick: Repisky protocol
+
+For one positive weak kick, record the propagated dipole `d_K(t)`. The
+finite-kick estimate is
+
+```math
+\chi_{zz}^{(+)}(t)
+=\frac{d_K(t)-d_K(0)}{K}
+=\chi_{zz}(t)+O(K).
+```
+
+Fourier transformation and damping of this induced dipole response give the
+polarizability used in the absorption-strength expression above. Repisky et
+al. describe this one-kick real-time protocol, with separate kicks required
+for the Cartesian components used in the full trace. The present axial
+calculation would require only the `z` kick and yields the `zz` contribution.
+The displayed `O(K)` is the generic one-sided finite-difference error. For
+inversion-symmetric H2+, the axial dipole is odd in `K`, so symmetry removes
+the even response terms and the leading finite-kick error is already
+`O(K^2)`.
+
+Reference: M. Repisky, L. Konecny, M. Kadek, S. Komorovsky, O. L. Malkin,
+V. G. Malkin, and K. Ruud,
 "Excitation Energies from Real-Time Propagation of the Four-Component
 Dirac--Kohn--Sham Equation," *Journal of Chemical Theory and Computation*
 **11**, 980--991 (2015),
 [doi:10.1021/ct501078d](https://doi.org/10.1021/ct501078d).
+
+#### Paired delta kicks: propagation qualification
+
+The Step-11 workflow instead performs two independent calculations, one
+with `+K` and one with `-K`, and forms
+
+```math
+\chi_{zz}^{(\pm)}(t)
+=\frac{d_{+K}(t)-d_{-K}(t)}{2K}
+=\chi_{zz}(t)+O(K^2).
+```
+
+These are not two sequential pulses and do not describe a two-pulse physical
+experiment. They are two separately propagated initial-value problems. The
+central difference cancels the even powers of `K`, giving a more accurate
+linear-response estimate for a general system. For H2+, it additionally
+provides a direct antisymmetry check rather than changing the formal order
+already imposed by inversion symmetry. This paired-kick refinement is used
+by grid-tdse; it is not the protocol described by Repisky et al.
+
+Run it with
+
+```bash
+python \
+    examples/prolate_spheroidal/h2plus_delta_kick_spectrum.py
+```
+
+The example uses the same Tao-comparable `R=2` grid and constructs the ground
+state with Davidson. The defaults compare `K=1e-3` and `K=5e-4`, propagate
+for `1000` a.u. with SIA, and use a cubic CAP. A no-kick run checks that the
+CAP does not affect the ground state. The output archive contains the raw
+induced responses, positive-frequency transforms, norm histories,
+CAP-region probabilities, CAP norm-loss rates, and JSON metadata. The
+accompanying plot marks the allowed ungerade `Sigma` excitation energies and
+the symmetry-forbidden gerade root at `0.924953169367 E_h`.
+
+| Construction | Time-domain input | Leading finite-kick error | Role here |
+|---|---|---:|---|
+| eigenstate | stationary energies and transition moments | none | reference spectrum |
+| one-sided kick | `[d_K(t)-d_K(0)]/K` | generic: `O(K)`; H2+: `O(K^2)` | Repisky real-time protocol |
+| paired kicks | `[d_+K(t)-d_-K(t)]/(2K)` | `O(K^2)` | propagation qualification |
 
 For a rapid workflow test, use
 
@@ -402,24 +490,25 @@ harmonic-fitting analysis.
 
 #### Production delta-kick qualification
 
-Step 11 was qualified on 2026-11-15 using a `T=2000`, `dt=0.1` reference
-record and independent `T=1000` controls. Each calculation uses the grid and
-ground state specified above, SIA with a maximum Krylov dimension of 50, and
-paired analytic axial kicks. Threaded numerical libraries were restricted to
-one thread per independent trajectory.
+Step 11 was qualified on 2026-11-15 using a `T=2000`, `dt=0.1` propagation
+baseline and independent `T=1000` controls. This numerical baseline is
+distinct from the eigenstate reference spectrum above. Each calculation uses
+the same grid and ground state, SIA with a maximum Krylov dimension of 50,
+and paired analytic axial kicks. Threaded numerical libraries were restricted
+to one thread per independent trajectory.
 
 | Case | `T` | `dt` | `xi_max` | Outer `xi` elements | CAP onset fraction | CAP strength |
 |---|---:|---:|---:|---:|---:|---:|
-| reference | 2000 | 0.1 | 80 | 10 | 0.80 | `1e-3` |
+| propagation baseline | 2000 | 0.1 | 80 | 10 | 0.80 | `1e-3` |
 | time-step control | 1000 | 0.05 | 80 | 10 | 0.80 | `1e-3` |
 | onset control | 1000 | 0.1 | 80 | 10 | 0.75 | `1e-3` |
 | strength control | 1000 | 0.1 | 80 | 10 | 0.80 | `2e-3` |
 | box control | 1000 | 0.1 | 100 | 13 | 0.80 | `1e-3` |
 
-The reference uses both `K=1e-3` and `K=5e-4`. Its relative L2 kick-sign
-antisymmetry errors are `9.25e-9` and `1.00e-9`, respectively. The two
-central-difference responses agree to `8.75e-7` in relative L2. The no-kick
-final norm differs from unity by `1.79e-14`.
+The propagation baseline uses both `K=1e-3` and `K=5e-4`. Its relative L2
+kick-sign antisymmetry errors are `9.25e-9` and `1.00e-9`, respectively. The
+two central-difference responses agree to `8.75e-7` in relative L2. The
+no-kick final norm differs from unity by `1.79e-14`.
 
 The complete-record Fourier spacing is `0.00314159 E_h`. The late record
 starts at `t=500` and has spacing `0.00418879 E_h`. Local spectral maxima are
