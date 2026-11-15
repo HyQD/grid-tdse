@@ -1,12 +1,13 @@
 """Lorentz-broadened axial absorption spectrum of clamped-nuclei H2+.
 
-The linear induced dipole is assembled from the stationary eigenstates on the
-Tao-comparable prolate grid. This is the spectral representation of the same
-weak axial delta-kick response propagated in
-``h2plus_delta_kick_spectrum.py``. Fourier transformation after exponential
-damping produces Lorentzian lines with the requested FWHM. The plotted
-quantity is the ``zz`` contribution to the dipole-strength function in
-Eq. (24) of Repisky et al., J. Chem. Theory Comput. 11, 980 (2015):
+The reference linear response is assembled from the stationary eigenstates
+on the Tao-comparable prolate grid. When a Step-11 propagation archive is
+provided, the spectrum also includes the one-sided positive-kick response
+and the paired positive/negative-kick response. All three use the same time
+grid, exponential damping, Lorentzian FWHM, and eigenstate-reference
+normalization. The plotted quantity is the ``zz`` contribution to the
+dipole-strength function in Eq. (24) of Repisky et al., J. Chem. Theory
+Comput. 11, 980 (2015):
 
 ``S_zz(omega) = 4*pi*omega/(3*c) * Im(alpha_zz(omega))``.
 
@@ -38,6 +39,56 @@ SPEED_OF_LIGHT_AU = physical_constants[
 ][0]
 
 
+def strength_label(strength):
+    return f"K{abs(strength):.3e}".replace("+", "p").replace("-", "m")
+
+
+def load_propagated_responses(path, kick_strength):
+    """Load one-sided and paired responses from a Step-11 archive."""
+
+    if not path.is_file():
+        raise FileNotFoundError(f"propagation archive not found: {path}")
+    label = strength_label(kick_strength)
+    positive_key = f"positive_electronic_dipole_numerator_{label}"
+    paired_key = f"response_{label}"
+    with np.load(path, allow_pickle=False) as archive:
+        missing = {
+            key
+            for key in ("times", positive_key, paired_key)
+            if key not in archive
+        }
+        if missing:
+            raise KeyError(
+                "propagation archive is missing: " + ", ".join(sorted(missing))
+            )
+        times = np.asarray(archive["times"], dtype=float).copy()
+        positive_dipole = np.asarray(
+            archive[positive_key], dtype=float
+        ).copy()
+        paired_response = np.asarray(archive[paired_key], dtype=float).copy()
+    if times.shape != positive_dipole.shape or times.shape != paired_response.shape:
+        raise ValueError("propagation response arrays must share one shape")
+    one_sided_response = (
+        positive_dipole - positive_dipole[0]
+    ) / kick_strength
+    return times, one_sided_response, paired_response, label
+
+
+def eq24_zz_strength(spectrum):
+    """Return the nonnegative-sign Eq. (24) ``zz`` contribution."""
+
+    omega = spectrum.angular_frequencies
+    absorptive_imaginary_alpha_zz = -spectrum.transform.imag
+    strength = (
+        4.0
+        * np.pi
+        * omega
+        / (3.0 * SPEED_OF_LIGHT_AU)
+        * absorptive_imaginary_alpha_zz
+    )
+    return absorptive_imaginary_alpha_zz, strength
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--number-of-states", type=int, default=80)
@@ -46,6 +97,15 @@ def arguments():
     parser.add_argument("--lorentzian-fwhm", type=float, default=0.005)
     parser.add_argument("--maximum-energy", type=float, default=1.2)
     parser.add_argument("--kick-strength", type=float, default=1.0e-3)
+    parser.add_argument(
+        "--propagation-archive",
+        type=Path,
+        default=None,
+        help=(
+            "optional h2plus_delta_kick_spectrum.py archive used to "
+            "overlay one-sided and paired-kick spectra"
+        ),
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -107,53 +167,90 @@ def main():
     )
     line_weights = np.abs(transition_dipoles) ** 2
 
-    number_of_intervals = int(np.ceil(options.final_time / options.sample_step))
-    times = np.linspace(0.0, options.final_time, number_of_intervals + 1)
-    response = 2.0 * np.sum(
+    propagated = None
+    if options.propagation_archive is None:
+        number_of_intervals = int(
+            np.ceil(options.final_time / options.sample_step)
+        )
+        times = np.linspace(0.0, options.final_time, number_of_intervals + 1)
+    else:
+        propagated = load_propagated_responses(
+            options.propagation_archive, options.kick_strength
+        )
+        times = propagated[0]
+    eigenstate_response = 2.0 * np.sum(
         line_weights[:, None]
         * np.sin(excitation_energies[:, None] * times[None, :]),
         axis=0,
     )
-    induced_dipole = options.kick_strength * response
+    induced_dipole = options.kick_strength * eigenstate_response
     polarizability_response = induced_dipole / options.kick_strength
-    spectrum = lorentzian_broadened_positive_frequency_spectrum(
+    eigenstate_spectrum = lorentzian_broadened_positive_frequency_spectrum(
         times,
         polarizability_response,
         fwhm=options.lorentzian_fwhm,
     )
-    omega = spectrum.angular_frequencies
+    omega = eigenstate_spectrum.angular_frequencies
     # numpy.rfft uses exp(-i*omega*t), as does PositiveFrequencySpectrum.
     # The absorptive part is therefore -Im(alpha_zz) for the present response
     # sign. This is the nonnegative Im(alpha_zz) entering Eq. (24) when the
     # opposite, conventional causal-transform sign is used.
-    absorptive_imaginary_alpha_zz = -spectrum.transform.imag
-    eq24_zz_dipole_strength = (
-        4.0
-        * np.pi
-        * omega
-        / (3.0 * SPEED_OF_LIGHT_AU)
-        * absorptive_imaginary_alpha_zz
+    absorptive_imaginary_alpha_zz, eq24_zz_dipole_strength = (
+        eq24_zz_strength(eigenstate_spectrum)
     )
     directional_zz_dipole_strength = 3.0 * eq24_zz_dipole_strength
+
+    comparison_spectra = {}
+    comparison_strengths = {}
+    if propagated is not None:
+        _, one_sided_response, paired_response, propagation_label = propagated
+        comparison_responses = {
+            "one_sided": one_sided_response,
+            "paired": paired_response,
+        }
+        for name, values in comparison_responses.items():
+            comparison_spectra[name] = (
+                lorentzian_broadened_positive_frequency_spectrum(
+                    times,
+                    values,
+                    fwhm=options.lorentzian_fwhm,
+                )
+            )
+            _, comparison_strengths[name] = eq24_zz_strength(
+                comparison_spectra[name]
+            )
 
     selected = omega <= options.maximum_energy
     peak_strength = float(eq24_zz_dipole_strength[selected].max())
     if peak_strength <= 0.0:
         raise RuntimeError("the computed zz absorption strength is not positive")
     relative_eq24_zz_intensity = eq24_zz_dipole_strength / peak_strength
+    relative_comparison_strengths = {
+        name: values / peak_strength
+        for name, values in comparison_strengths.items()
+    }
     metadata = {
         "system": hamiltonian.archive_metadata(),
         "number_of_states": options.number_of_states,
         "ground_electronic_energy": states.electronic_energy,
         "kick_strength": options.kick_strength,
-        "final_time": options.final_time,
+        "final_time": times[-1],
         "sample_step": times[1] - times[0],
         "lorentzian_fwhm_hartree": options.lorentzian_fwhm,
         "lorentzian_fwhm_ev": options.lorentzian_fwhm * HARTREE_TO_EV,
-        "spectrum": spectrum.metadata,
+        "spectrum": eigenstate_spectrum.metadata,
         "response_construction": (
             "2*sum_n(abs(<n|z|0>)**2*sin((E_n-E_0)*t))"
         ),
+        "propagation_comparison": None
+        if propagated is None
+        else {
+            "archive": str(options.propagation_archive),
+            "strength_label": propagation_label,
+            "one_sided_response": "(d(+K,t)-d(+K,0))/K",
+            "paired_response": "(d(+K,t)-d(-K,t))/(2*K)",
+            "common_normalization": "eigenstate reference maximum",
+        },
         "repisky_eq24": {
             "reference": (
                 "Repisky et al., J. Chem. Theory Comput. 11, 980-991 "
@@ -186,32 +283,76 @@ def main():
         },
     }
     options.output.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        options.output,
-        times=times,
-        induced_dipole=induced_dipole,
-        polarizability_response=polarizability_response,
-        angular_frequency=omega,
-        energy_ev=omega * HARTREE_TO_EV,
-        alpha_zz_minus_convention=spectrum.transform,
-        absorptive_imaginary_alpha_zz=absorptive_imaginary_alpha_zz,
-        eq24_zz_dipole_strength=eq24_zz_dipole_strength,
-        relative_eq24_zz_intensity=relative_eq24_zz_intensity,
-        directional_zz_dipole_strength=directional_zz_dipole_strength,
-        excitation_energies=excitation_energies,
-        transition_dipoles=transition_dipoles,
-        inversion_expectations=inversion,
-        metadata_json=np.asarray(json.dumps(metadata, sort_keys=True)),
-    )
+    archive_values = {
+        "times": times,
+        "induced_dipole": induced_dipole,
+        "polarizability_response": polarizability_response,
+        "angular_frequency": omega,
+        "energy_ev": omega * HARTREE_TO_EV,
+        "alpha_zz_minus_convention": eigenstate_spectrum.transform,
+        "absorptive_imaginary_alpha_zz": absorptive_imaginary_alpha_zz,
+        "eq24_zz_dipole_strength": eq24_zz_dipole_strength,
+        "relative_eq24_zz_intensity": relative_eq24_zz_intensity,
+        "directional_zz_dipole_strength": directional_zz_dipole_strength,
+        "excitation_energies": excitation_energies,
+        "transition_dipoles": transition_dipoles,
+        "inversion_expectations": inversion,
+        "metadata_json": np.asarray(json.dumps(metadata, sort_keys=True)),
+    }
+    if propagated is not None:
+        archive_values.update(
+            {
+                "one_sided_response": one_sided_response,
+                "paired_response": paired_response,
+                "one_sided_alpha_zz_minus_convention": (
+                    comparison_spectra["one_sided"].transform
+                ),
+                "paired_alpha_zz_minus_convention": (
+                    comparison_spectra["paired"].transform
+                ),
+                "one_sided_relative_eq24_zz_intensity": (
+                    relative_comparison_strengths["one_sided"]
+                ),
+                "paired_relative_eq24_zz_intensity": (
+                    relative_comparison_strengths["paired"]
+                ),
+            }
+        )
+    np.savez_compressed(options.output, **archive_values)
 
     figure, axis = plt.subplots(figsize=(7.4, 4.8))
     displayed_intensity = relative_eq24_zz_intensity[selected]
     axis.plot(
         omega[selected],
         displayed_intensity,
-        color="tab:blue",
-        linewidth=1.1,
+        color="black",
+        linewidth=1.5,
+        label="Eigenstate reference",
+        zorder=1,
     )
+    displayed_comparisons = {}
+    comparison_styles = {
+        "one_sided": {
+            "color": "tab:orange",
+            "label": r"One-sided $+K$ propagation",
+            "linestyle": "--",
+            "zorder": 2,
+        },
+        "paired": {
+            "color": "tab:blue",
+            "label": r"Paired $\pm K$ propagation",
+            "linestyle": ":",
+            "zorder": 3,
+        },
+    }
+    for name, values in relative_comparison_strengths.items():
+        displayed_comparisons[name] = values[selected]
+        axis.plot(
+            omega[selected],
+            displayed_comparisons[name],
+            linewidth=1.25,
+            **comparison_styles[name],
+        )
     axis.axvline(
         -states.electronic_energy,
         color="0.35",
@@ -234,12 +375,15 @@ def main():
         ylabel=r"Relative $zz$ absorption intensity",
         xlim=(0.0, options.maximum_energy),
         title=(
-            r"Clamped-nuclei $\mathrm{H}_2^+$ relative axial absorption, "
+            r"Clamped-nuclei $\mathrm{H}_2^+$ axial absorption, "
             rf"$R=2a_0$, Lorentzian FWHM="
             rf"${options.lorentzian_fwhm:g}\,E_h$"
         ),
     )
-    positive_intensity = displayed_intensity[displayed_intensity > 0.0]
+    all_displayed = [displayed_intensity, *displayed_comparisons.values()]
+    positive_intensity = np.concatenate(
+        [values[values > 0.0] for values in all_displayed]
+    )
     if not positive_intensity.size:
         raise RuntimeError("the plotted absorption intensity is not positive")
     axis.set_yscale("log")
@@ -272,7 +416,7 @@ def main():
     print("\n** H2+ Lorentz-broadened axial absorption spectrum **")
     print(f"Ground energy:       {states.electronic_energy:.15f} Eh")
     print(f"States included:     {options.number_of_states}")
-    print(f"Record duration:     {options.final_time:g} a.u.")
+    print(f"Record duration:     {times[-1]:g} a.u.")
     print(
         f"Lorentzian FWHM:     {options.lorentzian_fwhm:g} Eh = "
         f"{options.lorentzian_fwhm * HARTREE_TO_EV:.6f} eV"
@@ -281,6 +425,22 @@ def main():
     print("Strength definition:  Repisky Eq. (24), zz contribution only")
     print("Plot normalization:   maximum zz strength in plotted range = 1")
     print("Plot y-axis:          logarithmic relative intensity")
+    if propagated is not None:
+        paired_scale = max(
+            np.linalg.norm(paired_response), np.finfo(float).tiny
+        )
+        spectrum_scale = max(
+            np.linalg.norm(displayed_intensity), np.finfo(float).tiny
+        )
+        print(f"Propagation archive: {options.propagation_archive}")
+        print(f"Propagation kick:    {options.kick_strength:g} a.u.")
+        print(
+            "One-sided/paired response L2: "
+            f"{np.linalg.norm(one_sided_response - paired_response) / paired_scale:.3e}"
+        )
+        for name, values in displayed_comparisons.items():
+            error = np.linalg.norm(values - displayed_intensity) / spectrum_scale
+            print(f"{name:>20s}/reference spectrum L2: {error:.3e}")
     print(f"Ionization threshold:{-states.electronic_energy:18.12f} Eh")
     print("\nDipole-active bound-state lines:")
     threshold = -states.electronic_energy

@@ -359,7 +359,7 @@ The axial contribution to the absorption-strength function is
 ```math
 S_{zz}(\omega)
 =\frac{4\pi\omega}{3c}
-\operatorname{Im}\widetilde{\chi}_{zz}^{(\Gamma)}(\omega).
+\mathrm{Im}\,\widetilde{\chi}_{zz}^{(\Gamma)}(\omega).
 ```
 
 The implementation stores the transform with the `exp(-i*omega*t)` FFT
@@ -386,19 +386,38 @@ against which both real-time constructions are assessed. It remains subject
 to the finite spatial grid, number of eigenstates, and chosen Lorentzian
 width.
 
-The reference figure below uses 80 stationary states, `T=4000` a.u., and
-`Gamma=0.005 E_h`. It is produced by
-`h2plus_delta_kick_absorption_spectrum.py`; it is not produced from a
-numerically propagated dipole history. The single logarithmic axis exposes
-the weak higher excitations without changing their relative scale. Orange
-lines mark dipole-active ungerade states, and the dashed line marks the
-ionization threshold.
+The figure below compares all three constructions on the `T=2000` Step-11
+time grid with `Gamma=0.005 E_h`. The black curve is the 80-state eigenstate
+reference. The dashed orange curve is the one-sided positive-kick result,
+and the dotted blue curve is the paired-kick result. All curves use the
+eigenstate maximum as their common normalization; they are not independently
+rescaled. The single logarithmic axis exposes weak higher excitations without
+changing their relative scale. Thin orange lines mark dipole-active ungerade
+stationary states, and the dashed gray line marks the ionization threshold.
+
+The comparison is generated from the completed propagation archive with
+
+```bash
+python \
+    examples/prolate_spheroidal/h2plus_delta_kick_absorption_spectrum.py \
+    --propagation-archive \
+    output/step11_qualification/reference/response.npz \
+    --plot docs/images/h2plus_axial_absorption_spectrum.png
+```
 
 ![Relative axial absorption spectrum of clamped-nuclei H2+](images/h2plus_axial_absorption_spectrum.png)
 
-*Relative axial absorption spectrum of clamped-nuclei H2+ at `R=2 a0`, with
-Lorentzian FWHM `0.005 E_h`. Only the molecular-axis response is included; no
-perpendicular polarization was computed.*
+*Eigenstate-reference, one-sided-kick, and paired-kick axial absorption
+spectra for clamped-nuclei H2+ at `R=2 a0`, with Lorentzian FWHM
+`0.005 E_h`. Only the molecular-axis response is included; no perpendicular
+polarization was computed.*
+
+For `K=1e-3`, the one-sided and paired propagated time responses agree to
+`9.25e-9` in relative L2. After applying the same damping and common
+eigenstate normalization, each propagated spectrum differs from the
+eigenstate reference by `1.75e-4` in relative L2 over the plotted interval.
+The visible residual differences occur mainly in the discretized continuum
+above the ionization threshold.
 
 #### One-sided delta kick: Repisky protocol
 
