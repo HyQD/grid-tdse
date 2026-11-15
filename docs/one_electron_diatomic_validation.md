@@ -394,6 +394,9 @@ eigenstate maximum as their common normalization; they are not independently
 rescaled. The single logarithmic axis exposes weak higher excitations without
 changing their relative scale. Thin orange lines mark dipole-active ungerade
 stationary states, and the dashed gray line marks the ionization threshold.
+The lower, linear subplot shows the signed one-sided-minus-paired difference
+on the same common normalization, making their otherwise visually hidden
+finite-kick and numerical differences explicit.
 
 The comparison is generated from the completed propagation archive with
 
@@ -409,8 +412,9 @@ python \
 
 *Eigenstate-reference, one-sided-kick, and paired-kick axial absorption
 spectra for clamped-nuclei H2+ at `R=2 a0`, with Lorentzian FWHM
-`0.005 E_h`. Only the molecular-axis response is included; no perpendicular
-polarization was computed.*
+`0.005 E_h`. The lower panel is the signed difference between the two
+propagated spectra. Only the molecular-axis response is included; no
+perpendicular polarization was computed.*
 
 For `K=1e-3`, the one-sided and paired propagated time responses agree to
 `9.25e-9` in relative L2. After applying the same damping and common

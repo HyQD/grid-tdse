@@ -316,11 +316,26 @@ def main():
                 "paired_relative_eq24_zz_intensity": (
                     relative_comparison_strengths["paired"]
                 ),
+                "one_sided_minus_paired_relative_eq24_zz_intensity": (
+                    relative_comparison_strengths["one_sided"]
+                    - relative_comparison_strengths["paired"]
+                ),
             }
         )
     np.savez_compressed(options.output, **archive_values)
 
-    figure, axis = plt.subplots(figsize=(7.4, 4.8))
+    if propagated is None:
+        figure, axis = plt.subplots(figsize=(7.4, 4.8), layout="constrained")
+        difference_axis = None
+    else:
+        figure, (axis, difference_axis) = plt.subplots(
+            2,
+            1,
+            figsize=(7.4, 6.2),
+            sharex=True,
+            gridspec_kw={"height_ratios": (3.0, 1.0), "hspace": 0.08},
+            layout="constrained",
+        )
     displayed_intensity = relative_eq24_zz_intensity[selected]
     axis.plot(
         omega[selected],
@@ -371,7 +386,6 @@ def main():
         color = "tab:orange" if parity < 0.0 else "tab:red"
         axis.axvline(energy, color=color, alpha=0.35, linewidth=0.6)
     axis.set(
-        xlabel=r"Excitation energy ($E_h$)",
         ylabel=r"Relative $zz$ absorption intensity",
         xlim=(0.0, options.maximum_energy),
         title=(
@@ -400,6 +414,31 @@ def main():
         fontsize=8.5,
         color="0.25",
     )
+    if difference_axis is None:
+        axis.set_xlabel(r"Excitation energy ($E_h$)")
+    else:
+        spectrum_difference = (
+            displayed_comparisons["one_sided"]
+            - displayed_comparisons["paired"]
+        )
+        difference_axis.plot(
+            omega[selected],
+            spectrum_difference,
+            color="tab:purple",
+            linewidth=1.0,
+        )
+        difference_axis.axhline(0.0, color="0.35", linewidth=0.7)
+        difference_axis.set(
+            xlabel=r"Excitation energy ($E_h$)",
+            ylabel=(
+                r"$S_{zz}^{(+)}-S_{zz}^{(\pm)}$"
+                "\n(relative)"
+            ),
+        )
+        difference_axis.ticklabel_format(
+            axis="y", style="sci", scilimits=(0, 0)
+        )
+        difference_axis.grid(alpha=0.2)
     top = axis.secondary_xaxis(
         "top",
         functions=(
@@ -408,7 +447,6 @@ def main():
         ),
     )
     top.set_xlabel("Excitation energy (eV)")
-    figure.tight_layout()
     options.plot.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(options.plot)
     plt.close(figure)
