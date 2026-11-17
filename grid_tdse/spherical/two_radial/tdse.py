@@ -46,6 +46,7 @@ from .dynamics_sampling import (
     DiatomicIonDynamicsTimeSeries,
 )
 from .grids import FEMDVRGridSpec
+from .linear_response import AxialDeltaKick, resolve_axial_delta_kick_options
 from .preconditioner import build_two_radial_real_time_preconditioner
 from .state_archive import TwoRadialState, two_radial_compatibility_metadata
 from .system import (
@@ -138,6 +139,8 @@ class _TwoRadialTDSE:
         self,
         *,
         initial_state: InitialState,
+        initial_kick: AxialDeltaKick | None,
+        initial_kick_options: Mapping[str, Any] | None,
         fields,
         field_gauge: DipoleGauge,
         integrator: IntegratorName,
@@ -179,6 +182,8 @@ class _TwoRadialTDSE:
         self.integrator_options = options.copy()
 
         self.field_gauge = _field_gauge(field_gauge)
+        self.radial_operator_mode = radial_operator_mode
+        self.dipole_kernel = dipole_kernel
         self.fields, field_metadata = _axial_fields(fields, self.field_gauge)
         _validate_field_angular_basis(self.representation, self.fields)
         _validate_velocity_gauge_initial_vector_potential(
@@ -187,14 +192,22 @@ class _TwoRadialTDSE:
             initial_time=initial_time,
         )
         self.initial_state = self._prepare_initial_state(initial_state)
+        self.initial_kick = _initial_kick(initial_kick)
+        self.initial_kick_options = _initial_kick_options(
+            initial_kick_options,
+            initial_kick=self.initial_kick,
+        )
+        if self.initial_kick is not None:
+            self.initial_kick_options = resolve_axial_delta_kick_options(
+                self.initial_kick_options
+            )
+        initial_kick_metadata = self._apply_initial_kick(initial_time)
         self.field_free_hamiltonian = self._build_field_free_hamiltonian(
             tile_size=tile_size,
             radial_operator_mode=radial_operator_mode,
             coulomb_kernel=coulomb_kernel,
             radial_kernel=radial_kernel,
         )
-        self.radial_operator_mode = radial_operator_mode
-        self.dipole_kernel = dipole_kernel
         self.dipole_interaction = (
             self._build_dipole_interaction(self.fields) if self.fields else None
         )
@@ -312,6 +325,7 @@ class _TwoRadialTDSE:
             "coulomb_kernel": coulomb_kernel,
             "radial_kernel": radial_kernel,
             "dipole_kernel": dipole_kernel,
+            "initial_kick": initial_kick_metadata,
         }
         self.samplers = self._prepare_samplers(observables, samplers)
 
@@ -347,6 +361,12 @@ class _TwoRadialTDSE:
             raise TypeError("progress must be boolean")
         if mode not in {"new", "resume", "continue"}:
             raise ValueError("invalid real-time execution mode")
+        if mode == "continue" and self.initial_kick is not None:
+            raise ValueError(
+                "initial_kick cannot be applied by continue_from(); omit it "
+                "because the checkpoint already contains the transformed "
+                "state"
+            )
         stored = None
         if mode != "new":
             stored = (
@@ -480,6 +500,43 @@ class _TwoRadialTDSE:
         if norm <= 0.0:
             raise ValueError("initial_state must have positive norm")
         return np.asarray(values, dtype=np.result_type(values.dtype, complex))
+
+    def _apply_initial_kick(self, initial_time: float) -> dict[str, Any] | None:
+        if self.initial_kick is None:
+            return None
+        interaction = self._build_dipole_interaction(
+            (lambda time: 1.0,),
+            gauge="length",
+        )
+        norm_before = float(
+            self.representation.inner_product(
+                self.initial_state,
+                self.initial_state,
+            ).real
+        )
+        self.initial_state = self.initial_kick.apply(
+            interaction,
+            self.initial_state,
+            inner_product=self.representation.inner_product,
+            options=self.initial_kick_options,
+        )
+        norm_after = float(
+            self.representation.inner_product(
+                self.initial_state,
+                self.initial_state,
+            ).real
+        )
+        metadata = dict(self.initial_kick.metadata)
+        metadata.update(
+            {
+                "application_time": float(initial_time),
+                "exponential_options": _json_value(self.initial_kick_options),
+                "norm_before": norm_before,
+                "norm_after": norm_after,
+                "norm_change": norm_after - norm_before,
+            }
+        )
+        return metadata
 
     def _validate_archived_physical_state(self, state: TwoRadialState) -> None:
         stored = state.physical_state
@@ -703,6 +760,8 @@ class TwoElectronAtomTDSE(_TwoRadialTDSE):
         )
         self._configure_real_time(
             initial_state=initial_state,
+            initial_kick=None,
+            initial_kick_options=None,
             fields=fields,
             field_gauge=field_gauge,
             integrator=integrator,
@@ -793,6 +852,8 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         ground_state_inversion_parity: Parity = 1,
         ground_state_symmetry_adapted_basis: bool | None = None,
         ground_state_options: Mapping[str, Any] | None = None,
+        initial_kick: AxialDeltaKick | None = None,
+        initial_kick_options: Mapping[str, Any] | None = None,
         fields=(),
         field_gauge: DipoleGauge = "length",
         l_max: int = 2,
@@ -978,6 +1039,8 @@ class NonBornOppenheimerDiatomicIonTDSE(_TwoRadialTDSE):
         )
         self._configure_real_time(
             initial_state=initial_state,
+            initial_kick=initial_kick,
+            initial_kick_options=initial_kick_options,
             fields=fields,
             field_gauge=field_gauge,
             integrator=integrator,
@@ -1229,6 +1292,30 @@ def _field_gauge(value: str) -> DipoleGauge:
     if value not in ("length", "velocity"):
         raise ValueError("field_gauge must be 'length' or 'velocity'")
     return value
+
+
+def _initial_kick(value) -> AxialDeltaKick | None:
+    if value is not None and not isinstance(value, AxialDeltaKick):
+        raise TypeError("initial_kick must be an AxialDeltaKick or None")
+    return value
+
+
+def _initial_kick_options(
+    options: Mapping[str, Any] | None,
+    *,
+    initial_kick: AxialDeltaKick | None,
+) -> dict[str, Any]:
+    if initial_kick is None:
+        if options is not None:
+            raise ValueError(
+                "initial_kick_options requires a configured initial_kick"
+            )
+        return {}
+    if options is None:
+        return {}
+    if not isinstance(options, Mapping):
+        raise TypeError("initial_kick_options must be a mapping or None")
+    return dict(options)
 
 
 def _validate_velocity_gauge_initial_vector_potential(

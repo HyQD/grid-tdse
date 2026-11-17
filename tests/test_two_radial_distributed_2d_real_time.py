@@ -8,6 +8,7 @@ import pytest
 from grid_tdse.real_time import RealTimePropagator
 from grid_tdse.spherical.two_radial import (
     AngularBasisSpec,
+    AxialDeltaKick,
     CoordinateSpec,
     CoulombMultipoleSpec,
     CoulombTerm,
@@ -278,6 +279,7 @@ def _distributed_run(
     krylov_reduction_mode="batched",
     absorbing_boundaries=None,
     initial_time=0.0,
+    initial_kick=None,
 ):
     n_ranks = process_grid[0] * process_grid[1]
     layout = TwoRadialDistributed2DLayout(
@@ -310,9 +312,21 @@ def _distributed_run(
         )
         for rank in range(n_ranks)
     ]
+    kick_arguments = (
+        {}
+        if initial_kick is None
+        else {
+            "initial_kick": initial_kick,
+            "initial_kick_options": {"rtol": 1.0e-12, "atol": 1.0e-14},
+        }
+    )
     with ThreadPoolExecutor(max_workers=n_ranks) as executor:
         futures = [
-            executor.submit(solver.run, initial)
+            executor.submit(
+                solver.run,
+                initial,
+                **kick_arguments,
+            )
             for solver, initial in zip(solvers, local, strict=True)
         ]
         results = tuple(future.result(timeout=60.0) for future in futures)
@@ -576,6 +590,50 @@ def test_cartesian_one_step_matches_serial(process_grid):
         )
         assert result.hamiltonian_profile.hamiltonian_calls > 0
         assert result.reduction_profile.collective_calls > 0
+
+
+@pytest.mark.parametrize("process_grid", [(1, 2), (2, 1), (2, 2)])
+def test_cartesian_axial_delta_kick_matches_serial(process_grid):
+    system, parameters, state = _problem()
+    pulse = _Pulse()
+    kick = AxialDeltaKick(1.0e-3)
+    interaction = TwoRadialAxialDipoleInteraction.for_diatomic_ion(
+        system,
+        parameters,
+        gauge="length",
+        fields=(lambda time: 1.0,),
+        radial_operator_mode="element-local",
+    )
+    serial_initial = kick.apply(
+        interaction,
+        state,
+        inner_product=system.inner_product,
+        options={"rtol": 1.0e-12, "atol": 1.0e-14},
+    )
+    serial, _, _ = _serial_run(
+        system,
+        parameters,
+        serial_initial,
+        pulse,
+        0.01,
+    )
+    layout, _, distributed = _distributed_run(
+        system,
+        parameters,
+        state,
+        pulse,
+        process_grid,
+        0.01,
+        initial_kick=kick,
+    )
+
+    actual = layout.assemble(tuple(result.state for result in distributed))
+    np.testing.assert_allclose(actual, serial.state, atol=3.0e-11, rtol=3.0e-11)
+    for result in distributed:
+        metadata = result.initial_kick_metadata
+        assert metadata["integrated_field"] == pytest.approx(1.0e-3)
+        assert metadata["norm_before"] == pytest.approx(1.0)
+        assert metadata["norm_after"] == pytest.approx(1.0, abs=2.0e-12)
 
 
 @pytest.mark.parametrize(

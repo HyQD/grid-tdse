@@ -2,8 +2,10 @@ from dataclasses import asdict
 
 import numpy as np
 import pytest
+from electromagnetic_fields import DiscreteDeltaPulse
 
 from grid_tdse.spherical.two_radial import (
+    AxialDeltaKick,
     DiatomicIonDynamicsSamplingPolicy,
     FEMDVRGridSpec,
     NonBornOppenheimerDiatomicIonGroundState,
@@ -195,6 +197,96 @@ def test_diatomic_interface_embeds_field_free_symmetry_archive(tmp_path):
     assert calculation.representation.inner_product(
         calculation.initial_state, calculation.initial_state
     ).real == pytest.approx(1.0)
+
+
+def test_diatomic_interface_applies_axial_delta_kick_once(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    common = dict(
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        l_max=1,
+        m_max=1,
+        lambda_max=2,
+        mu_max=2,
+        M_tot=0,
+        integrator="sil",
+        integrator_options={"rtol": 1.0e-12, "atol": 1.0e-14},
+        final_time=0.01,
+        time_step=0.01,
+        progress_interval=None,
+    )
+    reference = NonBornOppenheimerDiatomicIonTDSE("H2+", **common)
+    kick = AxialDeltaKick(1.0e-3)
+    kicked = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        **common,
+        initial_kick=kick,
+        initial_kick_options={"rtol": 1.0e-13, "atol": 1.0e-15},
+    )
+
+    metadata = kicked.dynamics_metadata["initial_kick"]
+    assert metadata["type"] == "AxialDeltaKick"
+    assert metadata["integrated_field"] == pytest.approx(1.0e-3)
+    assert metadata["application_time"] == pytest.approx(0.0)
+    assert metadata["norm_before"] == pytest.approx(1.0)
+    assert metadata["norm_after"] == pytest.approx(1.0, abs=2.0e-13)
+    assert not np.allclose(kicked.initial_state, reference.initial_state)
+
+    inverse = AxialDeltaKick(-1.0e-3).apply(
+        kicked._build_dipole_interaction((lambda time: 1.0,), gauge="length"),
+        kicked.initial_state,
+        inner_product=kicked.representation.inner_product,
+        options={"rtol": 1.0e-13, "atol": 1.0e-15},
+    )
+    np.testing.assert_allclose(
+        inverse,
+        reference.initial_state,
+        atol=3.0e-12,
+        rtol=3.0e-12,
+    )
+    with pytest.raises(ValueError, match="initial_kick.*continue_from"):
+        kicked.continue_from(tmp_path / "unused.chkpt", progress=False)
+
+
+def test_diatomic_interface_accepts_one_step_discrete_delta_pulse(tmp_path):
+    archived = _archived_h2p_state(tmp_path)
+    time_step = 0.002
+    strength = 1.0e-3
+    pulse = DiscreteDeltaPulse(
+        F_str=strength,
+        dt=time_step,
+        t0=0.0,
+        gauge="length",
+    )
+    calculation = NonBornOppenheimerDiatomicIonTDSE(
+        "H2+",
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        initial_state=archived,
+        pair_exchange_parity=1,
+        fields=(pulse,),
+        field_gauge="length",
+        l_max=1,
+        m_max=1,
+        lambda_max=2,
+        mu_max=2,
+        M_tot=0,
+        integrator="sia",
+        integrator_options={"rtol": 1.0e-12, "atol": 1.0e-14},
+        final_time=time_step,
+        time_step=time_step,
+        progress_interval=None,
+    )
+
+    assert calculation.dynamics_metadata["initial_kick"] is None
+    assert calculation.dipole_interaction.field_amplitude(0.5 * time_step) == (
+        pytest.approx(strength / time_step)
+    )
+    result = calculation.run(progress=False)
+    assert result.n_steps == 1
+    assert result.norm == pytest.approx(1.0, abs=2.0e-12)
 
 
 def test_diatomic_sia_phase9i2_kernels_match_reference(tmp_path):
