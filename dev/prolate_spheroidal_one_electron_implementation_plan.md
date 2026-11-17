@@ -8,9 +8,8 @@ target. The same field-free formulation must support arbitrary positive
 nuclear charges, including LiH3+ (`Z1 = 3`, `Z2 = 1`) and BH5+
 (`Z1 = 5`, `Z2 = 1`).
 
-Steps 1--12 are complete. Velocity gauge, non-axial polarization,
-performance qualification, and production convergence remain in Steps
-13--16.
+Steps 1--13 are complete. Non-axial polarization, performance qualification,
+and production convergence remain in Steps 14--16.
 
 The recommended first production scope is:
 
@@ -27,8 +26,8 @@ The recommended first production scope is:
 - serial execution first, followed by threaded and MPI assessment only after
   the operator has been validated.
 
-Moving nuclei, rotational dynamics, arbitrary polarization, and a velocity-
-gauge implementation are deliberate later extensions. In particular, this
+Moving nuclei, rotational dynamics, and arbitrary polarization are deliberate
+later extensions. In particular, this
 plan does not replace the existing space-fixed spherical two-radial
 non-Born--Oppenheimer representation.
 
@@ -152,8 +151,9 @@ representation. The missing pieces are:
 5. length-gauge dipole operators;
 6. an absorber defined consistently on the prolate outer domain;
 7. TDSE observables, archive metadata, snapshots, and restart validation;
-8. later, a Hermitian velocity-gauge momentum operator and couplings between
-   different `m` sectors for non-axial polarization.
+8. a Hermitian velocity-gauge axial momentum operator, now implemented in
+   Step 13, followed later by couplings between different `m` sectors for
+   non-axial polarization.
 
 The representation-independent `grid_tdse.real_time.RealTimePropagator`
 already supplies CN, SIL, SIA, and CF4 time integration. It accepts a
@@ -896,11 +896,36 @@ parity mixing, and the global-phase/dipole translation associated with a
 shift of origin in a charged system. Automated tests cover the complete
 target family and the analytic origin transformation.
 
-### Step 13: add velocity gauge
+### Step 13: add velocity gauge -- complete
 
 After the length-gauge path is stable, add the verified prolate `p_z`
 operator and require converged length-versus-velocity comparisons for
 field-free energy, norm, final-state overlap, dipole history, and HHG spectra.
+
+Implemented by `grid-lib`'s weak-form `axial_momentum_matrix`, the cached
+weak/strong/symmetric momentum forms in
+`ProlateSpheroidalOneElectronHamiltonian`, and
+`ProlateSpheroidalAxialVelocityGaugeInteraction`. The momentum construction
+starts from the prolate-coordinate expression for `partial_z`, forms its
+separable weak matrix, and takes the discrete anti-Hermitian part before
+multiplication by `-i`. Its weak and Euclidean forms are Hermitian, its strong
+form is Hermitian in the overlap metric, it preserves `m`, and it is odd
+under inversion.
+
+The velocity interaction uses `-A_z(t) (q_e / mu) p_z`. The spatially uniform
+`A_z(t)^2` term is omitted and recorded as an omitted global phase. The
+high-level fixed-`m` dynamics interface selects the gauge with
+`field_gauge="length"` or `field_gauge="velocity"` and rejects
+length-only origin and static-nuclear-phase options in velocity gauge.
+
+The example
+`examples/prolate_spheroidal/h2plus_length_velocity_gauge.py` performs the
+matched H2+ qualification with a complete three-cycle pulse. It compares
+the field-free energy, unitary norms, phase-aligned final states, full dipole
+histories, and normalized dipole-form HHG spectra. Independent time-step,
+box, and polynomial/angular-resolution controls all pass. Numerical values
+and reproduction commands are recorded in
+`docs/one_electron_diatomic_validation.md`.
 
 ### Step 14: add non-axial polarization if required
 
@@ -959,7 +984,8 @@ The initial implementation decisions are:
 7. the field-free API accepts arbitrary positive `Z1` and `Z2` directly;
 8. the initial mask is the Zhang Eq. (42) Cartesian-radius cosine mask, while
    a cubic CAP in `q = a xi` is the production target;
-9. velocity gauge and non-axial polarization are later milestones;
+9. axial velocity gauge is complete; non-axial polarization remains a later
+   milestone;
 10. Davidson is the primary ground-state and stationary-state solver from the
     start. The existing single-root solver is used for the ground state, and
     a generic multi-root/block-Davidson extension supplies excited stationary

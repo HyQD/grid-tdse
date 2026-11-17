@@ -35,7 +35,7 @@ def stationary_problem():
     eigenstates = diagonalize_fixed_m(
         hamiltonian,
         m=0,
-        n_states=1,
+        n_states=2,
         solver="direct",
     )
     return hamiltonian, eigenstates
@@ -77,6 +77,33 @@ def test_time_dependent_action_matches_field_free_plus_dipole(
     np.testing.assert_allclose(action(state, time), expected)
     assert action.is_field_free is False
     assert action.archive_metadata()["m"] == 0
+
+
+def test_axial_momentum_matches_field_free_commutator(stationary_problem):
+    hamiltonian, eigenstates = stationary_problem
+    ground = eigenstates.orbitals[0]
+    excited = eigenstates.orbitals[1]
+    z_matrix_element = hamiltonian.inner_product(
+        ground,
+        hamiltonian.apply_z_fixed_m(excited),
+    )
+    momentum_matrix_element = hamiltonian.inner_product(
+        ground,
+        hamiltonian.apply_pz_fixed_m(excited),
+    )
+    expected = (
+        1j
+        * hamiltonian.system.particle_mass
+        * (
+            eigenstates.electronic_energies[0]
+            - eigenstates.electronic_energies[1]
+        )
+        * z_matrix_element
+    )
+
+    assert momentum_matrix_element == pytest.approx(
+        expected, rel=2.0e-6, abs=2.0e-10
+    )
 
 
 @pytest.mark.parametrize("integrator", ["sil", "sia"])
@@ -133,6 +160,99 @@ def test_weak_short_pulse_sil_and_sia_agree_and_conserve_norm(
         action.inner_product(difference, difference).real
     )
     assert difference_norm < 2.0e-10
+
+
+def test_length_and_velocity_gauges_agree_for_weak_complete_pulse(
+    stationary_problem,
+):
+    hamiltonian, eigenstates = stationary_problem
+    pulse_parameters = {
+        "E0": 1.0e-3,
+        "omega": 4.0,
+        "ncycles": 1,
+        "phase": 0.0,
+    }
+    electric_field = SineSquareLaser(
+        gauge="length", **pulse_parameters
+    )
+    vector_potential = SineSquareLaser(
+        gauge="velocity", **pulse_parameters
+    )
+    length_action = ProlateSpheroidalFixedMTimeDependentHamiltonian(
+        hamiltonian,
+        fields=electric_field,
+        field_gauge="length",
+    )
+    velocity_action = ProlateSpheroidalFixedMTimeDependentHamiltonian(
+        hamiltonian,
+        fields=vector_potential,
+        field_gauge="velocity",
+    )
+    dipole_sampler = {
+        "dipole": lambda state, time: -hamiltonian.inner_product(
+            state,
+            hamiltonian.apply_z_fixed_m(state),
+        ).real
+    }
+    propagator = _propagator("sia", electric_field.tprime, 0.05)
+
+    length_result = propagator.propagate(
+        eigenstates.orbital,
+        length_action,
+        length_action.inner_product,
+        samplers=dipole_sampler,
+    )
+    velocity_result = propagator.propagate(
+        eigenstates.orbital,
+        velocity_action,
+        velocity_action.inner_product,
+        samplers=dipole_sampler,
+    )
+    overlap = hamiltonian.inner_product(
+        length_result.state, velocity_result.state
+    )
+    fidelity = abs(overlap) ** 2 / (
+        length_result.norm * velocity_result.norm
+    )
+
+    assert vector_potential(0.0) == pytest.approx(0.0, abs=1.0e-15)
+    assert vector_potential(vector_potential.tprime) == pytest.approx(
+        0.0, abs=1.0e-15
+    )
+    assert length_result.norm == pytest.approx(1.0, abs=2.0e-12)
+    assert velocity_result.norm == pytest.approx(1.0, abs=2.0e-12)
+    assert fidelity == pytest.approx(1.0, abs=2.0e-12)
+    np.testing.assert_allclose(
+        length_result.samples["dipole"],
+        velocity_result.samples["dipole"],
+        atol=2.0e-7,
+    )
+    assert velocity_action.archive_metadata()["field_gauge"] == "velocity"
+
+
+def test_velocity_gauge_rejects_length_only_options(stationary_problem):
+    hamiltonian, _ = stationary_problem
+    pulse = SineSquareLaser(
+        E0=0.01,
+        omega=2.0,
+        ncycles=1,
+        gauge="velocity",
+    )
+
+    with pytest.raises(ValueError, match="length-gauge phase option"):
+        ProlateSpheroidalFixedMTimeDependentHamiltonian(
+            hamiltonian,
+            fields=pulse,
+            field_gauge="velocity",
+            include_nuclear_scalar=True,
+        )
+    with pytest.raises(ValueError, match="length-gauge option"):
+        ProlateSpheroidalFixedMTimeDependentHamiltonian(
+            hamiltonian,
+            fields=pulse,
+            field_gauge="velocity",
+            origin_z=0.2,
+        )
 
 
 def test_field_free_configuration_and_validation(stationary_problem):

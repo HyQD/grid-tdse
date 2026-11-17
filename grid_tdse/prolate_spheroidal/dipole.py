@@ -1,4 +1,4 @@
-r"""Axial length-gauge coupling for one-electron prolate states."""
+r"""Axial field couplings for one-electron prolate states."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
         self.hamiltonian = hamiltonian
         self.representation = hamiltonian.representation
         self.system = hamiltonian.system
-        self.fields = _field_profiles(fields)
+        self.fields = _field_profiles(fields, gauge="length")
         self.include_nuclear_scalar = bool(include_nuclear_scalar)
         self.origin_z = float(origin_z)
 
@@ -74,20 +74,7 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
     def field_amplitude(self, time: float) -> float:
         """Evaluate and sum the scalar axial electric-field profiles."""
 
-        amplitude = 0.0
-        for index, field in enumerate(self.fields):
-            value = np.asarray(field(time))
-            if (
-                value.ndim != 0
-                or not np.issubdtype(value.dtype, np.number)
-                or np.iscomplexobj(value)
-                or not np.isfinite(value)
-            ):
-                raise ValueError(
-                    f"field {index} must return a finite real scalar"
-                )
-            amplitude += float(value)
-        return amplitude
+        return _summed_field_amplitude(self.fields, time)
 
     def spatial_action(self, state, m=0) -> np.ndarray:
         r"""Return the field-independent factor ``V(t) / E_z(t)``.
@@ -163,7 +150,102 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
     __call__ = apply
 
 
-def _field_profiles(fields) -> tuple[Callable, ...]:
+class ProlateSpheroidalAxialVelocityGaugeInteraction:
+    r"""Apply a spatially uniform axial vector potential.
+
+    With charge ``q_e`` and particle mass ``mu``, the linear part of minimal
+    coupling is
+
+    ``V(t) = -A_z(t) (q_e / mu) p_z``.
+
+    The spatially constant ``q_e**2 A_z(t)**2 / (2 mu)`` term is omitted. It
+    changes only the global phase, so norms, expectation values, final-state
+    fidelities, and spectra are unaffected. Temporal profiles must use the
+    ``velocity`` gauge and return ``A_z(t)``.
+    """
+
+    def __init__(
+        self,
+        hamiltonian: ProlateSpheroidalOneElectronHamiltonian,
+        *,
+        fields: Callable[[float], Real]
+        | Iterable[Callable[[float], Real]],
+    ) -> None:
+        if not isinstance(
+            hamiltonian, ProlateSpheroidalOneElectronHamiltonian
+        ):
+            raise TypeError(
+                "hamiltonian must be a "
+                "ProlateSpheroidalOneElectronHamiltonian"
+            )
+        self.hamiltonian = hamiltonian
+        self.representation = hamiltonian.representation
+        self.system = hamiltonian.system
+        self.fields = _field_profiles(fields, gauge="velocity")
+
+    @property
+    def momentum_coupling(self) -> float:
+        """Return the charge-to-mass factor ``q_e / mu``."""
+
+        return float(
+            self.system.electron_charge / self.system.particle_mass
+        )
+
+    def field_amplitude(self, time: float) -> float:
+        """Evaluate and sum the scalar axial vector-potential profiles."""
+
+        return _summed_field_amplitude(self.fields, time)
+
+    def spatial_action(self, state, m=0) -> np.ndarray:
+        r"""Return the field-independent factor ``V(t) / A_z(t)``."""
+
+        values = self.representation.validate_fixed_m_state(state, m)
+        return -self.momentum_coupling * (
+            self.hamiltonian.apply_pz_fixed_m(values, m)
+        )
+
+    def apply(self, state, time: float, m=0) -> np.ndarray:
+        """Return the complete linear velocity-gauge action."""
+
+        values = self.representation.validate_fixed_m_state(state, m)
+        amplitude = self.field_amplitude(time)
+        if amplitude == 0.0:
+            return np.zeros_like(values)
+        return amplitude * self.spatial_action(values, m)
+
+    def momentum_expectation(self, state, m=0) -> float:
+        r"""Return normalized ``<p_z>``."""
+
+        values = self.representation.validate_fixed_m_state(state, m)
+        norm = self.hamiltonian.inner_product(values, values, m)
+        if norm == 0.0:
+            raise ValueError("state norm must be nonzero")
+        expectation = self.hamiltonian.inner_product(
+            values,
+            self.hamiltonian.apply_pz_fixed_m(values, m),
+            m,
+        ) / norm
+        return _real_expectation(expectation, "axial momentum")
+
+    def archive_metadata(self) -> dict:
+        """Return JSON-compatible velocity-gauge metadata."""
+
+        return {
+            "gauge": "velocity",
+            "field_direction": "molecular_axis_z",
+            "temporal_amplitude": "A_z(t)",
+            "spatial_operator": "-(electron_charge / particle_mass) * p_z",
+            "electron_charge": self.system.electron_charge,
+            "particle_mass": self.system.particle_mass,
+            "momentum_coupling": self.momentum_coupling,
+            "diamagnetic_a_squared_term_included": False,
+            "diamagnetic_a_squared_term_is_global_phase": True,
+        }
+
+    __call__ = apply
+
+
+def _field_profiles(fields, *, gauge: str) -> tuple[Callable, ...]:
     if callable(fields):
         profiles = (fields,)
     elif isinstance(fields, (str, bytes)) or not isinstance(fields, Iterable):
@@ -175,13 +257,30 @@ def _field_profiles(fields) -> tuple[Callable, ...]:
     if not all(callable(field) for field in profiles):
         raise TypeError("every field must be callable")
     for field in profiles:
-        field_gauge = getattr(field, "gauge", "length")
-        if field_gauge != "length":
+        field_gauge = getattr(field, "gauge", gauge)
+        if field_gauge != gauge:
             raise ValueError(
                 f"field {type(field).__name__} uses gauge "
-                f"{field_gauge!r}, but the interaction uses 'length'"
+                f"{field_gauge!r}, but the interaction uses {gauge!r}"
             )
     return profiles
+
+
+def _summed_field_amplitude(fields, time: float) -> float:
+    amplitude = 0.0
+    for index, field in enumerate(fields):
+        value = np.asarray(field(time))
+        if (
+            value.ndim != 0
+            or not np.issubdtype(value.dtype, np.number)
+            or np.iscomplexobj(value)
+            or not np.isfinite(value)
+        ):
+            raise ValueError(
+                f"field {index} must return a finite real scalar"
+            )
+        amplitude += float(value)
+    return amplitude
 
 
 def _real_expectation(value, name: str) -> float:

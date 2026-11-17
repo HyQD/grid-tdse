@@ -717,3 +717,95 @@ the predicted global phase while leaving all observables invariant after
 the corresponding dipole translation. With `z0=0.25`, the largest
 phase-aligned state error is `7.74e-15`, and the largest origin-corrected
 total-dipole discrepancy is `8.88e-16`.
+
+### Axial length- and velocity-gauge equivalence
+
+For a clamped one-electron target, the implemented axial gauges are
+
+```math
+H_L(t)=H_0+E_z(t)z,
+```
+
+and
+
+```math
+H_V(t)=H_0-A_z(t)\frac{q_e}{\mu}p_z,
+\qquad
+E_z(t)=-\frac{dA_z(t)}{dt}.
+```
+
+For an electron, `q_e=-1`, so the linear velocity-gauge interaction is
+`A_z(t) p_z / mu`. The spatially uniform
+`q_e^2 A_z(t)^2/(2 mu)` term is omitted. It contributes only a global phase,
+which is why final states are phase-aligned before their norm difference is
+reported. The complete pulse used below has `A_z(0)=A_z(t_final)=0`.
+
+The prolate momentum operator is not formed by applying a pointwise
+coordinate transformation to a derivative. `grid-lib` constructs the weak
+matrix from
+
+```math
+\frac{\partial}{\partial z}
+=
+\frac{\eta(\xi^2-1)}{a(\xi^2-\eta^2)}
+\frac{\partial}{\partial\xi}
++
+\frac{\xi(1-\eta^2)}{a(\xi^2-\eta^2)}
+\frac{\partial}{\partial\eta},
+```
+
+then enforces the discrete integration-by-parts relation before multiplying
+by `-i`. The resulting weak matrix is Hermitian. Its strong form is Hermitian
+in the diagonal prolate overlap metric, and its symmetric form is ordinarily
+Hermitian. Tests cover `m=0,+/-1`, inversion oddness, and metric Hermiticity.
+
+Run the matched qualification with
+
+```bash
+python \
+    examples/prolate_spheroidal/h2plus_length_velocity_gauge.py \
+    --output H2plus_length_velocity_gauge.json \
+    --archive H2plus_length_velocity_gauge.npz \
+    --plot H2plus_length_velocity_gauge.pdf
+```
+
+The system is H2+ at `R=2`, `m=0`. Both gauges use the same three-cycle
+`SineSquareLaser` with `E0=0.05`, `omega=0.8`, and phase zero. SIA propagates
+the state through the complete pulse. The development qualification uses
+the following controls:
+
+| Case | `xi` boundaries | Points/element | `eta` degree | `dt` |
+|---|---|---:|---:|---:|
+| reference | `[1,2,4,8,12,16]` | 9 | 13 | 0.05 |
+| coarse time step | `[1,2,4,8,12,16]` | 9 | 13 | 0.10 |
+| compact box | `[1,2,4,8,12]` | 9 | 13 | 0.05 |
+| lower resolution | `[1,2,4,8,12,16]` | 7 | 9 | 0.05 |
+
+The HHG comparison uses the normalized dipole-form quantity
+
+```math
+I(\omega)=\omega^4
+\left|\mathcal F\left[
+w(t)(d_z(t)-d_z(0))
+\right]\right|^2,
+```
+
+with a Hann window. It is normalized to unit maximum between harmonic orders
+0.5 and 8. This short, high-frequency calculation tests gauge equivalence;
+it is not an HHG production-convergence claim.
+
+| Case | Electronic-energy error (`E_h`) | `1 -` final fidelity | Dipole relative L2 | HHG RMS difference |
+|---|---:|---:|---:|---:|
+| reference | `4.12e-11` | `3.30e-13` | `4.61e-5` | `1.11e-5` |
+| coarse time step | `4.12e-11` | `4.75e-10` | `1.85e-4` | `4.49e-5` |
+| compact box | `4.99e-11` | `7.11e-14` | `4.61e-5` | `1.11e-5` |
+| lower resolution | `5.29e-9` | `1.17e-10` | `4.61e-5` | `1.11e-5` |
+
+The reference norm errors are below `5.2e-14`, and its phase-aligned final
+state difference is `5.75e-7`. Halving the time step reduces both the dipole
+and HHG gauge discrepancies by approximately a factor of four, as expected
+for the second-order propagation comparison. Relative to the reference, the
+largest compact-box dipole change is `3.87e-5` and the largest corresponding
+HHG RMS change is `2.74e-6`; the lower-resolution changes are smaller than
+`7.7e-7` and `1.3e-7`, respectively. The field-free, norm, final-state,
+dipole, spectrum, time-step, box, and resolution acceptance gates all pass.

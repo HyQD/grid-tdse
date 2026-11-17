@@ -7,7 +7,10 @@ from .absorbing_boundaries import (
     ProlateSpheroidalAbsorbingBoundaries,
     ProlateSpheroidalCubicCAP,
 )
-from .dipole import ProlateSpheroidalAxialLengthGaugeInteraction
+from .dipole import (
+    ProlateSpheroidalAxialLengthGaugeInteraction,
+    ProlateSpheroidalAxialVelocityGaugeInteraction,
+)
 from .dynamics import ProlateSpheroidalFixedMTimeDependentHamiltonian
 from .ground_state import (
     ProlateSpheroidalOneElectronEigenstates,
@@ -32,6 +35,7 @@ __all__ = [
     "OneElectronDiatomicSystem",
     "PositiveFrequencySpectrum",
     "ProlateSpheroidalAxialLengthGaugeInteraction",
+    "ProlateSpheroidalAxialVelocityGaugeInteraction",
     "ProlateSpheroidalAbsorbingBoundaries",
     "ProlateSpheroidalCubicCAP",
     "ProlateSpheroidalDynamicsObservables",
