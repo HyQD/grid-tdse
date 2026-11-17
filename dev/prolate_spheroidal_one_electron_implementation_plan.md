@@ -8,7 +8,9 @@ target. The same field-free formulation must support arbitrary positive
 nuclear charges, including LiH3+ (`Z1 = 3`, `Z2 = 1`) and BH5+
 (`Z1 = 5`, `Z2 = 1`).
 
-This is a design document only. Implementation has not started.
+Steps 1--12 are complete. Velocity gauge, non-axial polarization,
+performance qualification, and production convergence remain in Steps
+13--16.
 
 The recommended first production scope is:
 
@@ -874,7 +876,7 @@ full and late records, and the forbidden-frequency power is `3.15e-6` of the
 weakest allowed peak. The detailed numerical record is in
 `docs/one_electron_diatomic_validation.md`.
 
-### Step 12: validate the target system family
+### Step 12: validate the target system family -- complete
 
 Run matched field-free and short-dynamics tests for:
 
@@ -884,6 +886,15 @@ Run matched field-free and short-dynamics tests for:
 
 For heteronuclear systems, explicitly test loss of `eta` parity and the
 origin-dependent static nuclear dipole bookkeeping.
+
+Implemented by the origin-aware nuclear and electronic dipole interfaces and
+`examples/prolate_spheroidal/one_electron_diatomic_family_validation.py`.
+The matched `R=2` calculation uses one grid and one short axial pulse for
+H2+, LiH3+, and BH5+. It validates field-free residuals and literature
+energies where available, unitary SIA propagation, heteronuclear inversion-
+parity mixing, and the global-phase/dipole translation associated with a
+shift of origin in a charged system. Automated tests cover the complete
+target family and the analytic origin transformation.
 
 ### Step 13: add velocity gauge
 

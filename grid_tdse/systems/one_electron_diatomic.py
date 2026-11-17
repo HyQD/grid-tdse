@@ -141,13 +141,29 @@ class OneElectronDiatomicSystem:
     def nuclear_dipole(self) -> np.ndarray:
         """Return the static nuclear dipole about the bond midpoint."""
 
-        dipole = np.array(
-            [
-                0.0,
-                0.0,
-                self.half_bond_length
-                * (self.nuclear_charge2 - self.nuclear_charge1),
-            ]
+        return self.nuclear_dipole_about(np.zeros(3))
+
+    def nuclear_dipole_about(self, origin) -> np.ndarray:
+        """Return the static nuclear dipole about a Cartesian origin.
+
+        Shifting the origin from zero to ``origin`` changes the nuclear
+        contribution by ``-(Z1 + Z2) * origin``. The returned array is a
+        read-only copy.
+        """
+
+        origin = np.asarray(origin)
+        if origin.shape != (3,):
+            raise ValueError("origin must have shape (3,)")
+        if not np.issubdtype(origin.dtype, np.number) or np.iscomplexobj(
+            origin
+        ):
+            raise TypeError("origin must contain real numbers")
+        if not np.all(np.isfinite(origin)):
+            raise ValueError("origin must contain finite values")
+        dipole = np.sum(
+            self.nuclear_charges[:, None]
+            * (self.nuclear_positions - origin.astype(float)),
+            axis=0,
         )
         dipole.setflags(write=False)
         return dipole

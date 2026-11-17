@@ -13,19 +13,21 @@ from .hamiltonian import ProlateSpheroidalOneElectronHamiltonian
 class ProlateSpheroidalAxialLengthGaugeInteraction:
     r"""Apply a spatially uniform axial electric field in length gauge.
 
-    For the midpoint origin and an electronic coordinate ``z = a xi eta``,
-    the electronic interaction is
+    For an axial origin ``z0`` measured from the bond midpoint and the
+    midpoint coordinate ``z = a xi eta``, the electronic interaction is
 
-    ``V_e(t) = -E_z(t) q_e z``.
+    ``V_e(t) = -E_z(t) q_e (z - z0)``.
 
     The electron charge is supplied by the physical system and is ``-1`` in
     atomic units, so the electronic spatial action is ``+z``. Temporal field
     profiles remain separate from this field-independent action.
 
-    A heteronuclear clamped-nuclei system also has the constant midpoint
-    dipole ``d_n = a (Z_2 - Z_1)``. Its interaction ``-E_z(t) d_n`` is a
-    scalar and changes only the global phase. It is therefore omitted by
-    default, but can be included explicitly with ``include_nuclear_scalar``.
+    A heteronuclear clamped-nuclei system also has the constant dipole
+    ``d_n(z0) = a (Z_2 - Z_1) - (Z_1 + Z_2) z0``. Its interaction
+    ``-E_z(t) d_n`` is a scalar and changes only the global phase. It is
+    therefore omitted by default, but can be included explicitly with
+    ``include_nuclear_scalar``. The default ``origin_z=0`` is the bond
+    midpoint.
     """
 
     def __init__(
@@ -35,6 +37,7 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
         fields: Callable[[float], Real]
         | Iterable[Callable[[float], Real]],
         include_nuclear_scalar: bool = False,
+        origin_z: Real = 0.0,
     ) -> None:
         if not isinstance(
             hamiltonian, ProlateSpheroidalOneElectronHamiltonian
@@ -45,17 +48,28 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
             )
         if not isinstance(include_nuclear_scalar, (bool, np.bool_)):
             raise TypeError("include_nuclear_scalar must be boolean")
+        if isinstance(origin_z, (bool, np.bool_)) or not isinstance(
+            origin_z, Real
+        ):
+            raise TypeError("origin_z must be a real scalar")
+        if not np.isfinite(origin_z):
+            raise ValueError("origin_z must be finite")
         self.hamiltonian = hamiltonian
         self.representation = hamiltonian.representation
         self.system = hamiltonian.system
         self.fields = _field_profiles(fields)
         self.include_nuclear_scalar = bool(include_nuclear_scalar)
+        self.origin_z = float(origin_z)
 
     @property
     def nuclear_dipole_z(self) -> float:
-        """Return the static nuclear dipole about the bond midpoint."""
+        """Return the static nuclear dipole about the configured origin."""
 
-        return float(self.system.nuclear_dipole[2])
+        return float(
+            self.system.nuclear_dipole_about(
+                np.array([0.0, 0.0, self.origin_z])
+            )[2]
+        )
 
     def field_amplitude(self, time: float) -> float:
         """Evaluate and sum the scalar axial electric-field profiles."""
@@ -85,6 +99,7 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
         values = self.representation.validate_fixed_m_state(state, m)
         result = -self.system.electron_charge * (
             self.hamiltonian.apply_z_fixed_m(values, m)
+            - self.origin_z * values
         )
         if self.include_nuclear_scalar and self.nuclear_dipole_z != 0.0:
             result = result - self.nuclear_dipole_z * values
@@ -100,19 +115,22 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
         return amplitude * self.spatial_action(values, m)
 
     def electronic_dipole_expectation(self, state, m=0) -> float:
-        r"""Return normalized ``<q_e z>`` about the midpoint origin."""
+        r"""Return normalized ``<q_e (z-origin_z)>``."""
 
         values = self.representation.validate_fixed_m_state(state, m)
         norm = self.hamiltonian.inner_product(values, values, m)
         if norm == 0.0:
             raise ValueError("state norm must be nonzero")
-        expectation = self.system.electron_charge * (
+        expectation_z = (
             self.hamiltonian.inner_product(
                 values,
                 self.hamiltonian.apply_z_fixed_m(values, m),
                 m,
             )
             / norm
+        )
+        expectation = self.system.electron_charge * (
+            expectation_z - self.origin_z
         )
         return _real_expectation(expectation, "electronic dipole")
 
@@ -129,8 +147,13 @@ class ProlateSpheroidalAxialLengthGaugeInteraction:
         return {
             "gauge": "length",
             "field_direction": "molecular_axis_z",
-            "origin": "bond_midpoint",
-            "electronic_coordinate": "z = a * xi * eta",
+            "origin": (
+                "bond_midpoint"
+                if self.origin_z == 0.0
+                else "axial_offset_from_bond_midpoint"
+            ),
+            "origin_z": self.origin_z,
+            "electronic_coordinate": "z - origin_z = a * xi * eta - origin_z",
             "electron_charge": self.system.electron_charge,
             "nuclear_dipole_z": self.nuclear_dipole_z,
             "include_nuclear_scalar": self.include_nuclear_scalar,

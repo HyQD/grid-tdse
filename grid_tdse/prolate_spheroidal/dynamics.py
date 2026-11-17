@@ -38,6 +38,7 @@ class ProlateSpheroidalFixedMTimeDependentHamiltonian:
             | None
         ) = (),
         include_nuclear_scalar: bool = False,
+        origin_z: Real = 0.0,
         absorbing_boundaries: (
             ProlateSpheroidalAbsorbingBoundaries | None
         ) = None,
@@ -80,6 +81,7 @@ class ProlateSpheroidalFixedMTimeDependentHamiltonian:
                 hamiltonian,
                 fields=field_profiles,
                 include_nuclear_scalar=include_nuclear_scalar,
+                origin_z=origin_z,
             )
         )
 

@@ -643,3 +643,77 @@ References:
 - M. V. Khoma, "Generalized spheroidal wave equation for real and complex
   valued parameters. An algorithm based on the analytic derivatives for the
   eigenvalues," [arXiv:2503.18280](https://arxiv.org/abs/2503.18280).
+
+### Matched target-family dynamics validation
+
+The field-free and real-time paths are additionally tested in one matched
+calculation for H2+, LiH3+, and BH5+:
+
+```bash
+python \
+    examples/prolate_spheroidal/one_electron_diatomic_family_validation.py \
+    --output one_electron_diatomic_family_validation.json
+```
+
+All three systems use `R=2`, `m=0`, the charge ordering shown below, and the
+same numerical parameters:
+
+```text
+xi element boundaries:       [1, 4, 14, 24]
+xi points per element:       14
+eta Gauss--Legendre points:  16
+pulse:                       SineSquareLaser
+E0, omega, cycles, phase:    0.01, 4, 1, pi/2
+propagator:                  SIA
+time step:                   0.05
+```
+
+The direct ground state supplies the initial condition. No absorber is used
+in this deliberately short, unitary propagation. The results are
+
+| System | `(Z1,Z2)` | `E_el` (`E_h`) | `<I>` | Initial total `d_z` | Final ground-state survival | Origin phase error |
+|---|---:|---:|---:|---:|---:|---:|
+| H2+ | `(1,1)` | -1.102634214485 | 1.0000000 | -0.0000000 | 0.999982825 | 6.18e-15 |
+| LiH3+ | `(3,1)` | -5.002042016864 | 0.0668093 | -1.0146605 | 0.999998405 | 7.23e-15 |
+| BH5+ | `(5,1)` | -13.000234679086 | 0.0024184 | -3.0018099 | 0.999999974 | 7.74e-15 |
+
+The H2+ and LiH3+ electronic energies differ from their reference values by
+`9.59e-12 E_h` and `1.49e-11 E_h`, respectively. The BH5+ value in this
+table is its ground state on the matched `R=2` grid; it is not the exact
+Demkov `3p sigma` benchmark at `R=sqrt(10)/3` discussed above. All three
+residual norms are below `2.2e-13`, and the largest propagation norm error is
+`1.8e-14`.
+
+Inversion is an exact symmetry for the homonuclear H2+ Hamiltonian, giving
+`<I>=1` for its ground state. The heteronuclear Coulomb term proportional to
+`(Z2-Z1) eta` breaks that symmetry. The substantially noninteger inversion
+expectations for LiH3+ and BH5+ explicitly confirm the expected parity
+mixing; their dynamics must not be restricted to one `eta` parity.
+
+The family test also makes the charged-system origin bookkeeping explicit.
+For an axial origin displaced by `z0` from the bond midpoint,
+
+```math
+d_{\mathrm n}(z_0)
+=d_{\mathrm n}(0)-(Z_1+Z_2)z_0,
+```
+
+```math
+d_{\mathrm e}(z_0)
+=d_{\mathrm e}(0)-q_{\mathrm e}z_0,
+```
+
+and therefore
+
+```math
+d_{\mathrm{tot}}(z_0)
+=d_{\mathrm{tot}}(0)-Q_{\mathrm{tot}}z_0.
+```
+
+Including both the electronic and static nuclear terms changes the
+length-gauge Hamiltonian only by the scalar
+`E(t) Q_tot z0`. Consequently, an origin shift changes the wavefunction by
+the predicted global phase while leaving all observables invariant after
+the corresponding dipole translation. With `z0=0.25`, the largest
+phase-aligned state error is `7.74e-15`, and the largest origin-corrected
+total-dipole discrepancy is `8.88e-16`.

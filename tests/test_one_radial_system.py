@@ -57,6 +57,35 @@ def test_returned_nuclear_arrays_are_read_only():
     assert not system.nuclear_dipole.flags.writeable
 
 
+def test_nuclear_dipole_transforms_with_cartesian_origin():
+    system = OneElectronDiatomicSystem(3.0, 1.0, 1.0)
+    origin = np.array([0.2, -0.3, 0.4])
+
+    shifted = system.nuclear_dipole_about(origin)
+
+    np.testing.assert_allclose(
+        shifted,
+        system.nuclear_dipole
+        - (system.nuclear_charge1 + system.nuclear_charge2) * origin,
+    )
+    assert not shifted.flags.writeable
+
+
+@pytest.mark.parametrize(
+    ("origin", "error"),
+    [
+        ([0.0, 0.0], ValueError),
+        ([0.0, 0.0, np.inf], ValueError),
+        ([0.0, 0.0, 1.0j], TypeError),
+    ],
+)
+def test_nuclear_dipole_rejects_invalid_origin(origin, error):
+    system = OneElectronDiatomicSystem(1.0, 2.0, 0.5)
+
+    with pytest.raises(error, match="origin"):
+        system.nuclear_dipole_about(origin)
+
+
 @pytest.mark.parametrize(
     "field",
     [
