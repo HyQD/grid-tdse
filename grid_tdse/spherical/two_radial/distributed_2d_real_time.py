@@ -2,10 +2,10 @@ r"""Cartesian-MPI exponential propagation for two-radial dynamics."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from numbers import Integral
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import numpy as np
 
@@ -34,6 +34,7 @@ from .dynamics_sampling import (
     DiatomicIonDynamicsSamplingPolicy,
     DiatomicIonDynamicsTimeSeries,
 )
+from .linear_response import AxialDeltaKick, resolve_axial_delta_kick_options
 from .system import CoulombKernelMode, RadialKernelMode
 
 
@@ -63,6 +64,7 @@ class Distributed2DRealTimeResult:
         Distributed2DHamiltonianProfile()
     )
     reduction_profile: DistributedReductionProfile = DistributedReductionProfile()
+    initial_kick_metadata: Mapping[str, Any] | None = None
 
     @property
     def n_steps(self) -> int:
@@ -176,6 +178,7 @@ class TwoRadialDistributed2DRealTimeSolver:
             )
         self.root = _validated_root(root, size)
         self.integrator = integrator
+        self.dipole_kernel = dipole_kernel
         self.krylov_reduction_mode = krylov_reduction_mode
         if field_gauge not in ("length", "velocity"):
             raise ValueError("field_gauge must be 'length' or 'velocity'")
@@ -298,6 +301,8 @@ class TwoRadialDistributed2DRealTimeSolver:
         self,
         initial_state: DistributedTwoRadial2DState,
         *,
+        initial_kick: AxialDeltaKick | None = None,
+        initial_kick_options: Mapping[str, Any] | None = None,
         state_observer: Distributed2DStateObserver | None = None,
     ) -> Distributed2DRealTimeResult:
         """Collectively propagate one rank-local initial state."""
@@ -305,12 +310,10 @@ class TwoRadialDistributed2DRealTimeSolver:
         self._validate_state(initial_state)
         if state_observer is not None and not callable(state_observer):
             raise TypeError("state_observer must be callable or None")
-        self.hamiltonian.reset_profile()
-        self.reductions.reset_profile()
-        sampler = DiatomicIonDynamicsSampler(
-            self.observable_evaluator,
-            policy=self.sampling_policy,
-        )
+        if initial_kick is not None and not isinstance(initial_kick, AxialDeltaKick):
+            raise TypeError("initial_kick must be an AxialDeltaKick or None")
+        if initial_kick is None and initial_kick_options is not None:
+            raise ValueError("initial_kick_options requires an initial_kick")
 
         def local_state(coefficients):
             return DistributedTwoRadial2DState(
@@ -318,6 +321,77 @@ class TwoRadialDistributed2DRealTimeSolver:
                 self.rank,
                 coefficients,
             )
+
+        def inner_product(left, right):
+            return self.reductions.inner_product(
+                local_state(left),
+                local_state(right),
+            )
+
+        def inner_products(left: Sequence[np.ndarray], right: np.ndarray):
+            return self.reductions.inner_products(
+                tuple(local_state(values) for values in left),
+                local_state(right),
+            )
+
+        working_initial_state = initial_state
+        initial_kick_metadata = None
+        if initial_kick is not None:
+            options = resolve_axial_delta_kick_options(initial_kick_options)
+            kick_interaction = TwoRadialDistributed2DLengthGaugeInteraction(
+                self.layout,
+                self.parameters,
+                fields=(lambda time: 1.0,),
+                dipole_kernel=self.dipole_kernel,
+            )
+
+            class KickInteraction:
+                gauge = "length"
+
+                @staticmethod
+                def spatial_action(coefficients):
+                    return kick_interaction.spatial_action(
+                        local_state(coefficients)
+                    ).coefficients
+
+            norm_before = float(
+                self.reductions.inner_product(initial_state, initial_state).real
+            )
+            kicked_coefficients = initial_kick.apply(
+                KickInteraction(),
+                initial_state.coefficients,
+                inner_product=inner_product,
+                inner_products=(
+                    inner_products
+                    if self.krylov_reduction_mode == "batched"
+                    else None
+                ),
+                options=options,
+            )
+            working_initial_state = local_state(kicked_coefficients)
+            norm_after = float(
+                self.reductions.inner_product(
+                    working_initial_state,
+                    working_initial_state,
+                ).real
+            )
+            initial_kick_metadata = dict(initial_kick.metadata)
+            initial_kick_metadata.update(
+                {
+                    "application_time": self.propagator.initial_time,
+                    "exponential_options": options,
+                    "norm_before": norm_before,
+                    "norm_after": norm_after,
+                    "norm_change": norm_after - norm_before,
+                }
+            )
+
+        self.hamiltonian.reset_profile()
+        self.reductions.reset_profile()
+        sampler = DiatomicIonDynamicsSampler(
+            self.observable_evaluator,
+            policy=self.sampling_policy,
+        )
 
         def hamiltonian_action(coefficients, time):
             return self.total_action(local_state(coefficients), time).coefficients
@@ -344,18 +418,6 @@ class TwoRadialDistributed2DRealTimeSolver:
 
             return action
 
-        def inner_product(left, right):
-            return self.reductions.inner_product(
-                local_state(left),
-                local_state(right),
-            )
-
-        def inner_products(left: Sequence[np.ndarray], right: np.ndarray):
-            return self.reductions.inner_products(
-                tuple(local_state(values) for values in left),
-                local_state(right),
-            )
-
         def observe(coefficients, step, time, diagnostics, final, checkpoint):
             state = local_state(coefficients)
             sampler.sample_distributed_2d(
@@ -375,7 +437,7 @@ class TwoRadialDistributed2DRealTimeSolver:
             return state.coefficients
 
         propagation = self.propagator.propagate(
-            initial_state.coefficients,
+            working_initial_state.coefficients,
             hamiltonian_action,
             inner_product,
             inner_products=(
@@ -400,6 +462,7 @@ class TwoRadialDistributed2DRealTimeSolver:
             time_series=sampler.time_series,
             hamiltonian_profile=self.hamiltonian.profile,
             reduction_profile=self.reductions.profile,
+            initial_kick_metadata=initial_kick_metadata,
         )
 
     __call__ = run

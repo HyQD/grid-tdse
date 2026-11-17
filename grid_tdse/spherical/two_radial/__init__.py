@@ -151,6 +151,7 @@ from .ground_state_sampling import (
     format_diatomic_ground_state_sample,
 )
 from .hamiltonian import TwoRadialHamiltonian
+from .linear_response import AxialDeltaKick
 from .observables import (
     AngularMomentumExpectations,
     DiatomicIonObservableEvaluator,
@@ -206,6 +207,7 @@ __all__ = [
     "AngularMomentumExpectations",
     "AngularRadialPotential",
     "AxialCoordinateDipole",
+    "AxialDeltaKick",
     "AxialDipoleCouplings",
     "CoordinateSpec",
     "CoulombCouplings",

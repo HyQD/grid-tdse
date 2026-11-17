@@ -32,6 +32,7 @@ from .dynamics_sampling import (
     DiatomicIonDynamicsTimeSeries,
 )
 from .grids import FEMDVRGridSpec
+from .linear_response import AxialDeltaKick
 from .system import (
     CoordinateSpec,
     CoulombKernelMode,
@@ -74,6 +75,8 @@ class CoupledNonBornOppenheimerDiatomicIonTDSE(
         ground_state_L_max: int = 0,
         ground_state_options: Mapping[str, Any] | None = None,
         allow_unconverged_ground_state: bool = False,
+        initial_kick: AxialDeltaKick | None = None,
+        initial_kick_options: Mapping[str, Any] | None = None,
         fields=(),
         field_gauge: DipoleGauge = "length",
         l1_max: int = 2,
@@ -299,6 +302,8 @@ class CoupledNonBornOppenheimerDiatomicIonTDSE(
         )
         self._configure_real_time(
             initial_state=initial_state,
+            initial_kick=initial_kick,
+            initial_kick_options=initial_kick_options,
             fields=fields,
             field_gauge=field_gauge,
             integrator=integrator,

@@ -9,6 +9,7 @@ from grid_tdse.real_time import (
 )
 from grid_tdse.spherical.two_radial import (
     AngularBasisSpec,
+    AxialDeltaKick,
     CoordinateSpec,
     CoulombMultipoleSpec,
     CoulombTerm,
@@ -191,6 +192,63 @@ def _phase_aligned_error(reference, candidate, inner_product):
         candidate = candidate * np.exp(-1j * np.angle(overlap))
     difference = reference - candidate
     return np.sqrt(max(inner_product(difference, difference).real, 0.0))
+
+
+@pytest.mark.parametrize("system_name", ["H2+", "HD+", "D2+"])
+def test_axial_delta_kick_agrees_in_matched_coupled_and_uncoupled_spaces(
+    system_name,
+):
+    coupled_state, uncoupled_state, transform = _initial_state(system_name)
+    parameters = _diatomic_parameters(system_name, "2022")
+    exchange = 1 if parameters.has_identical_pair else None
+    kick = AxialDeltaKick(2.0e-3)
+    common = dict(
+        electronic_grid=GRID,
+        internuclear_grid=GRID,
+        pair_exchange_parity=exchange,
+        initial_kick=kick,
+        initial_kick_options={"rtol": 1.0e-13, "atol": 1.0e-15},
+        fields=(),
+        M_tot=0,
+        lambda_max=2,
+        codata_set="2022",
+        radial_coulomb_method="analytic",
+        integrator="sia",
+        final_time=0.002,
+        time_step=0.002,
+        observables=None,
+        progress_interval=None,
+        radial_operator_mode="element-local",
+    )
+    coupled = NonBornOppenheimerDiatomicIonTDSE(
+        system_name,
+        wf_representation="coupled",
+        initial_state=coupled_state,
+        l1_max=1,
+        l2_max=1,
+        L_max=2,
+        **common,
+    )
+    uncoupled = NonBornOppenheimerDiatomicIonTDSE(
+        system_name,
+        initial_state=uncoupled_state,
+        l_max=1,
+        m_max=1,
+        mu_max=2,
+        **common,
+    )
+
+    transformed = transform.to_uncoupled(coupled.initial_state)
+    np.testing.assert_allclose(
+        transformed,
+        uncoupled.initial_state,
+        atol=5.0e-12,
+        rtol=5.0e-12,
+    )
+    assert coupled.representation.norm(coupled.initial_state) == pytest.approx(
+        1.0,
+        abs=2.0e-12,
+    )
 
 
 def _assert_snapshot_agreement(coupled, uncoupled, *, atol=2.0e-10):
