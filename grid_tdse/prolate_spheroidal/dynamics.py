@@ -4,27 +4,30 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from numbers import Real
+from typing import Literal
 
 import numpy as np
 
 from grid_tdse.real_time import RealTimePropagator
 
 from .absorbing_boundaries import ProlateSpheroidalAbsorbingBoundaries
-from .dipole import ProlateSpheroidalAxialLengthGaugeInteraction
+from .dipole import (
+    ProlateSpheroidalAxialLengthGaugeInteraction,
+    ProlateSpheroidalAxialVelocityGaugeInteraction,
+)
 from .hamiltonian import ProlateSpheroidalOneElectronHamiltonian
 
 
 class ProlateSpheroidalFixedMTimeDependentHamiltonian:
-    r"""Combine field-free and axial length-gauge fixed-``m`` actions.
+    r"""Combine field-free and axial fixed-``m`` field interactions.
 
     Instances satisfy the ``hamiltonian(state, time)`` contract of
     :class:`grid_tdse.real_time.RealTimePropagator`. The corresponding
     physical inner product is available as :meth:`inner_product`.
 
     An empty field sequence selects field-free propagation. Otherwise the
-    supplied callables are interpreted as axial length-gauge electric fields
-    and passed to
-    :class:`ProlateSpheroidalAxialLengthGaugeInteraction`.
+    supplied callables are interpreted according to ``field_gauge`` and
+    passed to the matching length- or velocity-gauge interaction.
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class ProlateSpheroidalFixedMTimeDependentHamiltonian:
             | Iterable[Callable[[float], Real]]
             | None
         ) = (),
+        field_gauge: Literal["length", "velocity"] = "length",
         include_nuclear_scalar: bool = False,
         origin_z: Real = 0.0,
         absorbing_boundaries: (
@@ -69,21 +73,38 @@ class ProlateSpheroidalFixedMTimeDependentHamiltonian:
                     "representation"
                 )
         self.absorbing_boundaries = absorbing_boundaries
+        if field_gauge not in {"length", "velocity"}:
+            raise ValueError("field_gauge must be 'length' or 'velocity'")
+        self.field_gauge = field_gauge
         field_profiles = _optional_fields(fields)
         if include_nuclear_scalar and field_profiles is None:
             raise ValueError(
                 "include_nuclear_scalar requires at least one field"
             )
-        self.dipole_interaction = (
-            None
-            if field_profiles is None
-            else ProlateSpheroidalAxialLengthGaugeInteraction(
-                hamiltonian,
-                fields=field_profiles,
-                include_nuclear_scalar=include_nuclear_scalar,
-                origin_z=origin_z,
+        if field_gauge == "velocity" and include_nuclear_scalar:
+            raise ValueError(
+                "include_nuclear_scalar is a length-gauge phase option"
             )
-        )
+        if field_gauge == "velocity" and origin_z != 0.0:
+            raise ValueError("origin_z is a length-gauge option")
+        if field_profiles is None:
+            self.dipole_interaction = None
+        elif field_gauge == "length":
+            self.dipole_interaction = (
+                ProlateSpheroidalAxialLengthGaugeInteraction(
+                    hamiltonian,
+                    fields=field_profiles,
+                    include_nuclear_scalar=include_nuclear_scalar,
+                    origin_z=origin_z,
+                )
+            )
+        else:
+            self.dipole_interaction = (
+                ProlateSpheroidalAxialVelocityGaugeInteraction(
+                    hamiltonian,
+                    fields=field_profiles,
+                )
+            )
 
     @property
     def is_field_free(self) -> bool:
@@ -164,6 +185,7 @@ class ProlateSpheroidalFixedMTimeDependentHamiltonian:
         metadata.update(
             {
                 "m": self.m,
+                "field_gauge": self.field_gauge,
                 "time_dependent_interaction": (
                     None
                     if self.dipole_interaction is None

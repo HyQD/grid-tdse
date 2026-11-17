@@ -6,6 +6,7 @@ import numpy as np
 from scipy import sparse
 
 from grid_lib.prolate_spheroidal_coordinates import (
+    axial_momentum_matrix,
     electron_nuclear_coulomb_matrix,
     kinetic_energy_matrix,
     restrict_matrix,
@@ -54,6 +55,9 @@ class ProlateSpheroidalOneElectronHamiltonian:
         self.grid = self.representation.grid
         self.m_max = self.representation.m_max
         self._matrices: dict[tuple[int, str], sparse.csr_matrix] = {}
+        self._momentum_matrices: dict[
+            tuple[int, str], sparse.csr_matrix
+        ] = {}
         self._z_coordinates: dict[int, np.ndarray] = {}
 
     def fixed_m_shape(self, m=0) -> tuple[int, int]:
@@ -188,6 +192,74 @@ class ProlateSpheroidalOneElectronHamiltonian:
 
         values = self.representation.validate_fixed_m_state(states, m)
         return values * self.fixed_m_z(m)
+
+    def _fixed_m_pz_matrix(
+        self,
+        m=0,
+        *,
+        representation: MatrixRepresentation = "strong",
+    ) -> sparse.csr_matrix:
+        """Return the cached weak, strong, or symmetric axial momentum."""
+
+        m = self.representation.validate_m(m)
+        if representation not in self._MATRIX_REPRESENTATIONS:
+            choices = ", ".join(sorted(self._MATRIX_REPRESENTATIONS))
+            raise ValueError(f"representation must be one of: {choices}")
+        key = (m, representation)
+        if key not in self._momentum_matrices:
+            weak_key = (m, "weak")
+            if weak_key not in self._momentum_matrices:
+                self._momentum_matrices[weak_key] = axial_momentum_matrix(
+                    self.grid,
+                    m=m,
+                    active_indices=self.representation.active_indices(m),
+                )
+            weak = self._momentum_matrices[weak_key]
+            metric = self.fixed_m_metric_weights(m)
+            if representation == "weak":
+                matrix = weak
+            elif representation == "strong":
+                matrix = sparse.diags(1.0 / metric) @ weak
+            else:
+                inverse_sqrt = sparse.diags(1.0 / np.sqrt(metric))
+                matrix = inverse_sqrt @ weak @ inverse_sqrt
+            self._momentum_matrices[key] = matrix.tocsr()
+        return self._momentum_matrices[key]
+
+    def fixed_m_pz_matrix(
+        self,
+        m=0,
+        *,
+        representation: MatrixRepresentation = "strong",
+    ) -> sparse.csr_matrix:
+        r"""Return a defensive copy of the fixed-``m`` axial momentum.
+
+        The strong matrix represents ``p_z = -i partial_z`` on physical
+        nodal states. The weak and symmetric forms are Hermitian in their
+        respective overlap and Euclidean representations.
+        """
+
+        return self._fixed_m_pz_matrix(
+            m, representation=representation
+        ).copy()
+
+    def apply_pz_fixed_m(self, states, m=0) -> np.ndarray:
+        r"""Apply the physical strong axial momentum ``S**-1 P_z``."""
+
+        return self._apply_matrix(
+            self._fixed_m_pz_matrix(m, representation="strong"),
+            states,
+            m,
+        )
+
+    def apply_symmetric_pz_fixed_m(self, states, m=0) -> np.ndarray:
+        r"""Apply ``S**-1/2 P_z S**-1/2`` to Euclidean states."""
+
+        return self._apply_matrix(
+            self._fixed_m_pz_matrix(m, representation="symmetric"),
+            states,
+            m,
+        )
 
     def fixed_m_diagonal(
         self,

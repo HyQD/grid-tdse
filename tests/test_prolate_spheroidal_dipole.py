@@ -5,6 +5,7 @@ from electromagnetic_fields.dipole_fields import SineSquareLaser
 from grid_tdse.prolate_spheroidal import (
     OneElectronDiatomicSystem,
     ProlateSpheroidalAxialLengthGaugeInteraction,
+    ProlateSpheroidalAxialVelocityGaugeInteraction,
     ProlateSpheroidalOneElectronHamiltonian,
 )
 
@@ -260,3 +261,63 @@ def test_rejects_velocity_profile_and_invalid_field_value():
     )
     with pytest.raises(ValueError, match="finite real scalar"):
         interaction(np.ones(hamiltonian.fixed_m_shape()), 0.0)
+
+
+@pytest.mark.parametrize("m", [0, 1, -1])
+def test_axial_momentum_is_metric_hermitian_and_odd_under_inversion(m):
+    hamiltonian = _hamiltonian()
+    generator = np.random.default_rng(431 + m)
+    left = generator.normal(size=hamiltonian.fixed_m_shape(m))
+    left = left + 1j * generator.normal(size=left.shape)
+    right = generator.normal(size=hamiltonian.fixed_m_shape(m))
+    right = right + 1j * generator.normal(size=right.shape)
+
+    lhs = hamiltonian.inner_product(
+        left, hamiltonian.apply_pz_fixed_m(right, m), m
+    )
+    rhs = hamiltonian.inner_product(
+        hamiltonian.apply_pz_fixed_m(left, m), right, m
+    )
+    assert lhs == pytest.approx(rhs, abs=3.0e-12)
+
+    seed = generator.normal(size=hamiltonian.fixed_m_shape(m))
+    even = seed + hamiltonian.invert(seed, m)
+    action = hamiltonian.apply_pz_fixed_m(even, m)
+    np.testing.assert_allclose(
+        hamiltonian.invert(action, m), -action, atol=3.0e-12
+    )
+
+
+def test_velocity_gauge_uses_vector_potential_and_charge_to_mass_coupling():
+    hamiltonian = _hamiltonian()
+    pulse = SineSquareLaser(
+        E0=0.2,
+        omega=0.7,
+        ncycles=2,
+        gauge="velocity",
+    )
+    interaction = ProlateSpheroidalAxialVelocityGaugeInteraction(
+        hamiltonian, fields=pulse
+    )
+    state = np.ones(hamiltonian.fixed_m_shape(), dtype=complex)
+
+    assert interaction.momentum_coupling == pytest.approx(-1.0)
+    np.testing.assert_allclose(
+        interaction.spatial_action(state),
+        hamiltonian.apply_pz_fixed_m(state),
+    )
+    assert interaction.field_amplitude(0.4) == pytest.approx(pulse(0.4))
+    metadata = interaction.archive_metadata()
+    assert metadata["gauge"] == "velocity"
+    assert metadata["diamagnetic_a_squared_term_included"] is False
+
+    length_pulse = SineSquareLaser(
+        E0=0.2,
+        omega=0.7,
+        ncycles=2,
+        gauge="length",
+    )
+    with pytest.raises(ValueError, match="uses gauge 'length'"):
+        ProlateSpheroidalAxialVelocityGaugeInteraction(
+            hamiltonian, fields=length_pulse
+        )
