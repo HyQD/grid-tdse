@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pytest
 
+import grid_tdse.real_time.propagation as propagation_module
 from grid_tdse.real_time import (
     RealTimePropagator,
     load_real_time_checkpoint,
@@ -173,6 +174,77 @@ def test_exact_resume_matches_uninterrupted_propagation(tmp_path):
     assert len(completed.segments) == 1
     assert completed.latest_segment.complete
     assert completed.current_time == pytest.approx(0.6)
+
+
+def test_exact_resume_progress_bar_starts_at_checkpoint_step(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "progress-resume.chkpt"
+    progress_bars = []
+
+    class RecordingProgressBar:
+        def __init__(self, **options):
+            self.options = options
+            self.updates = []
+            progress_bars.append(self)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, error_type, error, traceback):
+            del error_type, error, traceback
+
+        def set_postfix(self, values, *, refresh):
+            del values, refresh
+
+        def update(self, amount):
+            self.updates.append(amount)
+
+    monkeypatch.setattr(propagation_module, "tqdm", RecordingProgressBar)
+
+    def interrupting_sampler(state, time):
+        if time > 0.25:
+            raise RuntimeError("simulated interruption")
+        return np.sum(state)
+
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        RealTimePropagator(
+            final_time=0.6,
+            time_step=0.1,
+            progress_interval=None,
+            progress_bar=True,
+        ).propagate(
+            np.array([1.0, -0.3j]),
+            _hamiltonian,
+            np.vdot,
+            samplers={"sum": interrupting_sampler},
+            checkpoint_path=path,
+            checkpoint_interval=2,
+            compatibility_metadata=COMPATIBILITY,
+            dynamics_metadata=DYNAMICS,
+        )
+
+    RealTimePropagator(
+        initial_time=0.2,
+        final_time=0.6,
+        time_step=0.1,
+        progress_interval=None,
+        progress_bar=True,
+    ).resume(
+        path,
+        _hamiltonian,
+        np.vdot,
+        samplers={"sum": _sampler},
+        checkpoint_interval=2,
+        compatibility_metadata=COMPATIBILITY,
+        dynamics_metadata=DYNAMICS,
+    )
+
+    resumed_progress = progress_bars[-1]
+    assert resumed_progress.options["initial"] == 2
+    assert resumed_progress.options["total"] == 6
+    assert resumed_progress.updates == [1, 1, 1, 1]
 
 
 def test_compatible_continuation_starts_a_new_dynamics_segment(tmp_path):

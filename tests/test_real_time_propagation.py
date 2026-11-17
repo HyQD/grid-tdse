@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from scipy.linalg import expm
 
+import grid_tdse.real_time.propagation as propagation_module
 from grid_tdse.real_time import RealTimePropagator
 
 
@@ -378,6 +379,7 @@ def test_real_time_rejects_invalid_representation_operations(
         ("krylov_breakdown_tolerance", 0.0, ValueError),
         ("reality_tolerance", -1.0, ValueError),
         ("progress_interval", 0, ValueError),
+        ("progress_bar", 1, TypeError),
     ],
 )
 def test_real_time_validates_propagator_options(keyword, value, error):
@@ -417,6 +419,116 @@ def test_real_time_progress_can_be_disabled(capsys):
     propagator(np.ones(2), lambda state, time: state, np.vdot)
 
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize(
+    ("integrator", "diagnostic_names"),
+    [
+        ("crank-nicolson", {"iterations", "residual"}),
+        ("sia", {"calls", "dimension", "error"}),
+    ],
+)
+def test_real_time_tqdm_progress_bar_reports_step_diagnostics(
+    monkeypatch,
+    capsys,
+    integrator,
+    diagnostic_names,
+):
+    progress_bars = []
+
+    class RecordingProgressBar:
+        def __init__(self, **options):
+            self.options = options
+            self.updates = []
+            self.postfixes = []
+            self.closed = False
+            progress_bars.append(self)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, error_type, error, traceback):
+            del error_type, error, traceback
+            self.closed = True
+
+        def set_postfix(self, values, *, refresh):
+            assert not refresh
+            self.postfixes.append(values.copy())
+
+        def update(self, amount):
+            self.updates.append(amount)
+
+    monkeypatch.setattr(propagation_module, "tqdm", RecordingProgressBar)
+    propagator = RealTimePropagator(
+        final_time=0.3,
+        time_step=0.1,
+        integrator=integrator,
+        max_krylov_dimension=2,
+        progress_interval=1,
+        progress_bar=True,
+    )
+
+    result = propagator(np.ones(2), lambda state, time: state, np.vdot)
+
+    assert result.n_steps == 3
+    assert capsys.readouterr().out == ""
+    assert len(progress_bars) == 1
+    progress = progress_bars[0]
+    assert progress.options == {
+        "total": 3,
+        "initial": 0,
+        "desc": "TDSE",
+        "unit": "step",
+        "dynamic_ncols": True,
+    }
+    assert progress.updates == [1, 1, 1]
+    assert progress.closed
+    assert len(progress.postfixes) == 3
+    assert set(progress.postfixes[-1]) == {
+        "t",
+        "norm",
+        *diagnostic_names,
+    }
+
+
+def test_real_time_tqdm_progress_bar_closes_after_failure(monkeypatch):
+    progress_bars = []
+
+    class RecordingProgressBar:
+        def __init__(self, **options):
+            del options
+            self.closed_with = None
+            progress_bars.append(self)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, error_type, error, traceback):
+            del error, traceback
+            self.closed_with = error_type
+
+        def set_postfix(self, values, *, refresh):
+            del values, refresh
+
+        def update(self, amount):
+            del amount
+
+    monkeypatch.setattr(propagation_module, "tqdm", RecordingProgressBar)
+    propagator = RealTimePropagator(
+        final_time=0.2,
+        time_step=0.1,
+        progress_bar=True,
+    )
+
+    def failing_hamiltonian(state, time):
+        del state, time
+        raise RuntimeError("simulated failure")
+
+    with pytest.raises(RuntimeError, match="simulated failure"):
+        propagator(np.ones(2), failing_hamiltonian, np.vdot)
+
+    assert len(progress_bars) == 1
+    assert progress_bars[0].closed_with is RuntimeError
 
 
 @pytest.mark.parametrize(

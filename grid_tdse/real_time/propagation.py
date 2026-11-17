@@ -1,6 +1,7 @@
 r"""Representation-independent real-time Schrödinger propagation."""
 
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 import json
 from os import PathLike
@@ -17,6 +18,7 @@ from integrator_lib import (
     ShortIterativeLanczos,
 )
 from scipy.sparse.linalg import LinearOperator
+from tqdm.auto import tqdm
 
 from .checkpoint import (
     RealTimeCheckpoint,
@@ -185,6 +187,11 @@ class RealTimePropagator:
     States are never normalized during real-time propagation. An optional
     post-step transformation can apply a representation-specific operation,
     such as an absorbing mask, after each accepted integrator step.
+
+    Periodic text diagnostics are controlled by ``progress_interval``. Set
+    ``progress_bar=True`` to replace them with a ``tqdm`` bar containing the
+    physical time, norm, and integrator diagnostics. The bar is initialized
+    at the stored accepted-step count when an interrupted segment is resumed.
     """
 
     _INTEGRATORS = {
@@ -222,6 +229,7 @@ class RealTimePropagator:
         krylov_breakdown_tolerance: float = 1.0e-14,
         reality_tolerance: float = 1.0e-10,
         progress_interval: int | None = 10,
+        progress_bar: bool = False,
     ) -> None:
         self.initial_time = _finite_real(initial_time, "initial_time")
         self.final_time = _finite_real(final_time, "final_time")
@@ -287,6 +295,9 @@ class RealTimePropagator:
         self.progress_interval = _optional_positive_integer(
             progress_interval, "progress_interval"
         )
+        if not isinstance(progress_bar, (bool, np.bool_)):
+            raise TypeError("progress_bar must be boolean")
+        self.progress_bar = bool(progress_bar)
 
     @property
     def integrator_metadata(self) -> dict[str, Any]:
@@ -666,64 +677,83 @@ class RealTimePropagator:
             return -1j * action
 
         total_segment_steps = previous_steps + self.n_steps
-        for local_step, time in enumerate(self.propagation_times[:-1], start=1):
-            step_started = perf_counter()
-            state = integrator(
-                state,
-                time,
-                self.time_step,
-                schrodinger_rhs,
+        progress_context = (
+            tqdm(
+                total=total_segment_steps,
+                initial=previous_steps,
+                desc="TDSE",
+                unit="step",
+                dynamic_ncols=True,
             )
-            accepted_time = float(self.propagation_times[local_step])
-            if post_step is not None:
-                state = _post_step_state(post_step, state, accepted_time, shape)
-            step = previous_steps + local_step
-            record = RealTimePropagationStep(
-                step=step,
-                time=accepted_time,
-                norm=self._norm(state, inner_product),
-                step_wall_time=perf_counter() - step_started,
-                **self._step_diagnostics(integrator),
-            )
-            history.append(record)
-            _sample(
-                state,
-                record.time,
-                sampler_functions,
-                sample_storage,
-            )
-            final = local_step == self.n_steps
-            checkpoint = destination is not None and (
-                final or (interval is not None and step % interval == 0)
-            )
-            if checkpoint:
-                self._write_checkpoint(
-                    destination,
-                    state,
-                    history,
-                    sample_storage,
-                    segment_initial_time,
-                    segment_initial_norm,
-                    segment_prefix,
-                    compatibility,
-                    dynamics,
-                    integrator_metadata,
-                    archive_metadata,
-                    interval,
-                )
-            _observe_state(
-                state_observer,
-                state,
-                step,
-                record.time,
-                record,
-                final=final,
-                checkpoint=checkpoint,
-            )
-            if self.progress_interval is not None and (
-                step % self.progress_interval == 0 or step == total_segment_steps
+            if self.progress_bar
+            else nullcontext()
+        )
+        with progress_context as progress:
+            for local_step, time in enumerate(
+                self.propagation_times[:-1], start=1
             ):
-                self._print_progress(record, total_segment_steps)
+                step_started = perf_counter()
+                state = integrator(
+                    state,
+                    time,
+                    self.time_step,
+                    schrodinger_rhs,
+                )
+                accepted_time = float(self.propagation_times[local_step])
+                if post_step is not None:
+                    state = _post_step_state(
+                        post_step, state, accepted_time, shape
+                    )
+                step = previous_steps + local_step
+                record = RealTimePropagationStep(
+                    step=step,
+                    time=accepted_time,
+                    norm=self._norm(state, inner_product),
+                    step_wall_time=perf_counter() - step_started,
+                    **self._step_diagnostics(integrator),
+                )
+                history.append(record)
+                _sample(
+                    state,
+                    record.time,
+                    sampler_functions,
+                    sample_storage,
+                )
+                final = local_step == self.n_steps
+                checkpoint = destination is not None and (
+                    final or (interval is not None and step % interval == 0)
+                )
+                if checkpoint:
+                    self._write_checkpoint(
+                        destination,
+                        state,
+                        history,
+                        sample_storage,
+                        segment_initial_time,
+                        segment_initial_norm,
+                        segment_prefix,
+                        compatibility,
+                        dynamics,
+                        integrator_metadata,
+                        archive_metadata,
+                        interval,
+                    )
+                _observe_state(
+                    state_observer,
+                    state,
+                    step,
+                    record.time,
+                    record,
+                    final=final,
+                    checkpoint=checkpoint,
+                )
+                if progress is not None:
+                    self._update_progress_bar(progress, record)
+                elif self.progress_interval is not None and (
+                    step % self.progress_interval == 0
+                    or step == total_segment_steps
+                ):
+                    self._print_progress(record, total_segment_steps)
 
         result = RealTimePropagationResult(
             state=state.copy(),
@@ -1039,6 +1069,29 @@ class RealTimePropagator:
                 + f"krylov_dimension={record.krylov_dimension:d}  "
                 + f"krylov_error={record.krylov_error_estimate:.3e}"
             )
+
+    def _update_progress_bar(
+        self,
+        progress,
+        record: RealTimePropagationStep,
+    ) -> None:
+        diagnostics = {
+            "t": f"{record.time:.6g}",
+            "norm": f"{record.norm:.9f}",
+        }
+        if self.integrator == "crank-nicolson":
+            diagnostics.update(
+                iterations=record.linear_iterations,
+                residual=f"{record.linear_residual_norm:.2e}",
+            )
+        else:
+            diagnostics.update(
+                calls=record.krylov_operator_calls,
+                dimension=record.krylov_dimension,
+                error=f"{record.krylov_error_estimate:.2e}",
+            )
+        progress.set_postfix(diagnostics, refresh=False)
+        progress.update(1)
 
 
 def _state_array(state) -> np.ndarray:
