@@ -186,6 +186,62 @@ def test_heteronuclear_nuclear_scalar_is_explicit_and_optional():
     assert metadata["include_nuclear_scalar"] is True
 
 
+def test_total_dipole_and_interaction_transform_with_origin():
+    hamiltonian = _hamiltonian(homonuclear=False)
+    midpoint = ProlateSpheroidalAxialLengthGaugeInteraction(
+        hamiltonian,
+        fields=lambda time: 1.0,
+        include_nuclear_scalar=True,
+    )
+    origin_z = 0.4
+    shifted = ProlateSpheroidalAxialLengthGaugeInteraction(
+        hamiltonian,
+        fields=lambda time: 1.0,
+        include_nuclear_scalar=True,
+        origin_z=origin_z,
+    )
+    state = np.ones(hamiltonian.fixed_m_shape())
+    net_charge = hamiltonian.system.net_charge
+
+    assert shifted.nuclear_dipole_z == pytest.approx(
+        midpoint.nuclear_dipole_z
+        - (
+            hamiltonian.system.nuclear_charge1
+            + hamiltonian.system.nuclear_charge2
+        )
+        * origin_z
+    )
+    assert shifted.electronic_dipole_expectation(state) == pytest.approx(
+        midpoint.electronic_dipole_expectation(state)
+        - hamiltonian.system.electron_charge * origin_z
+    )
+    assert shifted.total_dipole_expectation(state) == pytest.approx(
+        midpoint.total_dipole_expectation(state) - net_charge * origin_z
+    )
+    np.testing.assert_allclose(
+        shifted.spatial_action(state) - midpoint.spatial_action(state),
+        net_charge * origin_z * state,
+    )
+    metadata = shifted.archive_metadata()
+    assert metadata["origin"] == "axial_offset_from_bond_midpoint"
+    assert metadata["origin_z"] == pytest.approx(origin_z)
+
+
+@pytest.mark.parametrize(
+    ("origin_z", "error"),
+    [(True, TypeError), ("0.2", TypeError), (np.inf, ValueError)],
+)
+def test_rejects_invalid_axial_origin(origin_z, error):
+    hamiltonian = _hamiltonian(homonuclear=False)
+
+    with pytest.raises(error, match="origin_z"):
+        ProlateSpheroidalAxialLengthGaugeInteraction(
+            hamiltonian,
+            fields=lambda time: 1.0,
+            origin_z=origin_z,
+        )
+
+
 def test_rejects_velocity_profile_and_invalid_field_value():
     hamiltonian = _hamiltonian()
     pulse = SineSquareLaser(

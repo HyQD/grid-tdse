@@ -156,6 +156,121 @@ def test_field_free_configuration_and_validation(stationary_problem):
         )
 
 
+def test_heteronuclear_origin_shift_changes_only_global_phase():
+    system = OneElectronDiatomicSystem(
+        nuclear_charge1=3.0,
+        nuclear_charge2=1.0,
+        half_bond_length=1.0,
+        name="LiH3+",
+    )
+    hamiltonian = ProlateSpheroidalOneElectronHamiltonian(
+        system,
+        xi_boundaries=[1.0, 2.0, 4.0],
+        xi_points_per_element=6,
+        eta_degree=7,
+        m_max=0,
+    )
+    ground_state = diagonalize_fixed_m(
+        hamiltonian,
+        m=0,
+        n_states=1,
+        solver="direct",
+    ).orbital
+    field_amplitude = 0.2
+    origin_z = 0.4
+    final_time = 0.3
+    midpoint = ProlateSpheroidalFixedMTimeDependentHamiltonian(
+        hamiltonian,
+        fields=lambda time: field_amplitude,
+        include_nuclear_scalar=True,
+    )
+    shifted = ProlateSpheroidalFixedMTimeDependentHamiltonian(
+        hamiltonian,
+        fields=lambda time: field_amplitude,
+        include_nuclear_scalar=True,
+        origin_z=origin_z,
+    )
+    propagator = _propagator("sia", final_time, 0.05)
+
+    midpoint_result = midpoint.propagate(propagator, ground_state)
+    shifted_result = shifted.propagate(propagator, ground_state)
+
+    phase = np.exp(
+        -1j
+        * system.net_charge
+        * origin_z
+        * field_amplitude
+        * final_time
+    )
+    np.testing.assert_allclose(
+        shifted_result.state,
+        phase * midpoint_result.state,
+        atol=2.0e-11,
+    )
+    assert shifted_result.norm == pytest.approx(1.0, abs=2.0e-12)
+
+
+@pytest.mark.parametrize(
+    ("name", "nuclear_charge1", "nuclear_charge2", "parity_mixed"),
+    [
+        ("H2+", 1.0, 1.0, False),
+        ("LiH3+", 3.0, 1.0, True),
+        ("BH5+", 5.0, 1.0, True),
+    ],
+)
+def test_target_family_field_free_and_short_dynamics(
+    name,
+    nuclear_charge1,
+    nuclear_charge2,
+    parity_mixed,
+):
+    system = OneElectronDiatomicSystem(
+        nuclear_charge1=nuclear_charge1,
+        nuclear_charge2=nuclear_charge2,
+        half_bond_length=1.0,
+        name=name,
+    )
+    hamiltonian = ProlateSpheroidalOneElectronHamiltonian(
+        system,
+        xi_boundaries=[1.0, 2.0, 4.0],
+        xi_points_per_element=6,
+        eta_degree=7,
+        m_max=0,
+    )
+    ground_state = diagonalize_fixed_m(
+        hamiltonian,
+        m=0,
+        n_states=1,
+        solver="direct",
+    )
+    pulse = SineSquareLaser(
+        E0=0.01,
+        omega=4.0,
+        ncycles=1,
+        gauge="length",
+        phase=np.pi / 2.0,
+    )
+    action = ProlateSpheroidalFixedMTimeDependentHamiltonian(
+        hamiltonian,
+        fields=pulse,
+        include_nuclear_scalar=True,
+    )
+
+    result = _propagator("sia", pulse.tprime, 0.1).propagate(
+        ground_state.orbital,
+        action,
+        action.inner_product,
+    )
+    parity = hamiltonian.inversion_expectation(ground_state.orbital)
+
+    assert ground_state.residual_norm < 1.0e-10
+    assert result.norm == pytest.approx(1.0, abs=2.0e-11)
+    if parity_mixed:
+        assert abs(parity) < 0.99
+    else:
+        assert parity == pytest.approx(1.0, abs=1.0e-12)
+
+
 def _spherical_fixed_m_z(hamiltonian, state, m=0):
     """Independent one-radial ``z = r cos(theta)`` action for validation."""
 
