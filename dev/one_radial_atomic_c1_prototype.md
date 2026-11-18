@@ -91,3 +91,6 @@ The prototype confirms the feasibility assessment:
 
 The remaining work is mathematical convergence and production design, not a
 large grid-code refactor.
+
+An angular-order sweep through the PySCF adapter, with and without pruning,
+is reported in `dev/one_radial_atomic_c1_pyscf_convergence.md`.
