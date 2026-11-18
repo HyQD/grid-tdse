@@ -269,6 +269,7 @@ def solve_atomic_h2plus(
     hermiticity_tolerance=1.0e-11,
     grid_backend="native",
     pyscf_prune="nwchem",
+    lebedev_rotation=None,
 ):
     """Solve H2+ with an unweighted atomic basis and Becke quadrature.
 
@@ -322,6 +323,7 @@ def solve_atomic_h2plus(
             BeckePartition(centers, switch_iterations=switch_iterations),
             integration_specification,
             lebedev_order,
+            rotation=lebedev_rotation,
         )
         points, weights, owners, owner_parents = _quadrature_arrays(
             quadrature, parent_elements
@@ -340,6 +342,8 @@ def solve_atomic_h2plus(
             return radial_data
 
         angular_points = lebedev_rule(lebedev_order)[1].size
+        if lebedev_rotation is None:
+            lebedev_rotation = GENERIC_LEBEDEV_ROTATION
         grid = build_pyscf_becke_grid(
             centers,
             [1, 1],
@@ -347,7 +351,7 @@ def solve_atomic_h2plus(
             angular_points=angular_points,
             prune=pyscf_prune,
             radii_adjust=None,
-            rotation=GENERIC_LEBEDEV_ROTATION,
+            rotation=lebedev_rotation,
         )
         points = grid.coordinates
         weights = grid.weights

@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from grid_tdse.spherical.one_radial_atomic import solve_atomic_h2plus
 
@@ -44,3 +45,17 @@ def test_default_atomic_h2plus_reaches_microhartree_accuracy():
     assert result.matrices.basis_size == 246
     assert result.solution.metric.retained_rank == 246
     assert result.matrices.overlap_condition_number < 5.0e7
+
+
+def test_atomic_h2plus_accepts_a_custom_lebedev_rotation():
+    result = solve_atomic_h2plus(
+        radial_nodes=(0.0, 2.0, 4.0),
+        radial_n_points=3,
+        l_max=1,
+        integration_spacing=2.0,
+        integration_radial_n_points=3,
+        lebedev_order=5,
+        lebedev_rotation=Rotation.from_rotvec([0.2, 0.3, 0.4]).as_matrix(),
+    )
+
+    assert np.isfinite(result.electronic_energy)
