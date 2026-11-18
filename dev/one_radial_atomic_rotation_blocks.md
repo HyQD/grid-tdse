@@ -53,3 +53,20 @@ Run with
 conda run -n haakon_2026 \
   python examples/one_radial_atomic_rotation_components.py
 ```
+
+The script is also the canonical small benchmark for this diagnostic. It uses
+the cheaper default quadrature (10 radial integration points and Lebedev order
+41), for which each assembly takes about 1.2 seconds on the development
+machine. The unrotated energy error is only +0.203 microhartree, but the fixed
+rotations move the energy by as much as 7.220 microhartree. The mean ratio of
+cross-center to same-center kinetic sensitivity is 15.92. This exposes both
+the favorable unrotated value and its hidden quadrature uncertainty in about
+five seconds.
+
+The benchmark prints its full fixed configuration, reference-energy error,
+basis and grid sizes, overlap condition number, assembly time for every
+rotation, matrix-component shifts, and block sensitivity. Its settings should
+remain fixed when comparing changes to the radial basis or matrix assembly.
+The larger order-59 calculation documented above is retained as a separate
+confirmation that the complete energy envelope eventually falls below one
+microhartree while the A--B kinetic block remains the most sensitive block.
