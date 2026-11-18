@@ -1,5 +1,10 @@
 # Feasibility of a C1 radial basis in `one_radial_atomic`
 
+> **Implementation status:** A first experimental C1 B-spline basis has now
+> been implemented. See `dev/one_radial_atomic_c1_prototype.md` for measured
+> results. The feasibility discussion below records the design reasoning that
+> preceded the prototype.
+
 ## Conclusion
 
 A C1 prototype is a local-to-moderate change, not a rewrite of the Becke
@@ -7,10 +12,10 @@ grid. The current matrix assembly already consumes arbitrary basis values,
 gradients, and active global indices at each group of points. The radial
 basis evaluator is the part that assumes C0 FEM-DVR cardinal functions.
 
-The fastest informative prototype is a piecewise Hermite radial basis. A
-B-spline implementation is a plausible production direction after the
-rotation diagnostic has established that radial smoothness solves the
-observed cross-center kinetic sensitivity.
+The implemented prototype uses degree-7 B-splines because they give a radial
+basis dimension close to the current high-order FEM-DVR basis on the same
+element boundaries. A piecewise Hermite basis remains a simpler low-order
+alternative if a more local diagnostic is needed later.
 
 ## What is coupled to C0 FEM-DVR today
 

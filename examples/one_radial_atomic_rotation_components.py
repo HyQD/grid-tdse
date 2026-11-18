@@ -6,6 +6,8 @@ ground-state error, assembly cost, matrix-component energy shifts, and the
 relative rotation sensitivity of same-center and cross-center kinetic blocks.
 """
 
+import argparse
+
 import numpy as np
 from scipy.linalg import eigh
 from scipy.spatial.transform import Rotation
@@ -24,6 +26,7 @@ SOLVER_OPTIONS = {
     "integration_radial_n_points": 10,
     "lebedev_order": 41,
 }
+RADIAL_SPLINE_DEGREE = 7
 
 
 def rotation_matrix(rotation_vector):
@@ -58,11 +61,13 @@ def center_blocks(matrix, center_size):
     return same_center, matrix - same_center
 
 
-def run_benchmark():
+def run_benchmark(radial_basis="fem-dvr"):
     results = [
         solve_atomic_h2plus(
             **SOLVER_OPTIONS,
             lebedev_rotation=rotation_matrix(rotation_vector),
+            radial_basis=radial_basis,
+            radial_spline_degree=RADIAL_SPLINE_DEGREE,
         )
         for rotation_vector in ROTATION_VECTORS
     ]
@@ -80,7 +85,12 @@ def run_benchmark():
     )
 
     print("H2+ atom-centered Becke rotation benchmark")
-    print("R=2 bohr, r_max=8 bohr, radial_n_points=8, l_max=2")
+    print(f"radial basis={radial_basis}")
+    print("R=2 bohr, r_max=8 bohr, l_max=2")
+    if radial_basis == "fem-dvr":
+        print("radial_n_points=8")
+    else:
+        print(f"radial_spline_degree={RADIAL_SPLINE_DEGREE}")
     print(
         "integration_spacing=0.25 bohr, "
         "integration_radial_n_points="
@@ -169,5 +179,24 @@ def run_benchmark():
     )
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--radial-basis",
+        choices=("fem-dvr", "bspline-c1", "both"),
+        default="fem-dvr",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    run_benchmark()
+    selected_basis = parse_args().radial_basis
+    basis_names = (
+        ("fem-dvr", "bspline-c1")
+        if selected_basis == "both"
+        else (selected_basis,)
+    )
+    for basis_index, basis_name in enumerate(basis_names):
+        if basis_index:
+            print("\n" + "=" * 79 + "\n")
+        run_benchmark(basis_name)

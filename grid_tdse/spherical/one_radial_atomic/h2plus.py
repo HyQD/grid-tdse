@@ -17,6 +17,7 @@ from grid_lib.pseudospectral_grids import (
     Linear_map,
 )
 from scipy.integrate import lebedev_rule
+from scipy.interpolate import BSpline
 from scipy.special import sph_harm_y
 
 from ..one_radial_becke import (
@@ -53,7 +54,7 @@ class AtomicH2PlusResult:
     total_energy: float
 
 
-class _RadialBasis:
+class _FEMDVRRadialBasis:
     """Element-local evaluation of interior FEM-DVR cardinal functions."""
 
     def __init__(self, specification: FEMDVRQuadratureSpec):
@@ -122,6 +123,77 @@ class _RadialBasis:
         )
         radial_indices = local_to_global[keep] - 1
         return values[:, keep], derivatives[:, keep], radial_indices
+
+
+class _C1BSplineRadialBasis:
+    """Element-local evaluation of a clamped C1 B-spline radial basis."""
+
+    def __init__(self, nodes, degree=7):
+        nodes = np.asarray(nodes, dtype=float)
+        if nodes.ndim != 1 or nodes.size < 2:
+            raise ValueError("radial nodes must be a one-dimensional array")
+        if np.any(~np.isfinite(nodes)) or np.any(np.diff(nodes) <= 0.0):
+            raise ValueError("radial nodes must be finite and increasing")
+        if degree < 3:
+            raise ValueError("a C1 B-spline basis requires degree at least 3")
+
+        self.nodes = nodes
+        self.degree = int(degree)
+        interior_multiplicity = self.degree - 1
+        self.knots = np.concatenate(
+            (
+                np.repeat(nodes[0], self.degree + 1),
+                np.repeat(nodes[1:-1], interior_multiplicity),
+                np.repeat(nodes[-1], self.degree + 1),
+            )
+        )
+        full_size = self.knots.size - self.degree - 1
+        coefficients = np.eye(full_size)
+        self._spline = BSpline(
+            self.knots, coefficients, self.degree, extrapolate=False
+        )
+        self._derivative = self._spline.derivative()
+
+        # For an open clamped knot vector, only the first and last B-splines
+        # are nonzero at the corresponding endpoint. Removing them imposes
+        # u(0) = u(r_max) = 0, matching the finite FEM-DVR basis.
+        self._kept_full_indices = np.arange(1, full_size - 1, dtype=int)
+        self.size = self._kept_full_indices.size
+        self._active_indices = []
+        for left, right in zip(nodes[:-1], nodes[1:]):
+            support_left = self.knots[self._kept_full_indices]
+            support_right = self.knots[
+                self._kept_full_indices + self.degree + 1
+            ]
+            active = (support_left < right) & (support_right > left)
+            self._active_indices.append(np.flatnonzero(active))
+        self._active_indices = tuple(self._active_indices)
+
+    def locate(self, radii):
+        """Return the owning knot interval, or -1 outside the support."""
+
+        radii = np.asarray(radii)
+        elements = np.searchsorted(self.nodes, radii, side="right") - 1
+        elements[radii == self.nodes[-1]] = self.nodes.size - 2
+        elements[(radii < self.nodes[0]) | (radii > self.nodes[-1])] = -1
+        return elements
+
+    def evaluate_element(self, element_index, radii):
+        """Evaluate the locally active C1 B-splines in one interval."""
+
+        radii = np.asarray(radii, dtype=float)
+        radii = np.clip(
+            radii, self.nodes[element_index], self.nodes[element_index + 1]
+        )
+        active = self._active_indices[element_index]
+        full_indices = self._kept_full_indices[active]
+        values = self._spline(radii)[:, full_indices]
+        derivatives = self._derivative(radii)[:, full_indices]
+        return values, derivatives, active
+
+
+# Retain the private name used by the fixed midpoint diagnostic.
+_RadialBasis = _FEMDVRRadialBasis
 
 
 def _positive_real(value, name):
@@ -270,6 +342,8 @@ def solve_atomic_h2plus(
     grid_backend="native",
     pyscf_prune="nwchem",
     lebedev_rotation=None,
+    radial_basis="fem-dvr",
+    radial_spline_degree=7,
 ):
     """Solve H2+ with an unweighted atomic basis and Becke quadrature.
 
@@ -277,6 +351,10 @@ def solve_atomic_h2plus(
     layout with interior Gauss-Legendre integration points, while PySCF
     supplies Lebedev grids, angular pruning, Becke weights, and spatial
     grouping.
+
+    ``radial_basis="bspline-c1"`` replaces only the radial FEM-DVR basis by
+    an open clamped B-spline basis with C1 continuity at the supplied radial
+    nodes. The integration grid and Becke partition are unchanged.
     """
 
     distance = _positive_real(internuclear_distance, "internuclear_distance")
@@ -292,6 +370,11 @@ def solve_atomic_h2plus(
         minimum=2,
     )
     l_max = _positive_integer(l_max, "l_max", minimum=0)
+    radial_spline_degree = _positive_integer(
+        radial_spline_degree, "radial_spline_degree", minimum=3
+    )
+    if radial_basis not in ("fem-dvr", "bspline-c1"):
+        raise ValueError("radial_basis must be 'fem-dvr' or 'bspline-c1'")
     switch_iterations = _positive_integer(
         switch_iterations, "switch_iterations"
     )
@@ -306,7 +389,12 @@ def solve_atomic_h2plus(
         radial_nodes,
         [radial_n_points] * (len(radial_nodes) - 1),
     )
-    radial_basis = _RadialBasis(basis_specification)
+    if radial_basis == "fem-dvr":
+        radial_basis_evaluator = _FEMDVRRadialBasis(basis_specification)
+    else:
+        radial_basis_evaluator = _C1BSplineRadialBasis(
+            basis_specification.nodes, degree=radial_spline_degree
+        )
     centers = np.array(
         [[0.0, 0.0, -0.5 * distance], [0.0, 0.0, 0.5 * distance]]
     )
@@ -362,7 +450,10 @@ def solve_atomic_h2plus(
     distances = np.linalg.norm(displacements, axis=-1)
     unit_vectors = displacements / distances[..., np.newaxis]
     elements = np.column_stack(
-        [radial_basis.locate(distances[:, center]) for center in range(2)]
+        [
+            radial_basis_evaluator.locate(distances[:, center])
+            for center in range(2)
+        ]
     )
     rows = np.arange(points.shape[0])
     use_parent = owner_parents >= 0
@@ -372,7 +463,7 @@ def solve_atomic_h2plus(
         elements, axis=0, return_inverse=True
     )
     angular_size = l_max + 1
-    center_size = radial_basis.size * angular_size
+    center_size = radial_basis_evaluator.size * angular_size
     basis_size = 2 * center_size
     shape = (basis_size, basis_size)
     overlap = np.zeros(shape)
@@ -390,7 +481,7 @@ def solve_atomic_h2plus(
             if element_index < 0:
                 continue
             values, gradients, basis_indices = _local_basis_values(
-                radial_basis,
+                radial_basis_evaluator,
                 int(element_index),
                 distances[point_indices, center_index],
                 unit_vectors[point_indices, center_index],
