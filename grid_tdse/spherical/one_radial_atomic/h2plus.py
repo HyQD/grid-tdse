@@ -125,21 +125,22 @@ class _FEMDVRRadialBasis:
         return values[:, keep], derivatives[:, keep], radial_indices
 
 
-class _C1BSplineRadialBasis:
-    """Element-local evaluation of a clamped C1 B-spline radial basis."""
+class _BSplineRadialBasis:
+    """Element-local evaluation of a clamped smooth B-spline basis."""
 
-    def __init__(self, nodes, degree=7):
+    def __init__(self, nodes, degree=7, continuity=1):
         nodes = np.asarray(nodes, dtype=float)
         if nodes.ndim != 1 or nodes.size < 2:
             raise ValueError("radial nodes must be a one-dimensional array")
         if np.any(~np.isfinite(nodes)) or np.any(np.diff(nodes) <= 0.0):
             raise ValueError("radial nodes must be finite and increasing")
-        if degree < 3:
-            raise ValueError("a C1 B-spline basis requires degree at least 3")
+        if continuity < 0 or continuity >= degree:
+            raise ValueError("continuity must be between zero and degree - 1")
 
         self.nodes = nodes
         self.degree = int(degree)
-        interior_multiplicity = self.degree - 1
+        self.continuity = int(continuity)
+        interior_multiplicity = self.degree - self.continuity
         self.knots = np.concatenate(
             (
                 np.repeat(nodes[0], self.degree + 1),
@@ -179,7 +180,7 @@ class _C1BSplineRadialBasis:
         return elements
 
     def evaluate_element(self, element_index, radii):
-        """Evaluate the locally active C1 B-splines in one interval."""
+        """Evaluate the locally active B-splines in one interval."""
 
         radii = np.asarray(radii, dtype=float)
         radii = np.clip(
@@ -344,6 +345,7 @@ def solve_atomic_h2plus(
     lebedev_rotation=None,
     radial_basis="fem-dvr",
     radial_spline_degree=7,
+    radial_spline_continuity=1,
 ):
     """Solve H2+ with an unweighted atomic basis and Becke quadrature.
 
@@ -352,9 +354,11 @@ def solve_atomic_h2plus(
     supplies Lebedev grids, angular pruning, Becke weights, and spatial
     grouping.
 
-    ``radial_basis="bspline-c1"`` replaces only the radial FEM-DVR basis by
-    an open clamped B-spline basis with C1 continuity at the supplied radial
-    nodes. The integration grid and Becke partition are unchanged.
+    ``radial_basis="bspline"`` replaces only the radial FEM-DVR basis by
+    an open clamped B-spline basis. Its continuity defaults to C1 and can be
+    increased with ``radial_spline_continuity``. The integration grid and
+    Becke partition are unchanged. ``"bspline-c1"`` is retained as an alias
+    for the original pilot.
     """
 
     distance = _positive_real(internuclear_distance, "internuclear_distance")
@@ -373,8 +377,15 @@ def solve_atomic_h2plus(
     radial_spline_degree = _positive_integer(
         radial_spline_degree, "radial_spline_degree", minimum=3
     )
-    if radial_basis not in ("fem-dvr", "bspline-c1"):
-        raise ValueError("radial_basis must be 'fem-dvr' or 'bspline-c1'")
+    radial_spline_continuity = _positive_integer(
+        radial_spline_continuity,
+        "radial_spline_continuity",
+        minimum=0,
+    )
+    if radial_spline_continuity >= radial_spline_degree:
+        raise ValueError("radial_spline_continuity must be less than degree")
+    if radial_basis not in ("fem-dvr", "bspline", "bspline-c1"):
+        raise ValueError("radial_basis must be 'fem-dvr' or 'bspline'")
     switch_iterations = _positive_integer(
         switch_iterations, "switch_iterations"
     )
@@ -392,8 +403,10 @@ def solve_atomic_h2plus(
     if radial_basis == "fem-dvr":
         radial_basis_evaluator = _FEMDVRRadialBasis(basis_specification)
     else:
-        radial_basis_evaluator = _C1BSplineRadialBasis(
-            basis_specification.nodes, degree=radial_spline_degree
+        radial_basis_evaluator = _BSplineRadialBasis(
+            basis_specification.nodes,
+            degree=radial_spline_degree,
+            continuity=radial_spline_continuity,
         )
     centers = np.array(
         [[0.0, 0.0, -0.5 * distance], [0.0, 0.0, 0.5 * distance]]

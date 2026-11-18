@@ -2,7 +2,7 @@ import numpy as np
 
 from grid_tdse.spherical.one_radial_atomic import solve_atomic_h2plus
 from grid_tdse.spherical.one_radial_atomic.h2plus import (
-    _C1BSplineRadialBasis,
+    _BSplineRadialBasis,
 )
 
 
@@ -18,7 +18,9 @@ def _global_values(basis, element, radius):
 
 
 def test_c1_bspline_values_and_derivatives_match_at_element_boundaries():
-    basis = _C1BSplineRadialBasis([0.0, 1.0, 2.0, 4.0], degree=5)
+    basis = _BSplineRadialBasis(
+        [0.0, 1.0, 2.0, 4.0], degree=5, continuity=1
+    )
 
     for element, radius in enumerate((1.0, 2.0)):
         left = _global_values(basis, element, radius)
@@ -28,7 +30,9 @@ def test_c1_bspline_values_and_derivatives_match_at_element_boundaries():
 
 
 def test_c1_bspline_enforces_zero_endpoint_values():
-    basis = _C1BSplineRadialBasis([0.0, 1.0, 2.0], degree=3)
+    basis = _BSplineRadialBasis(
+        [0.0, 1.0, 2.0], degree=3, continuity=1
+    )
 
     left_values = _global_values(basis, 0, 0.0)[0]
     right_values = _global_values(basis, 1, 2.0)[0]
@@ -41,7 +45,7 @@ def test_atomic_h2plus_accepts_c1_bspline_radial_basis():
     result = solve_atomic_h2plus(
         radial_nodes=(0.0, 1.0, 2.0, 4.0),
         radial_n_points=4,
-        radial_basis="bspline-c1",
+        radial_basis="bspline",
         radial_spline_degree=3,
         l_max=1,
         integration_spacing=1.0,

@@ -183,7 +183,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--radial-basis",
-        choices=("fem-dvr", "bspline-c1", "both"),
+        choices=("fem-dvr", "bspline", "bspline-c1", "both"),
         default="fem-dvr",
     )
     return parser.parse_args()
@@ -192,7 +192,7 @@ def parse_args():
 if __name__ == "__main__":
     selected_basis = parse_args().radial_basis
     basis_names = (
-        ("fem-dvr", "bspline-c1")
+        ("fem-dvr", "bspline")
         if selected_basis == "both"
         else (selected_basis,)
     )

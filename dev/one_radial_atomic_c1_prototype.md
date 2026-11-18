@@ -7,7 +7,7 @@ sensitivity of cross-center kinetic matrix elements is caused by C0 radial
 FEM element boundaries from one center cutting through the quadrature shells
 of another center.
 
-The implementation adds `radial_basis="bspline-c1"` to
+The implementation adds `radial_basis="bspline"` to
 `solve_atomic_h2plus()`. It changes only the radial basis evaluator. Becke
 weights, radial integration, Lebedev grids, point grouping, matrix assembly,
 and the generalized eigensolver are unchanged. The existing FEM-DVR basis
@@ -94,3 +94,6 @@ large grid-code refactor.
 
 An angular-order sweep through the PySCF adapter, with and without pruning,
 is reported in `dev/one_radial_atomic_c1_pyscf_convergence.md`.
+
+Higher spline continuity and explicit radial/angular basis convergence are
+reported in `dev/one_radial_atomic_spline_basis_convergence.md`.

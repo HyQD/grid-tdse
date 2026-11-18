@@ -46,7 +46,7 @@ def main():
             started = perf_counter()
             results = [
                 solve_atomic_h2plus(
-                    radial_basis="bspline-c1",
+                    radial_basis="bspline",
                     grid_backend="pyscf",
                     pyscf_prune=pruning,
                     lebedev_order=order,
