@@ -27,7 +27,7 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--11 are complete: the axial position and momentum operators, the
+Steps 2--12 are complete: the axial position and momentum operators, the
 fixed-`m` length- and velocity-gauge interactions, the spherical radial
 absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
 and validated together with raw observables, cadence-controlled radial
@@ -36,7 +36,8 @@ preconditioner. A public high-level calculation object now prepares these
 components together with progress, custom sampling, checkpoints, exact
 restart, and compatible continuation. Paired-gauge propagation and projected
 in-pulse gauge transformations establish the expected angular-refinement
-trend. The remaining implementation steps have not started. This document
+trend, and a public-interface development example exercises the complete
+workflow. The remaining implementation steps have not started. This document
 records the settled design and the validation sequence. It does not claim
 radial, angular, time-step, pulse, or absorber convergence.
 
@@ -700,6 +701,22 @@ least:
 The example must report the effective grid, pulse, gauge, integrator,
 absorber, state source, mass, norm, and output locations. Defaults are smoke
 test inputs, not convergence recommendations.
+
+Status: complete. `h2plus_laser_dynamics.py` uses only the public one-radial
+Hamiltonian, stationary solver, and `OneElectronDiatomicTDSE` interfaces. It
+computes the projected ground state by default or loads a compatible NPY/NPZ
+state, constructs a gauge-consistent electromagnetic-fields pulse, and
+exposes all required physical and numerical controls.
+Mask, CAP, and no-absorber paths are explicit; the CLI rejects the currently
+unsupported CAP/CN and CAP/SIL combinations before propagation.
+
+The example writes a JSON summary and compressed NPZ archive containing the
+final state, raw observables, integrator diagnostics, and cadence-controlled
+radial probabilities. It prints the effective grid, pulse, gauge, integrator,
+absorber, state source, particle mass, initial and final norms, and every
+output location. A compact end-to-end regression invokes the public interface
+in velocity gauge with a mask and verifies both archives. The defaults remain
+development smoke inputs rather than convergence recommendations.
 
 ### Step 13: document and qualify the initial implementation
 
