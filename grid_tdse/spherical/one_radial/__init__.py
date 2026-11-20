@@ -2,6 +2,10 @@
 
 from grid_tdse.systems import OneElectronDiatomicSystem
 
+from .dipole import (
+    SphericalOneRadialAxialLengthGaugeInteraction,
+    SphericalOneRadialAxialVelocityGaugeInteraction,
+)
 from .ground_state import (
     OneElectronDiatomicEigenstates,
     diagonalize_fixed_m,
@@ -15,5 +19,7 @@ __all__ = [
     "OneElectronDiatomicEigenstates",
     "OneElectronDiatomicHamiltonian",
     "OneElectronDiatomicSystem",
+    "SphericalOneRadialAxialLengthGaugeInteraction",
+    "SphericalOneRadialAxialVelocityGaugeInteraction",
     "diagonalize_fixed_m",
 ]

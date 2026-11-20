@@ -27,11 +27,11 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Step 2 is complete: the axial position operator is implemented and validated
-for both the full angular expansion and fixed-`m` blocks. The remaining
-implementation steps have not started. This document records the settled
-design and the validation sequence. It does not claim radial, angular,
-time-step, pulse, or absorber convergence.
+Steps 2--4 are complete: the axial position and momentum operators and the
+fixed-`m` length- and velocity-gauge interactions are implemented and
+validated. The remaining implementation steps have not started. This
+document records the settled design and the validation sequence. It does not
+claim radial, angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 
@@ -228,6 +228,11 @@ p_z \simeq i\mu[H_0,z],
 allowing for finite-basis and boundary errors. Building full-angular
 operators now avoids duplicating the spatial algebra when arbitrary molecular
 orientations are added later.
+
+The production `z` and `p_z` actions delegate their reduced-radial angular
+algebra and FEM-DVR first-derivative action to the public grid-lib
+`SphericalReducedRadialOperators` primitive. Grid-tdse retains the physical
+Hamiltonian, fixed-system policy, field coupling, observables, and metadata.
 
 ## 5. Absorbing boundaries
 
@@ -434,6 +439,15 @@ Acceptance gate:
 
 - direct and commutator actions agree within a documented discretization
   tolerance on successively refined development grids.
+
+Implemented validation uses the H2+ ground state on the fixed radial extent
+`[0, 1, 3, 6]` bohr and the combined refinement sequence
+`(points_per_element, l_max) = (4, 2), (6, 4), (8, 6)`. The relative
+FEM-DVR norm difference between the direct action and
+`i*mu*(H_0*z - z*H_0)` decreases from `1.36e-1` through `4.16e-2` to
+`1.86e-2`. The nonzero difference is expected from finite angular projection
+and radial discretization; the acceptance test requires monotonic decrease
+and a final relative difference below `2.0e-2`.
 
 ### Step 4: add axial length- and velocity-gauge interactions
 
