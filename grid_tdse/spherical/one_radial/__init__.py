@@ -21,6 +21,10 @@ from .observables import (
     SphericalOneRadialRadialProbabilitySample,
     SphericalOneRadialRadialProbabilitySeries,
 )
+from .preconditioner import (
+    SphericalOneRadialKineticCrankNicolsonPreconditioner,
+)
+
 __all__ = [
     "NuclearPotentialMethod",
     "OneElectronDiatomicEigenstates",
@@ -31,6 +35,7 @@ __all__ = [
     "SphericalOneRadialAxialVelocityGaugeInteraction",
     "SphericalOneRadialDynamicsObservables",
     "SphericalOneRadialFixedMTimeDependentHamiltonian",
+    "SphericalOneRadialKineticCrankNicolsonPreconditioner",
     "SphericalOneRadialRadialProbabilitySample",
     "SphericalOneRadialRadialProbabilitySeries",
     "diagonalize_fixed_m",

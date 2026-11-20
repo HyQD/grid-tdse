@@ -119,12 +119,24 @@ def test_crank_nicolson_convenience_path_does_not_pass_batched_overlaps(
     hamiltonian, eigenstates = stationary_problem
     action = SphericalOneRadialFixedMTimeDependentHamiltonian(hamiltonian)
 
+    propagator = _propagator(
+        "crank-nicolson", final_time=0.01, time_step=0.01
+    )
     result = action.propagate(
-        _propagator("crank-nicolson", final_time=0.01, time_step=0.01),
+        propagator,
         eigenstates.orbital,
     )
 
     assert result.norm == pytest.approx(result.initial_norm, abs=2.0e-12)
+    energy = eigenstates.electronic_energy
+    cayley_phase = (1.0 - 0.5j * propagator.time_step * energy) / (
+        1.0 + 0.5j * propagator.time_step * energy
+    )
+    np.testing.assert_allclose(
+        result.state,
+        cayley_phase * eigenstates.orbital,
+        atol=2.0e-12,
+    )
 
 
 def test_mask_is_installed_as_post_step_transformation(stationary_problem):

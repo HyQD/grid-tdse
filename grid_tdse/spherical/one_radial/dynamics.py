@@ -16,6 +16,9 @@ from .dipole import (
     SphericalOneRadialAxialVelocityGaugeInteraction,
 )
 from .hamiltonian import OneElectronDiatomicHamiltonian
+from .preconditioner import (
+    SphericalOneRadialKineticCrankNicolsonPreconditioner,
+)
 
 
 class SphericalOneRadialFixedMTimeDependentHamiltonian:
@@ -156,6 +159,25 @@ class SphericalOneRadialFixedMTimeDependentHamiltonian:
         self.field_free_hamiltonian.validate_fixed_m_state(
             initial_state, self.m
         )
+        preconditioner = kwargs.get("preconditioner")
+        if isinstance(
+            preconditioner,
+            SphericalOneRadialKineticCrankNicolsonPreconditioner,
+        ):
+            if preconditioner.hamiltonian is not self.field_free_hamiltonian:
+                raise ValueError(
+                    "preconditioner belongs to a different Hamiltonian"
+                )
+            if preconditioner.m != self.m:
+                raise ValueError(
+                    "preconditioner magnetic sector does not match dynamics"
+                )
+            preconditioner.validate_propagator(propagator)
+            dynamics_metadata = dict(kwargs.get("dynamics_metadata") or {})
+            dynamics_metadata.setdefault(
+                "preconditioner", preconditioner.metadata
+            )
+            kwargs["dynamics_metadata"] = dynamics_metadata
         if self.absorbing_boundaries is not None:
             self.absorbing_boundaries.validate_integrator(
                 propagator.integrator

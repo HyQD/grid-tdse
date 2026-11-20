@@ -27,13 +27,14 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--7 are complete: the axial position and momentum operators, the
+Steps 2--9 are complete: the axial position and momentum operators, the
 fixed-`m` length- and velocity-gauge interactions, the spherical radial
 absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
-and validated together with raw observables and cadence-controlled radial
-sampling. The remaining implementation steps have not started. This document
-records the settled design and the validation sequence. It does not claim
-radial, angular, time-step, pulse, or absorber convergence.
+and validated together with raw observables, cadence-controlled radial
+sampling, cross-integrator tests, and a mass-aware radial-kinetic CN
+preconditioner. The remaining implementation steps have not started. This
+document records the settled design and the validation sequence. It does not
+claim radial, angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 
@@ -556,6 +557,24 @@ Acceptance gate:
 - SIA+CAP gives controlled monotonic outer-region loss;
 - SIL+CAP is rejected.
 
+Status: complete. The regression problem is H2+ at `R = 2` bohr on element
+boundaries `[0, 1, 3, 6]` with six Lobatto points per element, `l_max = 3`,
+and `m = 0`. The short length-gauge field is
+
+```math
+E(t)=0.02\sin^2(\pi t/0.2)\sin(3t),
+\qquad 0\leq t\leq 0.2.
+```
+
+A SIA calculation with `dt = 0.001` is the fine-step oracle. At `dt = 0.01`,
+the final-state physical-norm distance from that oracle is required to be
+below `3e-6`, and the raw axial-position numerator must agree within `3e-8`.
+Each of CN, SIL, and SIA must improve its final-state error when the step is
+halved from `0.02` to `0.01`. A separate outer-region state verifies agreement
+with a radial mask, monotonic SIA+CAP norm loss, and pre-propagation rejection
+of SIL+CAP. These are implementation regressions, not physical convergence
+claims.
+
 ### Step 9: complete practical CN support
 
 Measure unpreconditioned iteration counts, implement or adapt a compatible
@@ -566,6 +585,17 @@ Acceptance gate:
 
 - mask-based CN completes the development pulse reliably with recorded
   iteration diagnostics.
+
+Status: complete for Hermitian and mask-based CN. The public
+`SphericalOneRadialKineticCrankNicolsonPreconditioner` factorizes the radial
+kinetic-plus-centrifugal CN block independently for each retained `l` channel.
+It uses the configured particle mass and radial-first fixed-`m` layout, while
+omitting the nuclear potential, field interaction, and absorber. Construction
+metadata records those choices. Both GMRES and BiCGSTAB are regression-tested
+on the masked development pulse; accepted-step iteration and residual
+diagnostics are retained by `RealTimePropagationResult`, and the
+preconditioned solve must use fewer total iterations than its unpreconditioned
+counterpart. CN+CAP remains outside this completed gate.
 
 ### Step 10: add the high-level preparation interface
 
