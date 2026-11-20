@@ -27,14 +27,18 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--9 are complete: the axial position and momentum operators, the
+Steps 2--11 are complete: the axial position and momentum operators, the
 fixed-`m` length- and velocity-gauge interactions, the spherical radial
 absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
 and validated together with raw observables, cadence-controlled radial
 sampling, cross-integrator tests, and a mass-aware radial-kinetic CN
-preconditioner. The remaining implementation steps have not started. This
-document records the settled design and the validation sequence. It does not
-claim radial, angular, time-step, pulse, or absorber convergence.
+preconditioner. A public high-level calculation object now prepares these
+components together with progress, custom sampling, checkpoints, exact
+restart, and compatible continuation. Paired-gauge propagation and projected
+in-pulse gauge transformations establish the expected angular-refinement
+trend. The remaining implementation steps have not started. This document
+records the settled design and the validation sequence. It does not claim
+radial, angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 
@@ -317,11 +321,11 @@ sampling, checkpointing, restart, and continuation remain responsibilities of
 
 ## 7. High-level interface
 
-The high-level interface should be similar in spirit to the two-radial
-non-Born--Oppenheimer dynamics interface. A representative form is:
+The high-level interface follows the two-radial non-Born--Oppenheimer
+dynamics calculation-object convention:
 
 ```python
-calculation = prepare_spherical_one_radial_dynamics(
+calculation = OneElectronDiatomicTDSE(
     system=system,
     nodes=nodes,
     n_points=n_points,
@@ -330,7 +334,7 @@ calculation = prepare_spherical_one_radial_dynamics(
     initial_state=initial_state,
     fields=laser,
     field_gauge="length",
-    absorber=absorber,
+    mask=mask,
     integrator="sia",
     initial_time=0.0,
     final_time=final_time,
@@ -338,13 +342,13 @@ calculation = prepare_spherical_one_radial_dynamics(
     radial_probability_interval=1,
 )
 
-result = calculation.propagate()
+result = calculation.run()
 ```
 
-The final function and result names should follow established package naming
-after inspecting the two-radial interface. The important contract is the
-separation of system, representation, initial state, field, absorber,
-integrator, sampling, and persistence settings.
+The object also exposes `propagate()` as an alias, plus `resume()` and
+`continue_from()`. The important contract is the separation of system,
+representation, initial state, field, absorber, integrator, sampling, and
+persistence settings.
 
 The public system already accepts `particle_mass`; the high-level preparation
 path must preserve it in Hamiltonian construction, velocity-gauge coupling,
@@ -609,6 +613,22 @@ Acceptance gate:
 - the same initial state and physical inputs can be propagated with CN, SIL,
   or SIA by changing only integrator configuration.
 
+Status: complete. `OneElectronDiatomicTDSE` follows the two-radial calculation
+object convention and exposes `run()`/`propagate()`, `resume()`, and
+`continue_from()`. It constructs the mass-aware Hamiltonian and fixed-`m`
+dynamics from a `OneElectronDiatomicSystem`, preserves an arbitrary compatible
+initial state without normalization, selects length or velocity gauge and a
+mask or CAP, and prepares CN, SIL, or SIA from a validated options mapping.
+CN uses the Step 9 preconditioner by default and may disable it explicitly.
+
+The object samples the Step 7 raw observables by default, merges non-conflicting
+custom samplers, exposes cadence-controlled radial probabilities, supports
+text or `tqdm` progress, and records the system, grid, mass, fields, gauge,
+absorber, integrator, preconditioner, initial-state identity, and observable
+policy in checkpoint metadata. Regression tests propagate the same state and
+pulse with all three integrators, exercise velocity-gauge mechanical momentum,
+masked CN, checkpoint continuation, custom sampling, and validation failures.
+
 ### Step 11: establish gauge equivalence
 
 Propagate one weak short pulse in both gauges. At pulse endpoints where the
@@ -618,8 +638,39 @@ appropriate gauge transformation.
 
 Acceptance gate:
 
-- length- and velocity-gauge differences decrease with radial, angular, and
-  time-step refinement.
+- each gauge is independently stable under radial and time-step refinement;
+- after those errors are controlled, length- and velocity-gauge differences
+  decrease with angular refinement;
+- at intermediate times, the projected gauge-transformed state discrepancy
+  and projection norm defect decrease with angular refinement.
+
+Status: complete. The public `transform_axial_gauge_state()` helper applies
+the exact axial spatial gauge phase on a Gauss--Legendre angular quadrature
+and projects it back into the retained fixed-`m` spherical-harmonic space. It
+therefore exposes, rather than hides, the loss caused by an angular space that
+is not closed under the gauge transformation. The omitted velocity-gauge
+`A_z**2` contribution remains a spatially uniform phase and is not
+reconstructed.
+
+The regression qualification uses paired one-cycle `SineSquareLaser` fields
+with `E0=0.05`, `omega=4`, phase zero, and exactly vanishing endpoint vector
+potential. It recomputes the projected H2+ ground state at each cutoff and
+compares `l_max=2,4,6,8`. Norms, ground-state populations, total dipoles,
+field-free energies, and phase-aligned states are compared at the final
+endpoint. Stored in-pulse states are compared only after transforming the
+velocity-gauge state into length gauge. The endpoint state, transformed-state,
+projection-defect, and full dipole-history discrepancies all decrease
+monotonically across the compact angular sequence and fall by more than one
+order of magnitude between `l_max=2` and `l_max=8`.
+
+Separate coarse-time and coarse-radial cases demonstrate that these errors
+must be controlled before interpreting the angular trend. A further radial
+refinement verifies stability instead of demanding strict monotonicity after
+the radial error reaches its floor. These small cutoffs are a regression test
+of the convergence mechanism, not a claim that the physical H2+ ground state
+or driven response is converged. Scientific calculations should begin near
+`l_max=12` and continue through at least `16` and `20`, with higher cutoffs if
+the target observable requires them.
 
 ### Step 12: add the development example
 

@@ -165,6 +165,11 @@ class SphericalOneRadialDynamicsObservables:
             samples=tuple(self._radial_samples),
         )
 
+    def reset_radial_probability_samples(self) -> None:
+        """Discard samples retained by an earlier propagation call."""
+
+        self._radial_samples.clear()
+
     @property
     def metadata(self) -> dict:
         """Return a JSON-compatible description of sampled quantities."""

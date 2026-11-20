@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from numbers import Real
+from typing import Literal
 
 import numpy as np
 from scipy.linalg import lu_factor, lu_solve
 
 from .hamiltonian import OneElectronDiatomicHamiltonian
+
+
+OneRadialRealTimePreconditionerName = Literal["kinetic-channel-lu"]
 
 
 class SphericalOneRadialKineticCrankNicolsonPreconditioner:
@@ -132,3 +136,39 @@ class SphericalOneRadialKineticCrankNicolsonPreconditioner:
             "active_radial_points": int(self.hamiltonian.r.size),
             "state_axis_order": "radial_angular",
         }
+
+
+def build_spherical_one_radial_real_time_preconditioner(
+    hamiltonian: OneElectronDiatomicHamiltonian,
+    *,
+    m: int,
+    time_step: Real,
+    preconditioner: (
+        bool | OneRadialRealTimePreconditionerName | None
+    ) = True,
+):
+    """Build the public one-radial CN preconditioner selection.
+
+    ``True`` selects the kinetic-channel LU approximation. ``False`` or
+    ``None`` disables preconditioning.
+    """
+
+    if isinstance(preconditioner, (bool, np.bool_)):
+        name = "kinetic-channel-lu" if preconditioner else None
+    elif preconditioner is None:
+        name = None
+    elif isinstance(preconditioner, str):
+        name = preconditioner
+    else:
+        raise TypeError("preconditioner must be boolean, a string, or None")
+    if name is None:
+        return None
+    if name != "kinetic-channel-lu":
+        raise ValueError(
+            "preconditioner must be 'kinetic-channel-lu' or disabled"
+        )
+    return SphericalOneRadialKineticCrankNicolsonPreconditioner(
+        hamiltonian,
+        m=m,
+        time_step=time_step,
+    )
