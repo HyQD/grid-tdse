@@ -27,12 +27,12 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--5 are complete: the axial position and momentum operators, the
-fixed-`m` length- and velocity-gauge interactions, and the spherical radial
-absorber wrapper are implemented and validated. The remaining implementation
-steps have not started. This document records the settled design and the
-validation sequence. It does not claim radial, angular, time-step, pulse, or
-absorber convergence.
+Steps 2--6 are complete: the axial position and momentum operators, the
+fixed-`m` length- and velocity-gauge interactions, the spherical radial
+absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
+and validated. The remaining implementation steps have not started. This
+document records the settled design and the validation sequence. It does not
+claim radial, angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 

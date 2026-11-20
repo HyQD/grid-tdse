@@ -239,6 +239,11 @@ class OneElectronDiatomicHamiltonian:
             raise ValueError(f"abs(m) must not exceed {self.m_max}")
         return m
 
+    def validate_m(self, m):
+        """Return a validated signed magnetic quantum number."""
+
+        return self._validated_m(m)
+
     def fixed_m_shape(self, m):
         """Return the radial-first state shape for signed magnetic number ``m``."""
 
@@ -366,3 +371,64 @@ class OneElectronDiatomicHamiltonian:
         return np.sum(
             left.conj() * right * self.weights.reshape(weight_shape)
         )
+
+    def inner_products(self, left, right) -> np.ndarray:
+        """Return overlaps of several left states with one right state.
+
+        The batched operation avoids one Python callback per Krylov basis
+        vector during Arnoldi and Lanczos orthogonalization.
+        """
+
+        right_values = np.asarray(right)
+        if right_values.ndim != 2:
+            raise ValueError("right must contain exactly one state")
+        if right_values.shape[-2] != self.r.size:
+            raise ValueError("the penultimate axis must be the radial grid")
+        if not np.issubdtype(right_values.dtype, np.number):
+            raise TypeError("right must contain numeric values")
+
+        left_values = np.asarray(left)
+        if left_values.ndim != 3:
+            raise ValueError("left must be a sequence of states")
+        if left_values.shape[1:] != right_values.shape:
+            raise ValueError(
+                "left states and right must have the same state shape"
+            )
+        if not np.issubdtype(left_values.dtype, np.number):
+            raise TypeError("left must contain numeric values")
+        if not np.all(np.isfinite(left_values)) or not np.all(
+            np.isfinite(right_values)
+        ):
+            raise ValueError("left and right must contain only finite values")
+
+        weighted_right = (right_values * self.weights[:, None]).reshape(-1)
+        return left_values.reshape((left_values.shape[0], -1)).conj() @ (
+            weighted_right
+        )
+
+    def archive_metadata(self) -> dict:
+        """Return JSON-compatible system and discretization metadata."""
+
+        return {
+            "coordinate_system": "spherical_one_radial",
+            "nodes": list(self.nodes),
+            "n_points": list(self.n_points),
+            "active_radial_points": int(self.r.size),
+            "radial_boundary_conditions": "homogeneous_dirichlet",
+            "l_max": self.l_max,
+            "m_max": self.m_max,
+            "nuclear_L_max": self.nuclear_L_max,
+            "nuclear_M_max": self.nuclear_M_max,
+            "nuclear_potential_method": self.nuclear_method,
+            "metric_representation": "femdvr_nodal_diagonal_overlap",
+            "state_axis_order": "radial_angular",
+            "nuclear_charge1": self.system.nuclear_charge1,
+            "nuclear_charge2": self.system.nuclear_charge2,
+            "internuclear_distance": self.system.internuclear_distance,
+            "particle_mass": self.system.particle_mass,
+            "system_name": self.system.name,
+            "nuclear_repulsion_energy": (
+                self.system.nuclear_repulsion_energy
+            ),
+            "public_state_representation": "physical_nodal",
+        }

@@ -7,6 +7,7 @@ from .dipole import (
     SphericalOneRadialAxialLengthGaugeInteraction,
     SphericalOneRadialAxialVelocityGaugeInteraction,
 )
+from .dynamics import SphericalOneRadialFixedMTimeDependentHamiltonian
 from .ground_state import (
     OneElectronDiatomicEigenstates,
     diagonalize_fixed_m,
@@ -23,5 +24,6 @@ __all__ = [
     "SphericalOneRadialAbsorbingBoundaries",
     "SphericalOneRadialAxialLengthGaugeInteraction",
     "SphericalOneRadialAxialVelocityGaugeInteraction",
+    "SphericalOneRadialFixedMTimeDependentHamiltonian",
     "diagonalize_fixed_m",
 ]
