@@ -4,6 +4,7 @@ from numbers import Integral
 from typing import Literal
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from grid_lib.pseudospectral_grids import (
     FEMDVR,
@@ -121,10 +122,65 @@ class OneElectronDiatomicHamiltonian:
         self.potential = self._build_nuclear_potential()
         self.orbital_lm = self.potential.orbital_lm
         self.orbital_shape = self.potential.orbital_shape
+        self._z_angular = self._build_z_angular_matrix()
+        self._fixed_m_z_angular = {}
         self._centrifugal = np.asarray(
             [l * (l + 1) for l, _ in self.orbital_lm], dtype=float
         )[None, :] / self.r[:, None] ** 2
         self._centrifugal.setflags(write=False)
+
+    def _build_z_angular_matrix(self):
+        r"""Return the sparse matrix of ``cos(theta)`` in channel order."""
+
+        channel_index = {
+            channel: index for index, channel in enumerate(self.orbital_lm)
+        }
+        rows = []
+        columns = []
+        coefficients = []
+        for column, (l_value, m_value) in enumerate(self.orbital_lm):
+            output = (l_value + 1, m_value)
+            if output not in channel_index:
+                continue
+            row = channel_index[output]
+            coefficient = np.sqrt(
+                ((l_value + 1) ** 2 - m_value**2)
+                / ((2 * l_value + 1) * (2 * l_value + 3))
+            )
+            rows.extend((row, column))
+            columns.extend((column, row))
+            coefficients.extend((coefficient, coefficient))
+        n_channels = len(self.orbital_lm)
+        return csr_matrix(
+            (coefficients, (rows, columns)),
+            shape=(n_channels, n_channels),
+        )
+
+    def _fixed_m_channel_indices(self, m):
+        m = self._validated_m(m)
+        return np.asarray(
+            [
+                index
+                for index, (_, magnetic) in enumerate(self.orbital_lm)
+                if magnetic == m
+            ],
+            dtype=int,
+        )
+
+    def _fixed_m_z_angular_matrix(self, m):
+        m = self._validated_m(m)
+        if m not in self._fixed_m_z_angular:
+            indices = self._fixed_m_channel_indices(m)
+            self._fixed_m_z_angular[m] = self._z_angular[indices][
+                :, indices
+            ].tocsr()
+        return self._fixed_m_z_angular[m]
+
+    def _apply_z_angular(self, values, angular):
+        flat = values.reshape(-1, values.shape[-1])
+        transformed = angular.dot(flat.T).T.reshape(values.shape)
+        radial_shape = (1,) * (values.ndim - 2) + (self.r.size, 1)
+        return transformed * self.r.reshape(radial_shape)
 
     def _validate_nuclear_element_boundary(self, nodes) -> None:
         scale = max(
@@ -203,6 +259,12 @@ class OneElectronDiatomicHamiltonian:
 
     __call__ = apply
 
+    def apply_z(self, orbitals):
+        r"""Apply ``z = r cos(theta)`` to full angular expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._apply_z_angular(values, self._z_angular)
+
     def _validated_m(self, m):
         if isinstance(m, (bool, np.bool_)) or not isinstance(m, Integral):
             raise TypeError("m must be an integer")
@@ -252,6 +314,16 @@ class OneElectronDiatomicHamiltonian:
             optimize=True,
         )
         return kinetic + potential
+
+    def apply_z_fixed_m(self, orbitals, m=0):
+        r"""Apply ``z = r cos(theta)`` in one signed-``m`` block."""
+
+        m = self._validated_m(m)
+        values = self._validated_fixed_m_orbitals(orbitals, m)
+        return self._apply_z_angular(
+            values,
+            self._fixed_m_z_angular_matrix(m),
+        )
 
     def fixed_m_metric_weights(self, m):
         """Return diagonal metric entries in flattened radial-first order."""

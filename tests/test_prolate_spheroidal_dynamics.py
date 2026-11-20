@@ -440,6 +440,16 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
     spherical_ground_state = diagonalize_spherical_fixed_m(
         spherical_hamiltonian, m=0, n_states=1
     )
+    np.testing.assert_allclose(
+        spherical_hamiltonian.apply_z_fixed_m(
+            spherical_ground_state.orbital, 0
+        ),
+        _spherical_fixed_m_z(
+            spherical_hamiltonian, spherical_ground_state.orbital, 0
+        ),
+        atol=2.0e-14,
+        rtol=2.0e-14,
+    )
     pulse = SineSquareLaser(
         E0=0.01,
         omega=2.0,
@@ -454,8 +464,8 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
     def spherical_action(state, time):
         return spherical_hamiltonian.apply_fixed_m(
             state, 0
-        ) + pulse(time) * _spherical_fixed_m_z(
-            spherical_hamiltonian, state
+        ) + pulse(time) * spherical_hamiltonian.apply_z_fixed_m(
+            state, 0
         )
 
     propagator = _propagator("sia", duration, 0.1)
@@ -477,7 +487,7 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
         samplers={
             "dipole": lambda state, time: -spherical_hamiltonian.inner_product(
                 state,
-                _spherical_fixed_m_z(spherical_hamiltonian, state),
+                spherical_hamiltonian.apply_z_fixed_m(state, 0),
             ).real
         },
     )
