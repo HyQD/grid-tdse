@@ -16,6 +16,11 @@ from .hamiltonian import (
     NuclearPotentialMethod,
     OneElectronDiatomicHamiltonian,
 )
+from .observables import (
+    SphericalOneRadialDynamicsObservables,
+    SphericalOneRadialRadialProbabilitySample,
+    SphericalOneRadialRadialProbabilitySeries,
+)
 __all__ = [
     "NuclearPotentialMethod",
     "OneElectronDiatomicEigenstates",
@@ -24,6 +29,9 @@ __all__ = [
     "SphericalOneRadialAbsorbingBoundaries",
     "SphericalOneRadialAxialLengthGaugeInteraction",
     "SphericalOneRadialAxialVelocityGaugeInteraction",
+    "SphericalOneRadialDynamicsObservables",
     "SphericalOneRadialFixedMTimeDependentHamiltonian",
+    "SphericalOneRadialRadialProbabilitySample",
+    "SphericalOneRadialRadialProbabilitySeries",
     "diagonalize_fixed_m",
 ]

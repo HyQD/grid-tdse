@@ -27,12 +27,13 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--6 are complete: the axial position and momentum operators, the
+Steps 2--7 are complete: the axial position and momentum operators, the
 fixed-`m` length- and velocity-gauge interactions, the spherical radial
 absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
-and validated. The remaining implementation steps have not started. This
-document records the settled design and the validation sequence. It does not
-claim radial, angular, time-step, pulse, or absorber convergence.
+and validated together with raw observables and cadence-controlled radial
+sampling. The remaining implementation steps have not started. This document
+records the settled design and the validation sequence. It does not claim
+radial, angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 
@@ -356,12 +357,53 @@ Sample the following by default:
 - raw physical field-free energy numerator, excluding any CAP;
 - raw electronic and total axial dipole numerators;
 - raw induced axial dipole numerator relative to the initial sample;
+- raw canonical electronic momentum numerator
+  `Re <Psi(t)|p_z|Psi(t)>`;
+- in velocity gauge, the raw mechanical electronic momentum numerator;
 - ground-state population when a reference ground state is supplied;
 - unnormalized radial probability distribution `P(r,t)`;
 - integrator diagnostics supplied by `RealTimePropagator`.
 
 Do not normalize observables during sampling. Conditional expectations remain
 postprocessing quantities obtained from the raw numerator and sampled norm.
+
+Define the raw induced total-dipole numerator as
+
+```math
+D_z^{\mathrm{ind}}(t)
+=
+D_z(t)-d_z(0)N(t),
+```
+
+where `d_z(0) = D_z(0)/N(0)` is the initial conditional total dipole. Scaling
+the reference by the instantaneous norm prevents absorber-induced norm loss
+from appearing as a false induced dipole.
+
+For the velocity-gauge convention used here, the mechanical momentum is
+
+```math
+\pi_z(t)=p_z-q_e A_z(t),
+```
+
+where `q_e = -1` for the electron and `A_z(t)` is the sum of all configured
+axial vector-potential profiles. Its unnormalized sampled numerator is
+
+```math
+P_z^{\mathrm{mech}}(t)
+=
+\mathrm{Re}\langle\Psi(t)|p_z|\Psi(t)\rangle
+-q_e A_z(t)N(t).
+```
+
+Thus, for an electron,
+`P_z_mech(t) = P_z_canonical(t) + A_z(t) * N(t)`. Both momentum numerators
+must remain unnormalized during sampling. The corresponding conditional
+momenta are obtained by division by `N(t)` in postprocessing. The nuclei are
+clamped, so no nuclear momentum contribution is included.
+
+The direct-force dipole-acceleration observable and acceleration-form HHG
+spectrum are deliberately deferred to Step 14. They are not part of the
+initial Step 7 sampling gate.
 
 For fixed `m`, define
 
@@ -488,14 +530,17 @@ Acceptance gate:
 
 ### Step 7: add observables and cadence-aware radial sampling
 
-Implement raw norm, energy, dipole, induced-dipole, optional reference-state
-population, and `P(r)` sampling. Ensure that CAP and mask loss remain visible
-and that the physical energy excludes the CAP.
+Implement raw norm, energy, dipole, induced-dipole, canonical momentum,
+velocity-gauge mechanical momentum, optional reference-state population, and
+`P(r)` sampling. Ensure that CAP and mask loss remain visible and that the
+physical energy excludes the CAP.
 
 Acceptance gate:
 
 - the quadrature integral of every stored `P(r)` equals the corresponding
   sampled norm;
+- the velocity-gauge mechanical and canonical momentum numerators differ by
+  exactly `-q_e * A_z(t) * N(t)`;
 - interval and final-sample behavior are tested.
 
 ### Step 8: validate the three initial integrators
@@ -588,9 +633,86 @@ Acceptance gate:
 - the implementation is validated against the existing spherical stationary
   solver and the independent prolate representation.
 
+### Step 14: add the direct-force acceleration form for HHG
+
+First add a reusable spherical point-charge force operator to grid-lib. For
+nuclei at `z = s_a * a`, with `s_a = +/-1`, construct the analytic multipole
+coefficients of
+
+```math
+F_{\mathrm{nuc},z}(\mathbf r)
+=
+-\frac{\partial V_{\mathrm{nuc}}}{\partial z}
+=
+-\sum_a Z_a
+\frac{z-s_a a}{|\mathbf r-s_a a\hat{\mathbf z}|^3}.
+```
+
+The grid-lib implementation must provide full-angular and fixed-`m` actions,
+use Gaunt-coupled angular matrices through `L = 2*l_max`, support batched
+radial-first states, and evaluate the analytically projected bridge-node
+coefficient at `r = a`. It must not select either one-sided radial limit at
+the nuclear FEM-DVR boundary.
+
+In grid-tdse, bind this spatial operator to the configured molecular charges
+and form the raw dipole-acceleration numerator
+
+```math
+A_d(t)
+=
+\frac{q_e}{\mu}
+\left[
+\langle\Psi(t)|F_{\mathrm{nuc},z}|\Psi(t)\rangle
++q_e E_z(t)N(t)
+\right].
+```
+
+The physical electric field `E_z(t)` must be available explicitly. In
+velocity gauge, do not mistake the configured vector potential `A_z(t)` for
+the electric field; obtain `E_z(t)` through a validated public field API or
+require a paired physical electric-field profile. The CAP is excluded from
+the physical force observable. Any non-Hermitian absorber corrections to the
+Ehrenfest relation must be documented rather than folded into the direct
+force silently.
+
+Provide common postprocessing for the three HHG forms:
+
+```math
+S_L(\omega) \mathrel{\propto}
+\omega^4 |\widetilde d_z(\omega)|^2,
+```
+
+```math
+S_P(\omega) \mathrel{\propto}
+\omega^2 |\widetilde{\dot d}_z(\omega)|^2,
+```
+
+and
+
+```math
+S_A(\omega) \mathrel{\propto}
+|\widetilde{\ddot d}_z(\omega)|^2.
+```
+
+The momentum form must use mechanical momentum in velocity gauge. Apply the
+same time window, Fourier convention, frequency grid, and normalization when
+comparing all three forms.
+
+Acceptance gate:
+
+- the direct force is metric Hermitian in the finite spherical basis;
+- analytic force multipoles agree with independent angular quadrature for
+  radial points below, at, and above the nuclear radius;
+- homonuclear H2+ has the expected odd axial-force parity;
+- the direct-force expectation approaches the momentum-derivative and
+  discrete-commutator results under radial and angular refinement;
+- length, momentum, and acceleration HHG spectra agree over the converged
+  plateau and cutoff within documented tolerances;
+- absorber-induced violations of the formal equivalence are quantified.
+
 ## 11. Validation matrix
 
-The initial test matrix must include:
+The complete validation matrix must include:
 
 1. analytic `z` angular selection rules;
 2. `z` and `p_z` metric Hermiticity;
@@ -608,7 +730,9 @@ The initial test matrix must include:
 14. arbitrary compatible initial-state propagation;
 15. `P(r)` normalization and sampling cadence;
 16. checkpoint, exact restart, and continuation equivalence;
-17. short-pulse comparison with the prolate-spheroidal representation.
+17. short-pulse comparison with the prolate-spheroidal representation;
+18. direct-force, momentum-derivative, and commutator acceleration agreement;
+19. length-, momentum-, and acceleration-form HHG agreement.
 
 Correctness tests must use deliberately small grids. Physical production
 calculations require independent convergence in radial extent, FEM-DVR order,
