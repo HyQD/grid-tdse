@@ -27,7 +27,7 @@ The reference development system is clamped H2+ at internuclear distance
 input, so reduced-mass and other effective-mass calculations do not require a
 new implementation.
 
-Steps 2--12 are complete: the axial position and momentum operators, the
+Steps 2--13 are complete: the axial position and momentum operators, the
 fixed-`m` length- and velocity-gauge interactions, the spherical radial
 absorber wrapper, and the fixed-`m` time-dependent Hamiltonian are implemented
 and validated together with raw observables, cadence-controlled radial
@@ -37,9 +37,11 @@ components together with progress, custom sampling, checkpoints, exact
 restart, and compatible continuation. Paired-gauge propagation and projected
 in-pulse gauge transformations establish the expected angular-refinement
 trend, and a public-interface development example exercises the complete
-workflow. The remaining implementation steps have not started. This document
-records the settled design and the validation sequence. It does not claim
-radial, angular, time-step, pulse, or absorber convergence.
+workflow. The public dynamics documentation and the independent
+prolate-spheroidal real-time qualification now complete the initial
+implementation milestone. Step 14 has not started. This document records the
+settled design and the validation sequence. It does not claim radial,
+angular, time-step, pulse, or absorber convergence.
 
 ## 2. Existing foundation and present limitation
 
@@ -59,13 +61,13 @@ also provides sampling, progress reporting, post-step transformations,
 rolling checkpoints, exact restart, and continuation. The present work must
 reuse that propagator rather than introduce a second time-integration layer.
 
-The one-radial field-free action is already propagation-capable. A regression
-test constructs a local length-gauge `z` action and uses the generic SIA
-propagator to compare weak-pulse H2+ dynamics with the prolate-spheroidal
-representation. That test demonstrates feasibility, but the spherical
-one-radial package still lacks reusable field operators, absorbers, a
+Before this work, the one-radial field-free action was already
+propagation-capable and a regression test constructed a local length-gauge
+`z` action to compare weak-pulse H2+ dynamics with the prolate-spheroidal
+representation. The completed implementation replaces that hand-wired
+spherical path with reusable public field operators, absorbers, a
 time-dependent Hamiltonian wrapper, a high-level dynamics interface, and a
-production example.
+development example.
 
 The older `examples/spherical/one_radial/tdse_h_atom_femdvr.py` example uses
 `grid-lib` operators directly. It is a useful velocity-gauge and CN reference,
@@ -730,6 +732,22 @@ Acceptance gate:
 - documentation and examples use only the public interface;
 - the implementation is validated against the existing spherical stationary
   solver and the independent prolate representation.
+
+Status: complete. `docs/spherical_one_radial_dynamics.md` documents the
+representation, physical operators, gauge and global-phase conventions,
+initial-state policy, integrator/absorber compatibility, unnormalized
+observables, radial sampling, persistence, public example, validation scope,
+and user convergence responsibilities. The document links the established
+spherical stationary-state qualification and the rotation-covariance limits.
+
+The weak-pulse cross-representation regression now drives the spherical side
+through the public `OneElectronDiatomicTDSE` calculation object rather than a
+test-local time-dependent action. It compares the electronic energy, final
+norm, survival probability, and complete dipole history with the independent
+prolate-spheroidal representation. The public H2+ example remains an
+end-to-end archive and CLI regression. The complete local suite passes with
+997 tests in the `scipy-1.18.0` development environment; these compact tests
+qualify implementation consistency but do not claim production convergence.
 
 ### Step 14: add the direct-force acceleration form for HHG
 

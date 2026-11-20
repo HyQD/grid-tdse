@@ -10,7 +10,11 @@ foundation:
 
 - [Runtime dependencies](runtime_dependencies.md)
 - [Installation](installation.md)
-- [One-electron diatomic stationary-state validation](one_electron_diatomic_validation.md)
+- [One-electron diatomic stationary-state
+  validation](one_electron_diatomic_validation.md)
+- [Spherical one-radial laser dynamics](spherical_one_radial_dynamics.md)
+- [Rotation covariance of the spherical one-radial
+  representation](spherical_one_radial_rotation_covariance.md)
 - [Saga environment setup and updates](saga_setup.md)
 - [Olivia environment setup, qualification, and updates](olivia_setup.md)
 - [Two-radial spherical foundation](two_radial_foundation.md)

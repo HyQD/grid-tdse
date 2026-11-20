@@ -11,8 +11,7 @@ from grid_tdse.prolate_spheroidal import (
 from grid_tdse.real_time import RealTimePropagator
 from grid_tdse.spherical.one_radial import (
     OneElectronDiatomicHamiltonian as SphericalHamiltonian,
-)
-from grid_tdse.spherical.one_radial import (
+    OneElectronDiatomicTDSE as SphericalTDSE,
     diagonalize_fixed_m as diagonalize_spherical_fixed_m,
 )
 
@@ -460,14 +459,6 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
     prolate_action = ProlateSpheroidalFixedMTimeDependentHamiltonian(
         prolate_hamiltonian, fields=pulse
     )
-
-    def spherical_action(state, time):
-        return spherical_hamiltonian.apply_fixed_m(
-            state, 0
-        ) + pulse(time) * spherical_hamiltonian.apply_z_fixed_m(
-            state, 0
-        )
-
     propagator = _propagator("sia", duration, 0.1)
     prolate_result = propagator.propagate(
         prolate_ground_state.orbital,
@@ -480,26 +471,37 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
             ).real
         },
     )
-    spherical_result = propagator.propagate(
-        spherical_ground_state.orbital,
-        spherical_action,
-        spherical_hamiltonian.inner_product,
-        samplers={
-            "dipole": lambda state, time: -spherical_hamiltonian.inner_product(
-                state,
-                spherical_hamiltonian.apply_z_fixed_m(state, 0),
-            ).real
+    spherical_calculation = SphericalTDSE(
+        system,
+        nodes=[0.0, 1.0, 2.0, 4.0, 8.0],
+        n_points=[7, 7, 7, 7],
+        l_max=8,
+        m=0,
+        nuclear_L_max=16,
+        nuclear_method="analytic",
+        initial_state=spherical_ground_state.orbital,
+        fields=pulse,
+        field_gauge="length",
+        integrator="sia",
+        integrator_options={
+            "max_krylov_dimension": 30,
+            "rtol": 1.0e-12,
+            "atol": 1.0e-14,
+            "max_refinements": 6,
         },
+        final_time=duration,
+        time_step=0.1,
+        reference_states={"ground": spherical_ground_state.orbital},
+        radial_probability_interval=None,
+        progress_interval=None,
     )
+    spherical_result = spherical_calculation.run(progress=False)
 
     prolate_overlap = prolate_hamiltonian.inner_product(
         prolate_ground_state.orbital, prolate_result.state
     )
-    spherical_overlap = spherical_hamiltonian.inner_product(
-        spherical_ground_state.orbital, spherical_result.state
-    )
     prolate_survival = abs(prolate_overlap) ** 2
-    spherical_survival = abs(spherical_overlap) ** 2
+    spherical_survival = spherical_result.samples["state_populations"][-1, 0]
 
     assert abs(
         prolate_ground_state.electronic_energy
@@ -512,6 +514,6 @@ def test_weak_pulse_agrees_with_spherical_one_radial_representation():
     )
     np.testing.assert_allclose(
         prolate_result.samples["dipole"],
-        spherical_result.samples["dipole"],
+        spherical_result.samples["electronic_dipole_numerator"],
         atol=2.0e-5,
     )
