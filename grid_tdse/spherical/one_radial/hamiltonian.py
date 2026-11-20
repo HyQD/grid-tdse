@@ -12,6 +12,7 @@ from grid_lib.pseudospectral_grids import (
 )
 from grid_lib.spherical_coordinates import (
     SphericalMultipolePotential,
+    SphericalReducedRadialOperators,
     radial_Coulomb,
 )
 
@@ -114,6 +115,13 @@ class OneElectronDiatomicHamiltonian:
         self.second_derivative = np.array(
             self.dvr.D2[1:-1, 1:-1], copy=True
         )
+        self._coordinate_operators = SphericalReducedRadialOperators(
+            self.r,
+            self.dvr.D1[1:-1, 1:-1],
+            l_max=self.l_max,
+            m_max=self.m_max,
+        )
+        self.first_derivative = self._coordinate_operators.first_derivative
         self.r.setflags(write=False)
         self.weights.setflags(write=False)
         self.second_derivative.setflags(write=False)
@@ -121,6 +129,14 @@ class OneElectronDiatomicHamiltonian:
         self.potential = self._build_nuclear_potential()
         self.orbital_lm = self.potential.orbital_lm
         self.orbital_shape = self.potential.orbital_shape
+        if (
+            self.orbital_lm != self._coordinate_operators.orbital_lm
+            or self.orbital_shape != self._coordinate_operators.orbital_shape
+        ):
+            raise RuntimeError(
+                "grid-lib spherical operator and multipole-potential "
+                "channel orderings are incompatible"
+            )
         self._centrifugal = np.asarray(
             [l * (l + 1) for l, _ in self.orbital_lm], dtype=float
         )[None, :] / self.r[:, None] ** 2
@@ -203,6 +219,18 @@ class OneElectronDiatomicHamiltonian:
 
     __call__ = apply
 
+    def apply_z(self, orbitals):
+        r"""Apply ``z = r cos(theta)`` to full angular expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_z(values)
+
+    def apply_pz(self, orbitals):
+        r"""Apply ``p_z = -i partial_z`` to full angular expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_pz(values)
+
     def _validated_m(self, m):
         if isinstance(m, (bool, np.bool_)) or not isinstance(m, Integral):
             raise TypeError("m must be an integer")
@@ -210,6 +238,11 @@ class OneElectronDiatomicHamiltonian:
         if abs(m) > self.m_max:
             raise ValueError(f"abs(m) must not exceed {self.m_max}")
         return m
+
+    def validate_m(self, m):
+        """Return a validated signed magnetic quantum number."""
+
+        return self._validated_m(m)
 
     def fixed_m_shape(self, m):
         """Return the radial-first state shape for signed magnetic number ``m``."""
@@ -227,6 +260,11 @@ class OneElectronDiatomicHamiltonian:
         if not np.all(np.isfinite(values)):
             raise ValueError("orbitals must contain only finite values")
         return values
+
+    def validate_fixed_m_state(self, state, m=0):
+        """Return a validated radial-first fixed-``m`` state array."""
+
+        return self._validated_fixed_m_orbitals(state, m)
 
     def apply_fixed_m(self, orbitals, m):
         """Apply one conserved signed-``m`` Hamiltonian block."""
@@ -252,6 +290,20 @@ class OneElectronDiatomicHamiltonian:
             optimize=True,
         )
         return kinetic + potential
+
+    def apply_z_fixed_m(self, orbitals, m=0):
+        r"""Apply ``z = r cos(theta)`` in one signed-``m`` block."""
+
+        m = self._validated_m(m)
+        values = self._validated_fixed_m_orbitals(orbitals, m)
+        return self._coordinate_operators.apply_z_fixed_m(values, m)
+
+    def apply_pz_fixed_m(self, orbitals, m=0):
+        r"""Apply ``p_z = -i partial_z`` in one signed-``m`` block."""
+
+        m = self._validated_m(m)
+        values = self._validated_fixed_m_orbitals(orbitals, m)
+        return self._coordinate_operators.apply_pz_fixed_m(values, m)
 
     def fixed_m_metric_weights(self, m):
         """Return diagonal metric entries in flattened radial-first order."""
@@ -319,3 +371,64 @@ class OneElectronDiatomicHamiltonian:
         return np.sum(
             left.conj() * right * self.weights.reshape(weight_shape)
         )
+
+    def inner_products(self, left, right) -> np.ndarray:
+        """Return overlaps of several left states with one right state.
+
+        The batched operation avoids one Python callback per Krylov basis
+        vector during Arnoldi and Lanczos orthogonalization.
+        """
+
+        right_values = np.asarray(right)
+        if right_values.ndim != 2:
+            raise ValueError("right must contain exactly one state")
+        if right_values.shape[-2] != self.r.size:
+            raise ValueError("the penultimate axis must be the radial grid")
+        if not np.issubdtype(right_values.dtype, np.number):
+            raise TypeError("right must contain numeric values")
+
+        left_values = np.asarray(left)
+        if left_values.ndim != 3:
+            raise ValueError("left must be a sequence of states")
+        if left_values.shape[1:] != right_values.shape:
+            raise ValueError(
+                "left states and right must have the same state shape"
+            )
+        if not np.issubdtype(left_values.dtype, np.number):
+            raise TypeError("left must contain numeric values")
+        if not np.all(np.isfinite(left_values)) or not np.all(
+            np.isfinite(right_values)
+        ):
+            raise ValueError("left and right must contain only finite values")
+
+        weighted_right = (right_values * self.weights[:, None]).reshape(-1)
+        return left_values.reshape((left_values.shape[0], -1)).conj() @ (
+            weighted_right
+        )
+
+    def archive_metadata(self) -> dict:
+        """Return JSON-compatible system and discretization metadata."""
+
+        return {
+            "coordinate_system": "spherical_one_radial",
+            "nodes": list(self.nodes),
+            "n_points": list(self.n_points),
+            "active_radial_points": int(self.r.size),
+            "radial_boundary_conditions": "homogeneous_dirichlet",
+            "l_max": self.l_max,
+            "m_max": self.m_max,
+            "nuclear_L_max": self.nuclear_L_max,
+            "nuclear_M_max": self.nuclear_M_max,
+            "nuclear_potential_method": self.nuclear_method,
+            "metric_representation": "femdvr_nodal_diagonal_overlap",
+            "state_axis_order": "radial_angular",
+            "nuclear_charge1": self.system.nuclear_charge1,
+            "nuclear_charge2": self.system.nuclear_charge2,
+            "internuclear_distance": self.system.internuclear_distance,
+            "particle_mass": self.system.particle_mass,
+            "system_name": self.system.name,
+            "nuclear_repulsion_energy": (
+                self.system.nuclear_repulsion_energy
+            ),
+            "public_state_representation": "physical_nodal",
+        }
