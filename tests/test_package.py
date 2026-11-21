@@ -38,6 +38,20 @@ def test_package_exports_spherical_two_radial_namespace():
     assert one_radial.diagonalize_fixed_m.__module__ == (
         "grid_tdse.spherical.one_radial.ground_state"
     )
+    assert one_radial.diagonalize_full_angular.__module__ == (
+        "grid_tdse.spherical.one_radial.ground_state"
+    )
+    assert (
+        one_radial.SphericalOneRadialFullAngularTimeDependentHamiltonian.__module__
+        == "grid_tdse.spherical.one_radial.dynamics"
+    )
+    assert (
+        one_radial.SphericalOneRadialFullAngularDynamicsObservables.__module__
+        == "grid_tdse.spherical.one_radial.observables"
+    )
+    assert one_radial.transform_full_angular_axial_gauge_state.__module__ == (
+        "grid_tdse.spherical.one_radial.gauge"
+    )
     assert two_radial.TwoRadialHamiltonian.__module__ == (
         "grid_tdse.spherical.two_radial.hamiltonian"
     )

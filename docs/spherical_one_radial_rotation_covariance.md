@@ -215,34 +215,35 @@ off-axis field-free nuclear potential contains `M != 0` multipoles and mixes
 laboratory `m` channels. Off-axis propagation must therefore use the complete
 angular state rather than one fixed-`m` block.
 
-## Current implementation limitation
+## Current implementation status
 
-The current
-`grid_tdse.spherical.one_radial.OneElectronDiatomicHamiltonian` defaults to
-`m_max = l_max` and `nuclear_L_max = 2*l_max`, but explicitly sets
+`OneElectronDiatomicSystem.from_nuclear_positions()` accepts two explicit
+Cartesian nuclear positions. The spherical one-radial Hamiltonian supports
+their analytic and Poisson Coulomb multipoles, full `(l,m)` actions, complete
+magnetic multipole cutoffs, explicit small-system matrices, and matrix-free
+Davidson stationary states.
 
-```python
-self.nuclear_M_max = 0
+For a non-axial system, the defaults are
+
+```text
+m_max = l_max
+nuclear_L_max = 2*l_max
+nuclear_M_max = min(nuclear_L_max, 2*m_max)
 ```
 
-because the current `OneElectronDiatomicSystem` places both nuclei on the
-`z` axis. The present public Hamiltonian therefore represents only an axial
-nuclear potential even though the underlying `grid-lib` multipole machinery
-can construct nonzero-`M` components.
+An axial system retains `nuclear_M_max = 0` as an optimization. Fixed-`m`
+Hamiltonian blocks reject an off-axis nuclear geometry even if the user
+deliberately supplies a truncated `nuclear_M_max = 0`.
 
-The future arbitrary-orientation extension must:
-
-- accept explicit Cartesian nuclear positions or an equivalent orientation;
-- expose the complete required nuclear `M` range;
-- build and diagonalize the full `(l,m)` Hamiltonian;
-- preserve a common spherical origin and radial grid;
-- retain orientation information in archives and checkpoint compatibility
-  metadata.
-
-For `m_max = l_max` and `nuclear_L_max = 2*l_max`, allowing the multipole
-constructor to choose its complete default magnetic range gives
-`nuclear_M_max = 2*l_max`. Passing `M_max = 0` must remain only an axial
-optimization.
+The full-angular implementation has been qualified by direct-versus-Davidson
+comparisons, rigidly rotated H2+ spectra and eigenstates, Cartesian operator
+covariance, and analytic-versus-Poisson radial refinement. Representation-
+level laboratory-`z` field interactions, gauge transformations, absorbers,
+time-dependent propagation, raw Cartesian observables, and radial
+probability sampling are also implemented and tested. The public real-time
+calculation object still uses the axial fixed-`m` path; full-angular CN
+preconditioning, persistence, and high-level selection remain subsequent
+implementation stages.
 
 ## Recommended validation tests
 

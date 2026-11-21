@@ -43,6 +43,11 @@ class ProlateSpheroidalOneElectronHamiltonian:
     ) -> None:
         if not isinstance(system, OneElectronDiatomicSystem):
             raise TypeError("system must be a OneElectronDiatomicSystem")
+        if not system.is_canonical_axial_geometry:
+            raise ValueError(
+                "prolate-spheroidal coordinates require nuclei at "
+                "(0,0,-a) and (0,0,a)"
+            )
         self.system = system
         self.representation = ProlateSpheroidalRepresentation(
             internuclear_distance=system.internuclear_distance,

@@ -64,8 +64,8 @@ class OneElectronDiatomicHamiltonian:
 
     Orbital arrays have radial-first trailing shape ``(n_r, n_lm)``. The
     first and last FEM-DVR nodes are removed to impose homogeneous radial
-    boundary conditions. During the initial implementation, the common
-    nuclear radius must be an internal finite-element boundary.
+    boundary conditions. Every distinct nonzero nuclear radius must be an
+    internal finite-element boundary.
     """
 
     _NUCLEAR_METHODS = {"analytic", "poisson"}
@@ -79,6 +79,7 @@ class OneElectronDiatomicHamiltonian:
         l_max,
         m_max=None,
         nuclear_L_max=None,
+        nuclear_M_max=None,
         nuclear_method: NuclearPotentialMethod = "analytic",
     ) -> None:
         if not isinstance(system, OneElectronDiatomicSystem):
@@ -93,7 +94,17 @@ class OneElectronDiatomicHamiltonian:
         self.nuclear_L_max = _angular_cutoff(
             nuclear_L_max, "nuclear_L_max"
         )
-        self.nuclear_M_max = 0
+        if nuclear_M_max is None:
+            nuclear_M_max = (
+                0
+                if system.is_z_axis_aligned
+                else min(self.nuclear_L_max, 2 * self.m_max)
+            )
+        self.nuclear_M_max = _angular_cutoff(
+            nuclear_M_max,
+            "nuclear_M_max",
+            upper=self.nuclear_L_max,
+        )
         if nuclear_method not in self._NUCLEAR_METHODS:
             choices = ", ".join(sorted(self._NUCLEAR_METHODS))
             raise ValueError(f"nuclear_method must be one of: {choices}")
@@ -143,24 +154,40 @@ class OneElectronDiatomicHamiltonian:
         self._centrifugal.setflags(write=False)
 
     def _validate_nuclear_element_boundary(self, nodes) -> None:
+        nuclear_radii = np.linalg.norm(
+            self.system.nuclear_positions,
+            axis=1,
+        )
         scale = max(
             1.0,
-            abs(self.system.half_bond_length),
+            float(np.max(nuclear_radii)),
             float(np.max(np.abs(nodes))),
         )
         relative_tolerance = 64.0 * np.finfo(float).eps
         absolute_tolerance = relative_tolerance * scale
-        if not np.any(
-            np.isclose(
-                nodes[1:-1],
-                self.system.half_bond_length,
-                rtol=relative_tolerance,
+        missing = []
+        for radius in nuclear_radii:
+            if np.isclose(
+                radius,
+                0.0,
+                rtol=0.0,
                 atol=absolute_tolerance,
-            )
-        ):
+            ):
+                continue
+            if not np.any(
+                np.isclose(
+                    nodes[1:-1],
+                    radius,
+                    rtol=relative_tolerance,
+                    atol=absolute_tolerance,
+                )
+            ):
+                missing.append(float(radius))
+        if missing:
             raise ValueError(
-                "half_bond_length must coincide with an internal FEM "
-                "element boundary"
+                "every nonzero nuclear radius must coincide with an "
+                "internal FEM element boundary; missing radii: "
+                f"{missing}"
             )
 
     def _build_nuclear_potential(self):
@@ -225,11 +252,35 @@ class OneElectronDiatomicHamiltonian:
         values = self._validated_orbitals(orbitals)
         return self._coordinate_operators.apply_z(values)
 
+    def apply_x(self, orbitals):
+        r"""Apply ``x = r sin(theta) cos(phi)`` to full expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_x(values)
+
+    def apply_y(self, orbitals):
+        r"""Apply ``y = r sin(theta) sin(phi)`` to full expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_y(values)
+
     def apply_pz(self, orbitals):
         r"""Apply ``p_z = -i partial_z`` to full angular expansions."""
 
         values = self._validated_orbitals(orbitals)
         return self._coordinate_operators.apply_pz(values)
+
+    def apply_px(self, orbitals):
+        r"""Apply ``p_x = -i partial_x`` to full expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_px(values)
+
+    def apply_py(self, orbitals):
+        r"""Apply ``p_y = -i partial_y`` to full expansions."""
+
+        values = self._validated_orbitals(orbitals)
+        return self._coordinate_operators.apply_py(values)
 
     def _validated_m(self, m):
         if isinstance(m, (bool, np.bool_)) or not isinstance(m, Integral):
@@ -266,9 +317,22 @@ class OneElectronDiatomicHamiltonian:
 
         return self._validated_fixed_m_orbitals(state, m)
 
+    def validate_state(self, state):
+        """Return a validated full-angular radial-first state array."""
+
+        return self._validated_orbitals(state)
+
+    def _require_axisymmetric_geometry(self) -> None:
+        if not self.system.is_z_axis_aligned:
+            raise ValueError(
+                "fixed-m Hamiltonian blocks require all nuclei on the "
+                "Cartesian z axis"
+            )
+
     def apply_fixed_m(self, orbitals, m):
         """Apply one conserved signed-``m`` Hamiltonian block."""
 
+        self._require_axisymmetric_geometry()
         m = self._validated_m(m)
         values = self._validated_fixed_m_orbitals(orbitals, m)
         l_values = np.arange(abs(m), self.l_max + 1)
@@ -314,6 +378,7 @@ class OneElectronDiatomicHamiltonian:
     def fixed_m_matrix(self, m, *, representation="strong"):
         """Return an explicit strong or Euclidean-Hermitian block matrix."""
 
+        self._require_axisymmetric_geometry()
         m = self._validated_m(m)
         if representation not in {"strong", "symmetric"}:
             raise ValueError("representation must be 'strong' or 'symmetric'")
@@ -355,6 +420,80 @@ class OneElectronDiatomicHamiltonian:
         """Map Euclidean fixed-``m`` values to nodal coefficients."""
 
         values = self._validated_fixed_m_orbitals(orbitals, m)
+        weight_shape = (1,) * (values.ndim - 2) + (self.r.size, 1)
+        return values / np.sqrt(self.weights).reshape(weight_shape)
+
+    def metric_weights(self):
+        """Return diagonal metric entries in flattened full-state order."""
+
+        return np.repeat(self.weights, self.orbital_shape[1])
+
+    def matrix(self, *, representation="strong"):
+        """Return an explicit full-angular matrix for small-grid oracles."""
+
+        if representation not in {"strong", "symmetric"}:
+            raise ValueError("representation must be 'strong' or 'symmetric'")
+        n_r, n_lm = self.orbital_shape
+        kinetic = -0.5 / self.system.particle_mass * np.kron(
+            self.second_derivative,
+            np.eye(n_lm),
+        )
+        kinetic += np.diag(
+            (
+                0.5
+                / self.system.particle_mass
+                * self._centrifugal
+            ).ravel()
+        )
+        matrix = kinetic.astype(
+            np.result_type(
+                kinetic.dtype,
+                self.potential.coefficients.dtype,
+            ),
+            copy=False,
+        )
+        pointwise = self.potential.angular_matrix()
+        for radial_index in range(n_r):
+            indices = radial_index * n_lm + np.arange(n_lm)
+            matrix[np.ix_(indices, indices)] += pointwise[radial_index]
+        if representation == "strong":
+            return matrix
+        metric_sqrt = np.sqrt(self.metric_weights())
+        return metric_sqrt[:, None] * matrix / metric_sqrt[None, :]
+
+    def diagonal(self) -> np.ndarray:
+        """Return the strong full-angular diagonal in state shape."""
+
+        radial_kinetic = (
+            -0.5
+            / self.system.particle_mass
+            * np.diag(self.second_derivative)[:, None]
+        )
+        centrifugal = (
+            0.5 / self.system.particle_mass * self._centrifugal
+        )
+        potential = np.diagonal(
+            self.potential.angular_matrix(),
+            axis1=1,
+            axis2=2,
+        )
+        result = np.asarray(
+            radial_kinetic + centrifugal + potential
+        ).copy()
+        result.setflags(write=False)
+        return result
+
+    def to_symmetric(self, orbitals):
+        """Map full nodal states to Euclidean symmetric coefficients."""
+
+        values = self._validated_orbitals(orbitals)
+        weight_shape = (1,) * (values.ndim - 2) + (self.r.size, 1)
+        return values * np.sqrt(self.weights).reshape(weight_shape)
+
+    def from_symmetric(self, orbitals):
+        """Map full Euclidean coefficients to physical nodal states."""
+
+        values = self._validated_orbitals(orbitals)
         weight_shape = (1,) * (values.ndim - 2) + (self.r.size, 1)
         return values / np.sqrt(self.weights).reshape(weight_shape)
 
@@ -424,7 +563,10 @@ class OneElectronDiatomicHamiltonian:
             "state_axis_order": "radial_angular",
             "nuclear_charge1": self.system.nuclear_charge1,
             "nuclear_charge2": self.system.nuclear_charge2,
+            "nuclear_positions": self.system.nuclear_positions.tolist(),
             "internuclear_distance": self.system.internuclear_distance,
+            "nuclear_midpoint": self.system.nuclear_midpoint.tolist(),
+            "bond_axis": self.system.bond_axis.tolist(),
             "particle_mass": self.system.particle_mass,
             "system_name": self.system.name,
             "nuclear_repulsion_energy": (
