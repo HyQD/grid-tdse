@@ -912,6 +912,20 @@ Acceptance gate:
 - the results identify whether later distribution should prioritize radial
   points, angular channels, or a two-dimensional layout.
 
+Status: benchmark workflow implemented. The serial
+`spherical_one_radial_off_axis_performance.py` driver measures construction,
+Hamiltonian actions, full-angular Davidson, each observable, SIA, and
+preconditioned Crank--Nicolson for a Cartesian product of radial extents and
+`l_max` values. It records exact problem dimensions, state and operator-array
+storage, sparse coupling counts, RSS, step diagnostics, runtime provenance,
+and effective numerical thread pools in one JSON schema. Separate-process
+one-, two-, and four-thread commands are documented in
+`spherical_one_radial_off_axis_performance.md`. Local smoke measurements point
+to angular work as the first distribution target and show no benefit from
+additional BLAS threads on the compact cases. The final distribution choice
+remains gated on running the radial/angular matrix on the target CPU
+architecture.
+
 ## 12. Validation matrix
 
 | Area | Primary comparison | Required trend or invariant |
