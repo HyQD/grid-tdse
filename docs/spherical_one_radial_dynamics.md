@@ -254,21 +254,44 @@ for the underlying checkpoint semantics.
 
 ## Public-interface example
 
-The compact development calculation is
+The public full-angular development calculation is
 
 ```bash
 python examples/spherical/one_radial/h2plus_laser_dynamics.py
 ```
 
-Its defaults are smoke-test inputs, not convergence recommendations. For an
-illustrative velocity-gauge calculation with an absorber:
+By default, the midpoint-centred H2+ axis lies along laboratory `z`, and a
+three-cycle `SineSquareLaser` with `E0=0.05`, phase zero, and wavelength
+`400` nm is converted to `omega=0.113908381322799` a.u. using CODATA 2018.
+The pulse duration is approximately `165.47997349` a.u. These are development
+inputs, not convergence recommendations.
+
+Specify a midpoint-centred orientation with `--bond-length`, `--theta-deg`,
+and `--phi-deg`. For example, this places the molecular axis at polar angle
+45 degrees and azimuth 30 degrees while the field remains polarized along
+laboratory `z`:
+
+```bash
+python examples/spherical/one_radial/h2plus_laser_dynamics.py \
+    --bond-length 2 \
+    --theta-deg 45 \
+    --phi-deg 30
+```
+
+Alternatively, provide both `--nuclear-position-1 X1 Y1 Z1` and
+`--nuclear-position-2 X2 Y2 Z2`. Cartesian positions and orientation options
+are mutually exclusive. The radial mesh retains every distinct nuclear
+radius as an element boundary. This is particularly important when the
+spherical expansion origin is not the bond midpoint.
+
+For an illustrative velocity-gauge calculation with an absorber:
 
 ```bash
 python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --gauge velocity \
     --integrator sia \
     --absorber cap \
-    --wavelength-nm 800 \
+    --wavelength-nm 400 \
     --field-strength 0.05 \
     --r-max 64 \
     --l-max 12 \
@@ -277,11 +300,20 @@ python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --cap-eta 1.0
 ```
 
-The example uses only public `grid-tdse` interfaces. It computes a projected
-ground state unless `--initial-state` is supplied, prints the effective
-setup, and writes a JSON summary plus a compressed NPZ archive containing the
-final state, raw observables, integrator diagnostics, and sampled radial
-distributions. Use `--help` for all controls.
+The example uses only public `grid-tdse` interfaces and always uses the
+rotation-complete full-angular representation with `m_max=l_max` and
+`nuclear_L_max=nuclear_M_max=2*l_max`. At every geometry it independently
+computes a full-angular Davidson ground state unless `--initial-state` is
+supplied; it never rotates an axial state into place. The program prints the
+effective setup and writes a JSON summary plus a compressed NPZ archive
+containing the final state, raw Cartesian vector observables, integrator
+diagnostics, and sampled radial distributions.
+
+The metadata records both Cartesian nuclear positions, their midpoint and
+bond axis, the spherical expansion origin, channel `(l,m)` ordering, angular
+and Coulomb cutoffs, wavelength-to-frequency convention, gauge, absorber,
+and propagation settings. `--wavelength-nm` and `--frequency` are mutually
+exclusive. Use `--help` for all controls.
 
 ## Qualification
 

@@ -866,11 +866,18 @@ histories by `60` degrees.
 
 ### Step 16: add a public example and documentation
 
-Add a short H2+ example that accepts either two Cartesian nuclear positions
-or bond-orientation angles, computes or loads a full-angular initial state,
-and drives it with a laboratory-`z` pulse. Document geometry, cutoffs,
-origins, state layout, gauge conventions, vector observables, convergence
+Add an H2+ example that accepts either two Cartesian nuclear positions or
+bond-orientation angles, computes or loads a full-angular initial state, and
+drives it with a laboratory-`z` pulse. Document geometry, cutoffs, origins,
+state layout, gauge conventions, vector observables, convergence
 responsibilities, and the rotation-versus-translation distinction.
+
+The development default is a three-cycle `SineSquareLaser` with wavelength
+`400` nm converted using CODATA 2018,
+`omega=0.113908381322799` a.u., `E0=0.05` a.u., and phase zero. Its duration
+is approximately `165.47997349` a.u. The interface should expose both
+`--wavelength-nm` and `--frequency`, with the two options mutually exclusive,
+and record the conversion convention in the output metadata.
 
 Acceptance gate:
 
@@ -878,6 +885,17 @@ Acceptance gate:
 - its defaults are explicitly labelled as development inputs;
 - output archives contain enough metadata to reconstruct the orientation and
   representation exactly.
+
+Status: complete. The public `h2plus_laser_dynamics.py` example accepts a
+midpoint-centred bond length plus polar and azimuthal angles, or two explicit
+Cartesian nuclear positions. It retains every distinct nuclear radius as an
+FEM-DVR element boundary, independently solves the full-angular Davidson
+ground state at the selected geometry, and propagates the rotation-complete
+`m_max=l_max` space. Its JSON and NPZ metadata record Cartesian positions,
+midpoint, bond axis, spherical origin, radial grid, ordered `(l,m)` channels,
+orbital and Coulomb cutoffs, pulse conversion, gauge, absorber, integrator,
+and state-preparation diagnostics. Focused and complete one-radial regression
+suites cover both geometry input routes and the reconstructive archive.
 
 ### Step 17: qualify performance before MPI work
 

@@ -1,9 +1,11 @@
-"""Run a short clamped-nuclei H2+ laser-dynamics calculation.
+"""Run a clamped-nuclei H2+ laser-dynamics calculation.
 
-The molecule lies on the laboratory z axis with internuclear distance
-``R=2`` bohr. The defaults are deliberately compact smoke-test inputs, not
-convergence recommendations. Converge the radial grid, angular cutoff, time
-step, pulse, and absorber before using an observable quantitatively.
+Specify the molecular geometry by its bond length and orientation or by two
+Cartesian nuclear positions.  The laboratory field is polarized along the
+``z`` axis, whereas the molecular axis may have any orientation.  The
+defaults are development inputs, not convergence recommendations.  Converge
+the radial grid, angular cutoff, time step, pulse, and absorber before using
+an observable quantitatively.
 
 All quantities are in atomic units unless stated otherwise.
 """
@@ -23,11 +25,13 @@ from grid_tdse.spherical.one_radial import (
     OneElectronDiatomicHamiltonian,
     OneElectronDiatomicSystem,
     OneElectronDiatomicTDSE,
-    diagonalize_fixed_m,
+    diagonalize_full_angular,
 )
 
 
-DEFAULT_FREQUENCY = 4.0
+DEFAULT_WAVELENGTH_NM = 400.0
+DEFAULT_FIELD_STRENGTH = 0.05
+DEFAULT_CYCLES = 3.0
 FREQUENCY_CODATA_SET = "2018"
 
 
@@ -45,27 +49,73 @@ def parse_arguments(argv=None):
         "--absorber", choices=("none", "mask", "cap"), default="none"
     )
     parser.add_argument("--particle-mass", type=float, default=1.0)
-    parser.add_argument("--field-strength", type=float, default=0.01)
+    geometry = parser.add_argument_group("molecular geometry")
+    geometry.add_argument(
+        "--bond-length",
+        type=float,
+        default=None,
+        help="internuclear distance in bohr; default is 2",
+    )
+    geometry.add_argument(
+        "--theta-deg",
+        type=float,
+        default=None,
+        help="bond-axis polar angle from laboratory z; default is 0",
+    )
+    geometry.add_argument(
+        "--phi-deg",
+        type=float,
+        default=None,
+        help="bond-axis azimuth from laboratory x; default is 0",
+    )
+    geometry.add_argument(
+        "--nuclear-position-1",
+        type=float,
+        nargs=3,
+        metavar=("X1", "Y1", "Z1"),
+        default=None,
+        help="Cartesian position of nucleus 1 in bohr",
+    )
+    geometry.add_argument(
+        "--nuclear-position-2",
+        type=float,
+        nargs=3,
+        metavar=("X2", "Y2", "Z2"),
+        default=None,
+        help="Cartesian position of nucleus 2 in bohr",
+    )
+    parser.add_argument(
+        "--field-strength", type=float, default=DEFAULT_FIELD_STRENGTH
+    )
     frequency = parser.add_mutually_exclusive_group()
     frequency.add_argument(
         "--frequency",
         type=float,
         default=None,
-        help=f"carrier angular frequency; default is {DEFAULT_FREQUENCY:g}",
+        help="carrier angular frequency in atomic units",
     )
     frequency.add_argument(
         "--wavelength-nm",
         type=float,
         default=None,
-        help="carrier wavelength converted using CODATA 2018",
+        help=(
+            "carrier wavelength converted using CODATA 2018; "
+            f"default is {DEFAULT_WAVELENGTH_NM:g} nm"
+        ),
     )
-    parser.add_argument("--cycles", type=float, default=1.0)
+    parser.add_argument("--cycles", type=float, default=DEFAULT_CYCLES)
     parser.add_argument("--phase", type=float, default=0.0)
     parser.add_argument("--time-step", type=float, default=0.05)
     parser.add_argument("--r-max", type=float, default=8.0)
     parser.add_argument("--element-width", type=float, default=2.0)
     parser.add_argument("--points-per-element", type=int, default=7)
     parser.add_argument("--l-max", type=int, default=4)
+    parser.add_argument(
+        "--ground-state-tolerance", type=float, default=1.0e-10
+    )
+    parser.add_argument(
+        "--ground-state-max-iterations", type=int, default=300
+    )
     parser.add_argument(
         "--nuclear-method",
         choices=("analytic", "poisson"),
@@ -115,16 +165,25 @@ def parse_arguments(argv=None):
     return parser.parse_args(argv)
 
 
-def radial_nodes(r_max, element_width, *, nuclear_radius=1.0):
-    """Return radial elements with the nuclear radius as a boundary."""
+def radial_nodes(r_max, element_width, *, nuclear_radii=(1.0,)):
+    """Return radial elements with every interior nuclear radius retained."""
 
-    if not np.isfinite(r_max) or r_max <= nuclear_radius:
-        raise ValueError("r_max must be finite and exceed the nuclear radius")
+    if not np.isfinite(r_max) or r_max <= 0.0:
+        raise ValueError("r_max must be finite and positive")
     if not np.isfinite(element_width) or element_width <= 0.0:
         raise ValueError("element_width must be finite and positive")
-    n_outer = int(np.ceil((r_max - nuclear_radius) / element_width))
-    outer = np.linspace(nuclear_radius, r_max, n_outer + 1)
-    return np.concatenate(([0.0], outer))
+    radii = np.asarray(nuclear_radii, dtype=float)
+    if radii.ndim != 1 or not np.all(np.isfinite(radii)):
+        raise ValueError("nuclear_radii must be a finite one-dimensional array")
+    if np.any(radii < 0.0) or np.any(radii >= r_max):
+        raise ValueError("nuclear radii must satisfy 0 <= radius < r_max")
+    boundaries = np.unique(np.concatenate(([0.0], radii, [r_max])))
+    pieces = []
+    for left, right in zip(boundaries[:-1], boundaries[1:]):
+        count = max(1, int(np.ceil((right - left) / element_width)))
+        segment = np.linspace(left, right, count + 1)
+        pieces.append(segment if not pieces else segment[1:])
+    return np.concatenate(pieces)
 
 
 def _positive(value, name):
@@ -154,21 +213,108 @@ def _frequency(arguments):
             ),
             wavelength,
         )
-    value = (
-        DEFAULT_FREQUENCY
-        if arguments.frequency is None
-        else arguments.frequency
+    if arguments.frequency is not None:
+        return _positive(arguments.frequency, "frequency"), None
+    return (
+        wavelength_nm_to_omega_au(
+            DEFAULT_WAVELENGTH_NM,
+            codata_set=FREQUENCY_CODATA_SET,
+        ),
+        DEFAULT_WAVELENGTH_NM,
     )
-    return _positive(value, "frequency"), None
 
 
-def _initial_state(path, hamiltonian):
+def _system(arguments, particle_mass):
+    position1 = arguments.nuclear_position_1
+    position2 = arguments.nuclear_position_2
+    explicit_positions = position1 is not None or position2 is not None
+    orientation_supplied = any(
+        value is not None
+        for value in (
+            arguments.bond_length,
+            arguments.theta_deg,
+            arguments.phi_deg,
+        )
+    )
+    if explicit_positions:
+        if position1 is None or position2 is None:
+            raise ValueError(
+                "--nuclear-position-1 and --nuclear-position-2 must be "
+                "specified together"
+            )
+        if orientation_supplied:
+            raise ValueError(
+                "Cartesian nuclear positions cannot be combined with "
+                "--bond-length, --theta-deg, or --phi-deg"
+            )
+        system = OneElectronDiatomicSystem.from_nuclear_positions(
+            1.0,
+            1.0,
+            position1,
+            position2,
+            particle_mass=particle_mass,
+            name="H2+",
+        )
+        specification = "cartesian_positions"
+    else:
+        bond_length = _positive(
+            2.0 if arguments.bond_length is None else arguments.bond_length,
+            "bond_length",
+        )
+        theta_deg = 0.0 if arguments.theta_deg is None else arguments.theta_deg
+        phi_deg = 0.0 if arguments.phi_deg is None else arguments.phi_deg
+        if not np.isfinite(theta_deg) or not np.isfinite(phi_deg):
+            raise ValueError("theta_deg and phi_deg must be finite")
+        theta = np.deg2rad(theta_deg)
+        phi = np.deg2rad(phi_deg)
+        axis = np.array(
+            [
+                np.sin(theta) * np.cos(phi),
+                np.sin(theta) * np.sin(phi),
+                np.cos(theta),
+            ]
+        )
+        displacement = 0.5 * bond_length * axis
+        system = OneElectronDiatomicSystem.from_nuclear_positions(
+            1.0,
+            1.0,
+            -displacement,
+            displacement,
+            particle_mass=particle_mass,
+            name="H2+",
+        )
+        specification = "bond_orientation"
+    return system, specification
+
+
+def _initial_state(path, hamiltonian, arguments):
     if path is None:
-        eigenstate = diagonalize_fixed_m(hamiltonian, m=0, n_states=1)
+        eigenstate = diagonalize_full_angular(
+            hamiltonian,
+            residual_tolerance=_positive(
+                arguments.ground_state_tolerance,
+                "ground_state_tolerance",
+            ),
+            max_iterations=_positive_integer(
+                arguments.ground_state_max_iterations,
+                "ground_state_max_iterations",
+            ),
+            print_progress=arguments.progress != "none",
+        )
+        if not eigenstate.converged:
+            raise RuntimeError(
+                "full-angular Davidson ground-state solve did not converge: "
+                f"{eigenstate.termination_reason}; residual="
+                f"{eigenstate.residual_norm:.6e}"
+            )
         metadata = {
-            "source": "computed_projected_ground_state",
+            "source": "computed_full_angular_ground_state",
+            "solver": eigenstate.solver,
             "electronic_energy": eigenstate.electronic_energy,
             "total_energy": eigenstate.total_energy,
+            "residual_norm": eigenstate.residual_norm,
+            "iterations": eigenstate.iterations,
+            "hamiltonian_actions": eigenstate.hamiltonian_actions,
         }
         return np.array(eigenstate.orbital, copy=True), metadata
 
@@ -191,7 +337,7 @@ def _initial_state(path, hamiltonian):
             loaded.close()
     else:
         state = np.array(loaded, copy=True)
-    hamiltonian.validate_fixed_m_state(state, 0)
+    hamiltonian.validate_state(state)
     return state, {"source": "loaded_archive", "path": str(source.resolve())}
 
 
@@ -295,26 +441,28 @@ def main(argv=None):
         raise ValueError("the cubic CAP currently requires --integrator sia")
 
     omega, wavelength_nm = _frequency(arguments)
-    nodes = radial_nodes(r_max, arguments.element_width)
-    n_points = [arguments.points_per_element] * (nodes.size - 1)
-    system = OneElectronDiatomicSystem(
-        nuclear_charge1=1.0,
-        nuclear_charge2=1.0,
-        half_bond_length=1.0,
-        particle_mass=particle_mass,
-        name="H2+",
+    system, geometry_specification = _system(arguments, particle_mass)
+    nuclear_radii = np.linalg.norm(system.nuclear_positions, axis=1)
+    nodes = radial_nodes(
+        r_max,
+        arguments.element_width,
+        nuclear_radii=nuclear_radii,
     )
+    n_points = [arguments.points_per_element] * (nodes.size - 1)
     stationary = OneElectronDiatomicHamiltonian(
         system,
         nodes=nodes,
         n_points=n_points,
         l_max=arguments.l_max,
-        m_max=0,
+        m_max=arguments.l_max,
         nuclear_L_max=2 * arguments.l_max,
+        nuclear_M_max=2 * arguments.l_max,
         nuclear_method=arguments.nuclear_method,
     )
     initial_state, state_metadata = _initial_state(
-        arguments.initial_state, stationary
+        arguments.initial_state,
+        stationary,
+        arguments,
     )
     pulse = SineSquareLaser(
         E0=field_strength,
@@ -333,8 +481,10 @@ def main(argv=None):
         nodes=nodes,
         n_points=n_points,
         l_max=arguments.l_max,
-        m=0,
+        angular_representation="full",
+        m_max=arguments.l_max,
         nuclear_L_max=2 * arguments.l_max,
+        nuclear_M_max=2 * arguments.l_max,
         nuclear_method=arguments.nuclear_method,
         initial_state=initial_state,
         fields=pulse,
@@ -364,16 +514,30 @@ def main(argv=None):
     result = calculation.run(progress=arguments.progress != "none")
 
     metadata = {
-        "purpose": "one-radial clamped-nuclei H2+ development dynamics",
-        "warning": "smoke-test inputs; not a convergence recommendation",
+        "purpose": "full-angular clamped-nuclei H2+ development dynamics",
+        "warning": "development inputs; not a convergence recommendation",
         "system": calculation.compatibility_metadata,
+        "geometry": {
+            "specification": geometry_specification,
+            "coordinate_unit": "bohr",
+            "nuclear_positions": system.nuclear_positions.tolist(),
+            "nuclear_midpoint": system.nuclear_midpoint.tolist(),
+            "bond_axis": system.bond_axis.tolist(),
+            "internuclear_distance": system.internuclear_distance,
+            "spherical_expansion_origin": [0.0, 0.0, 0.0],
+        },
         "grid": {
             "nodes": nodes.tolist(),
             "points_per_element": int(arguments.points_per_element),
             "active_radial_points": int(calculation.hamiltonian.r.size),
             "l_max": int(arguments.l_max),
-            "m": 0,
+            "m_max": int(arguments.l_max),
+            "angular_representation": "full",
+            "channel_lm": [
+                list(channel) for channel in calculation.hamiltonian.orbital_lm
+            ],
             "nuclear_L_max": 2 * int(arguments.l_max),
+            "nuclear_M_max": 2 * int(arguments.l_max),
         },
         "pulse": {
             "type": "SineSquareLaser",
@@ -417,11 +581,16 @@ def main(argv=None):
     }
     _write_outputs(arguments, calculation, result, metadata)
 
-    print("\n** One-radial clamped-nuclei H2+ dynamics **")
+    print("\n** Full-angular one-radial clamped-nuclei H2+ dynamics **")
+    print(f"Nuclear positions:          {system.nuclear_positions.tolist()}")
+    print(f"Bond axis:                  {system.bond_axis.tolist()}")
     print(f"Grid nodes:                 {nodes.tolist()}")
     print(f"Points per element:         {arguments.points_per_element}")
     print(f"Active radial points:       {calculation.hamiltonian.r.size}")
-    print(f"Angular basis:              l_max={arguments.l_max}, m=0")
+    print(
+        "Angular basis:              "
+        f"full, l_max=m_max={arguments.l_max}"
+    )
     print(f"Particle mass:              {particle_mass:.12g}")
     print(f"State source:               {state_metadata['source']}")
     print(f"Pulse:                      SineSquareLaser, {cycles:g} cycle(s)")
