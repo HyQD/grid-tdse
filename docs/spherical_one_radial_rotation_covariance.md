@@ -241,9 +241,11 @@ covariance, and analytic-versus-Poisson radial refinement. Representation-
 level laboratory-`z` field interactions, gauge transformations, absorbers,
 time-dependent propagation, raw Cartesian observables, and radial
 probability sampling are also implemented and tested. The public real-time
-calculation object still uses the axial fixed-`m` path; full-angular CN
-preconditioning, persistence, and high-level selection remain subsequent
-implementation stages.
+calculation object selects either the backward-compatible fixed-`m` path or
+the full-angular path explicitly. Full-angular CN preconditioning,
+checkpoints, exact restart, continuation, and CN/SIL/SIA propagation are
+locally qualified; gauge-equivalence and alignment studies remain later
+validation stages.
 
 ## Recommended validation tests
 

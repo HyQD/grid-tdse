@@ -2,10 +2,11 @@
 
 `grid_tdse.spherical.one_radial.OneElectronDiatomicTDSE` is the public
 high-level interface for real-time, clamped-nuclei, one-electron diatomic
-calculations in spherical coordinates. The initial implementation targets
-H2+ on the laboratory `z` axis in a linearly polarized axial field. It also
-supports unequal nuclear charges and a user-selected particle mass, subject
-to the same axial-geometry assumptions.
+calculations in spherical coordinates. The backward-compatible `"fixed_m"`
+representation targets a molecule on laboratory `z`. The `"full"`
+representation accepts explicit Cartesian nuclear positions and retains all
+configured complex `(l,m)` channels for a linearly polarized laboratory-`z`
+field. Both paths support unequal charges and a user-selected particle mass.
 
 The interface prepares the spatial Hamiltonian, field interaction, absorber,
 integrator, observables, progress reporting, and checkpoint policy. It accepts
@@ -14,7 +15,7 @@ choice, not a requirement of the time-dependent implementation.
 
 ## Representation and field-free Hamiltonian
 
-The nuclei are fixed at
+For `angular_representation="fixed_m"`, the nuclei are fixed at
 
 ```math
 \mathbf R_1=(0,0,-R/2),
@@ -44,6 +45,21 @@ N(t)
 ```
 
 where `w_i` are the FEM-DVR radial weights.
+
+For `angular_representation="full"`, the state is
+
+```math
+\Psi(\mathbf r,t)
+=
+\frac{1}{r}
+\sum_{l=0}^{l_{\max}}
+\sum_{m=-\min(l,m_{\max})}^{\min(l,m_{\max})}
+u_{lm}(r,t)Y_{lm}(\hat{\mathbf r}),
+```
+
+with shape `(n_r, n_lm)` in the public grid-lib channel ordering. The
+rotation-complete default is `m_max=l_max`. An off-axis geometry requires
+this full representation; the fixed-`m` path rejects it explicitly.
 
 The electronic field-free Hamiltonian is
 
@@ -124,8 +140,10 @@ The public `transform_axial_gauge_state()` helper uses
 \exp[-i q_e A_z(t)z]\Psi_V(\mathbf r,t)
 ```
 
-and projects the transformed state back into the finite fixed-`m` angular
-space. At finite `l_max`, that space is not closed under the exact phase.
+and projects the transformed state back into the finite angular space. The
+`transform_full_angular_axial_gauge_state()` variant applies the same
+projection independently in every signed-`m` block. At finite `l_max`, the
+retained space is not closed under the exact phase.
 The resulting norm defect and length--velocity difference are therefore
 useful angular-convergence diagnostics, not evidence that the transform
 silently preserves information.
@@ -134,8 +152,9 @@ silently preserves information.
 
 `initial_state` may be a stationary state, an excited state, a coherent
 superposition, or a compatible state prepared elsewhere. The high-level
-interface requires the exact fixed-`m` state shape, finite numeric values,
-and a positive finite norm. It copies the state but does **not** normalize it.
+interface requires the exact state shape for the selected representation,
+finite numeric values, and a positive finite norm. It copies the state but
+does **not** normalize it.
 Consequently, absorber-induced norm loss and deliberately unnormalized input
 remain visible.
 
@@ -190,6 +209,11 @@ reference populations are raw squared overlaps with normalized references:
 - `state_populations`, the raw squared overlaps when normalized reference
   states are supplied.
 
+In the full representation, the electronic, nuclear, total, induced-dipole,
+and canonical-momentum samplers return Cartesian vectors ordered `(x,y,z)`.
+The velocity-gauge mechanical momentum is also a Cartesian vector; only its
+laboratory-`z` component receives the `-q_e A_z(t) N(t)` correction.
+
 Conditional expectation values and conditional reference populations can be
 recovered in postprocessing by dividing the raw value by `norm`. This
 convention is essential when a mask or CAP removes probability.
@@ -197,7 +221,7 @@ convention is essential when a mask or CAP removes probability.
 The radial distribution is
 
 ```math
-P(r_i,t)=\sum_l |u_{lm}(r_i,t)|^2,
+P(r_i,t)=\sum_{lm} |u_{lm}(r_i,t)|^2,
 ```
 
 and satisfies `sum_i w_i P(r_i,t)=N(t)`. It is stored separately at the
@@ -207,7 +231,8 @@ disable radial-distribution storage.
 
 ## Persistence and continuation
 
-The calculation records the system, grid, particle mass, fixed-`m` sector,
+The calculation records the system, geometry, Cartesian origin, grid,
+particle mass, angular representation, channel ordering, angular cutoffs,
 field and gauge, absorber, integrator, preconditioner, initial-state identity,
 and observable policy in checkpoint metadata.
 

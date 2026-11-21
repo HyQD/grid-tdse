@@ -20,6 +20,7 @@ from .dipole import (
 )
 from .hamiltonian import OneElectronDiatomicHamiltonian
 from .preconditioner import (
+    SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner,
     SphericalOneRadialKineticCrankNicolsonPreconditioner,
 )
 
@@ -181,6 +182,14 @@ class SphericalOneRadialFixedMTimeDependentHamiltonian:
                 "preconditioner", preconditioner.metadata
             )
             kwargs["dynamics_metadata"] = dynamics_metadata
+        elif isinstance(
+            preconditioner,
+            SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner,
+        ):
+            raise ValueError(
+                "full-angular preconditioner is incompatible with fixed-m "
+                "dynamics"
+            )
         if self.absorbing_boundaries is not None:
             self.absorbing_boundaries.validate_integrator(
                 propagator.integrator
@@ -356,6 +365,30 @@ class SphericalOneRadialFullAngularTimeDependentHamiltonian:
         if not isinstance(propagator, RealTimePropagator):
             raise TypeError("propagator must be a RealTimePropagator")
         self.field_free_hamiltonian.validate_state(initial_state)
+        preconditioner = kwargs.get("preconditioner")
+        if isinstance(
+            preconditioner,
+            SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner,
+        ):
+            if preconditioner.hamiltonian is not self.field_free_hamiltonian:
+                raise ValueError(
+                    "preconditioner belongs to a different Hamiltonian"
+                )
+            preconditioner.validate_propagator(propagator)
+            dynamics_metadata = dict(kwargs.get("dynamics_metadata") or {})
+            dynamics_metadata.setdefault(
+                "preconditioner",
+                preconditioner.metadata,
+            )
+            kwargs["dynamics_metadata"] = dynamics_metadata
+        elif isinstance(
+            preconditioner,
+            SphericalOneRadialKineticCrankNicolsonPreconditioner,
+        ):
+            raise ValueError(
+                "fixed-m preconditioner is incompatible with full-angular "
+                "dynamics"
+            )
         if self.absorbing_boundaries is not None:
             self.absorbing_boundaries.validate_integrator(
                 propagator.integrator

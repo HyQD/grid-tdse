@@ -35,6 +35,7 @@ from .observables import (
 )
 from .preconditioner import (
     OneRadialRealTimePreconditionerName,
+    SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner,
     SphericalOneRadialKineticCrankNicolsonPreconditioner,
     build_spherical_one_radial_real_time_preconditioner,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "SphericalOneRadialFullAngularAxialLengthGaugeInteraction",
     "SphericalOneRadialFullAngularAxialVelocityGaugeInteraction",
     "SphericalOneRadialFullAngularDynamicsObservables",
+    "SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner",
     "SphericalOneRadialFullAngularTimeDependentHamiltonian",
     "SphericalOneRadialKineticCrankNicolsonPreconditioner",
     "SphericalOneRadialRadialProbabilitySample",

@@ -49,6 +49,12 @@ def test_package_exports_spherical_two_radial_namespace():
         one_radial.SphericalOneRadialFullAngularDynamicsObservables.__module__
         == "grid_tdse.spherical.one_radial.observables"
     )
+    full_preconditioner = (
+        one_radial.SphericalOneRadialFullAngularKineticCrankNicolsonPreconditioner
+    )
+    assert full_preconditioner.__module__ == (
+        "grid_tdse.spherical.one_radial.preconditioner"
+    )
     assert one_radial.transform_full_angular_axial_gauge_state.__module__ == (
         "grid_tdse.spherical.one_radial.gauge"
     )

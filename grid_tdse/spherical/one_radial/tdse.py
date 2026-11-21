@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from numbers import Integral
+from numbers import Integral, Real
 from os import PathLike
 from pathlib import Path
 from typing import Any, Literal
@@ -20,13 +20,17 @@ from grid_tdse.real_time import (
 from grid_tdse.systems import OneElectronDiatomicSystem
 
 from .absorbing_boundaries import SphericalOneRadialAbsorbingBoundaries
-from .dynamics import SphericalOneRadialFixedMTimeDependentHamiltonian
+from .dynamics import (
+    SphericalOneRadialFixedMTimeDependentHamiltonian,
+    SphericalOneRadialFullAngularTimeDependentHamiltonian,
+)
 from .hamiltonian import (
     NuclearPotentialMethod,
     OneElectronDiatomicHamiltonian,
 )
 from .observables import (
     SphericalOneRadialDynamicsObservables,
+    SphericalOneRadialFullAngularDynamicsObservables,
     SphericalOneRadialRadialProbabilitySeries,
 )
 from .preconditioner import (
@@ -36,11 +40,12 @@ from .preconditioner import (
 
 IntegratorName = Literal["crank-nicolson", "sil", "sia"]
 FieldGauge = Literal["length", "velocity"]
+AngularRepresentation = Literal["fixed_m", "full"]
 Sampler = Callable[[np.ndarray, float], np.ndarray | complex | float]
 
 
 class OneElectronDiatomicTDSE:
-    """Prepare and propagate a fixed-``m`` clamped diatomic state.
+    """Prepare and propagate a clamped one-electron diatomic state.
 
     The calculation owns the physical system, spherical FEM-DVR
     representation, time-dependent Hamiltonian, absorber, integrator,
@@ -86,14 +91,17 @@ class OneElectronDiatomicTDSE:
         n_points,
         l_max: int,
         initial_state,
+        angular_representation: AngularRepresentation = "fixed_m",
         m: int = 0,
         m_max: int | None = None,
         nuclear_L_max: int | None = None,
+        nuclear_M_max: int | None = None,
         nuclear_method: NuclearPotentialMethod = "analytic",
         fields=(),
         field_gauge: FieldGauge = "length",
         include_nuclear_scalar: bool = False,
-        origin_z: float = 0.0,
+        origin=(0.0, 0.0, 0.0),
+        origin_z: float | None = None,
         integrator: IntegratorName = "sia",
         integrator_options: Mapping[str, Any] | None = None,
         initial_time: float = 0.0,
@@ -114,9 +122,33 @@ class OneElectronDiatomicTDSE:
         if not isinstance(system, OneElectronDiatomicSystem):
             raise TypeError("system must be a OneElectronDiatomicSystem")
         self.system = system
-        self.m = _integer(m, "m")
+        self.angular_representation = _angular_representation(
+            angular_representation
+        )
+        requested_m = _integer(m, "m")
+        if self.angular_representation == "full" and requested_m != 0:
+            raise ValueError("m is not selectable for the full representation")
+        if (
+            self.angular_representation == "fixed_m"
+            and not system.is_z_axis_aligned
+        ):
+            raise ValueError(
+                "an off-axis geometry requires angular_representation='full'"
+            )
+        self.m = requested_m if self.angular_representation == "fixed_m" else None
         if m_max is None:
-            m_max = abs(self.m)
+            m_max = (
+                abs(requested_m)
+                if self.angular_representation == "fixed_m"
+                else l_max
+            )
+        self.origin = _resolved_origin(origin, origin_z)
+        if self.angular_representation == "fixed_m" and np.any(
+            self.origin[:2] != 0.0
+        ):
+            raise ValueError(
+                "fixed_m dynamics require an origin on the Cartesian z axis"
+            )
         self.hamiltonian = OneElectronDiatomicHamiltonian(
             system,
             nodes=nodes,
@@ -124,9 +156,11 @@ class OneElectronDiatomicTDSE:
             l_max=l_max,
             m_max=m_max,
             nuclear_L_max=nuclear_L_max,
+            nuclear_M_max=nuclear_M_max,
             nuclear_method=nuclear_method,
         )
-        self.m = self.hamiltonian.validate_m(self.m)
+        if self.angular_representation == "fixed_m":
+            self.m = self.hamiltonian.validate_m(self.m)
         self.initial_state = self._initial_state(initial_state)
         self.fields = _field_profiles(fields, field_gauge)
         self.field_gauge = _field_gauge(field_gauge)
@@ -135,15 +169,27 @@ class OneElectronDiatomicTDSE:
             mask=mask,
             cap=cap,
         )
-        self.dynamics = SphericalOneRadialFixedMTimeDependentHamiltonian(
-            self.hamiltonian,
-            m=self.m,
-            fields=self.fields,
-            field_gauge=self.field_gauge,
-            include_nuclear_scalar=include_nuclear_scalar,
-            origin_z=origin_z,
-            absorbing_boundaries=self.absorbing_boundaries,
-        )
+        if self.angular_representation == "fixed_m":
+            self.dynamics = SphericalOneRadialFixedMTimeDependentHamiltonian(
+                self.hamiltonian,
+                m=self.m,
+                fields=self.fields,
+                field_gauge=self.field_gauge,
+                include_nuclear_scalar=include_nuclear_scalar,
+                origin_z=float(self.origin[2]),
+                absorbing_boundaries=self.absorbing_boundaries,
+            )
+        else:
+            self.dynamics = (
+                SphericalOneRadialFullAngularTimeDependentHamiltonian(
+                    self.hamiltonian,
+                    fields=self.fields,
+                    field_gauge=self.field_gauge,
+                    include_nuclear_scalar=include_nuclear_scalar,
+                    origin=self.origin,
+                    absorbing_boundaries=self.absorbing_boundaries,
+                )
+            )
         self.integrator = _integrator(integrator)
         self.integrator_options = self._integrator_options(
             self.integrator, integrator_options
@@ -158,7 +204,12 @@ class OneElectronDiatomicTDSE:
         self._validate_initial_vector_potential()
         self.absorbing_boundaries.validate_integrator(self.integrator)
         self.preconditioner = self._build_preconditioner()
-        self.observables = SphericalOneRadialDynamicsObservables(
+        observables_type = (
+            SphericalOneRadialDynamicsObservables
+            if self.angular_representation == "fixed_m"
+            else SphericalOneRadialFullAngularDynamicsObservables
+        )
+        self.observables = observables_type(
             self.dynamics,
             self.initial_state,
             reference_states=reference_states,
@@ -181,7 +232,7 @@ class OneElectronDiatomicTDSE:
         )
         self.progress_interval = progress_interval
         self.progress_bar = _boolean(progress_bar, "progress_bar")
-        self.compatibility_metadata = self.hamiltonian.archive_metadata()
+        self.compatibility_metadata = self._compatibility_metadata()
         self.dynamics_metadata = self._dynamics_metadata()
 
     @property
@@ -285,13 +336,19 @@ class OneElectronDiatomicTDSE:
         }
 
     def _apply_mask(self, state, time):
-        return self.absorbing_boundaries.apply_mask(
-            state, time, self.m
-        )
+        if self.angular_representation == "fixed_m":
+            return self.absorbing_boundaries.apply_mask(
+                state,
+                time,
+                self.m,
+            )
+        return self.absorbing_boundaries.apply_mask_full(state, time)
 
     def _initial_state(self, initial_state) -> np.ndarray:
-        values = self.hamiltonian.validate_fixed_m_state(
-            initial_state, self.m
+        values = (
+            self.hamiltonian.validate_fixed_m_state(initial_state, self.m)
+            if self.angular_representation == "fixed_m"
+            else self.hamiltonian.validate_state(initial_state)
         )
         if values.ndim != 2:
             raise ValueError("initial_state must contain exactly one state")
@@ -349,6 +406,7 @@ class OneElectronDiatomicTDSE:
             preconditioner=self.integrator_options.get(
                 "preconditioner", True
             ),
+            angular_representation=self.angular_representation,
         )
 
     def _validate_initial_vector_potential(self) -> None:
@@ -389,6 +447,8 @@ class OneElectronDiatomicTDSE:
             else self.preconditioner.metadata
         )
         return {
+            "angular_representation": self.angular_representation,
+            "origin": self.origin.tolist(),
             "interaction": "electric_dipole" if self.fields else "field_free",
             "polarization_axis": "z" if self.fields else None,
             "field_gauge": self.field_gauge,
@@ -406,6 +466,26 @@ class OneElectronDiatomicTDSE:
             "time_dependent_hamiltonian": self.dynamics.archive_metadata(),
         }
 
+    def _compatibility_metadata(self) -> dict[str, Any]:
+        metadata = self.hamiltonian.archive_metadata()
+        metadata.update(
+            {
+                "angular_representation": self.angular_representation,
+                "origin": self.origin.tolist(),
+                "state_shape": list(self.initial_state.shape),
+                "channel_lm": (
+                    None
+                    if self.angular_representation == "fixed_m"
+                    else [
+                        list(channel)
+                        for channel in self.hamiltonian.orbital_lm
+                    ]
+                ),
+                "m": self.m,
+            }
+        )
+        return metadata
+
 
 def _integer(value, name: str) -> int:
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral):
@@ -417,6 +497,44 @@ def _integrator(value: str) -> IntegratorName:
     if value not in {"crank-nicolson", "sil", "sia"}:
         raise ValueError("integrator must be 'crank-nicolson', 'sil', or 'sia'")
     return value
+
+
+def _angular_representation(value: str) -> AngularRepresentation:
+    if value not in {"fixed_m", "full"}:
+        raise ValueError(
+            "angular_representation must be 'fixed_m' or 'full'"
+        )
+    return value
+
+
+def _resolved_origin(origin, origin_z) -> np.ndarray:
+    raw = np.asarray(origin)
+    if not np.issubdtype(raw.dtype, np.number) or np.iscomplexobj(raw):
+        raise TypeError("origin must contain real numbers")
+    result = np.array(raw, dtype=float, copy=True)
+    if result.shape != (3,):
+        raise ValueError("origin must have shape (3,)")
+    if not np.all(np.isfinite(result)):
+        raise ValueError("origin must contain finite values")
+    if origin_z is not None:
+        if isinstance(origin_z, (bool, np.bool_)) or not isinstance(
+            origin_z,
+            Real,
+        ):
+            raise TypeError("origin_z must be a real scalar or None")
+        alias = float(origin_z)
+        if not np.isfinite(alias):
+            raise ValueError("origin_z must be finite")
+        if result[2] != 0.0 and not np.isclose(
+            result[2],
+            alias,
+            rtol=0.0,
+            atol=16.0 * np.finfo(float).eps,
+        ):
+            raise ValueError("origin and origin_z specify different z origins")
+        result[2] = alias
+    result.setflags(write=False)
+    return result
 
 
 def _field_gauge(value: str) -> FieldGauge:

@@ -40,16 +40,17 @@ spherical-harmonic rotation object supplies active rotations of complete
 complex `(l,m)` states. This plan therefore treats those operations as
 dependencies rather than reimplementing their angular algebra in grid-tdse.
 
-Steps 1--10 are complete on the development branch. The explicit-position
+Steps 1--13 are complete on the development branch. The explicit-position
 system model, arbitrary-position Coulomb construction, full-angular
 Hamiltonian utilities, matrix-free Davidson stationary solver, finite-basis
 rotation qualification, and analytic-versus-Poisson cross-check are
 implemented and tested. Representation-level full-angular laboratory-`z`
 field interactions, projected gauge transformations, radial absorbers,
 time-dependent Hamiltonian actions, and raw vector observables are also
-implemented. The completed on-axis implementation remains the production
-high-level dynamics path until Steps 11--16 extend and qualify
-preconditioning, persistence, and the public calculation interface.
+implemented. Full-angular CN preconditioning, high-level calculation and
+persistence support, and local CN/SIL/SIA qualification are also complete.
+Steps 14--17 retain gauge-equivalence, physical-alignment, public-example,
+and performance qualification work.
 
 ## 2. Relationship to existing work
 
@@ -718,6 +719,14 @@ Acceptance gate:
 - the preconditioner reduces total iterations on the development problem;
 - mask-based CN is reliable and CN+CAP remains rejected.
 
+Status: complete. The full-angular kinetic-channel LU preconditioner reuses
+one radial factorization for every common `l` while applying it in the
+public `(l,m)` channel order. Preconditioned and unpreconditioned full-state
+CN agree, the preconditioner reduces GMRES iterations on the tilted
+development problem, masks remain supported, and CN+CAP is rejected before
+propagation. Linear iterations and residuals continue to use the common
+real-time diagnostics and checkpoint machinery.
+
 ### Step 12: extend the high-level interface and persistence
 
 Add `angular_representation`, full-state preparation, vector observables,
@@ -731,6 +740,14 @@ Acceptance gate:
 - a full-angular run restarts exactly;
 - incompatible geometry, origin, cutoff, or channel metadata is rejected.
 
+Status: complete. `OneElectronDiatomicTDSE` now selects `"fixed_m"` or
+`"full"` explicitly while preserving `"fixed_m"` as the default. The full
+path validates full states, builds full interactions, absorbers,
+observables, and CN preconditioning, and records the representation,
+Cartesian origin, state shape, channel ordering, geometry, and angular
+cutoffs as compatibility data. Full-state checkpoints resume exactly and
+reject changes to geometry, origin, `l_max`, `m_max`, or channel layout.
+
 ### Step 13: validate the three integrators
 
 Compare CN, SIL, and SIA on a small tilted, field-free problem and on a short
@@ -743,6 +760,13 @@ Acceptance gate:
   observables under time-step refinement;
 - field-free norm and energy behavior matches the on-axis qualification;
 - mask and CAP behavior satisfies the existing compatibility contract.
+
+Status: complete for the local development problem. CN, SIL, and SIA retain
+the field-free norm and energy and reproduce the appropriate eigenstate
+phase. Under a short weak laboratory-`z` pulse, time-step refinement moves
+all three methods toward the same fine-step SIA state, dipole vector, and
+canonical-momentum vector. All three methods support the radial mask; SIA
+shows monotonic CAP norm loss and SIL+CAP remains rejected.
 
 ### Step 14: establish off-axis gauge equivalence
 
