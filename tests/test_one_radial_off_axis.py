@@ -235,6 +235,30 @@ def test_direct_and_davidson_full_angular_states_agree():
     np.testing.assert_allclose(overlaps, 1.0, atol=2.0e-9)
 
 
+def test_independent_tilted_davidson_ground_energy_matches_axial():
+    axial = _hamiltonian(0.0, points=5, l_max=2)
+    tilted = _hamiltonian(np.pi / 4.0, points=5, l_max=2)
+    options = {
+        "residual_tolerance": 1.0e-11,
+        "max_iterations": 200,
+        "maximum_subspace_dimension": 32,
+        "retained_ritz_vectors": 8,
+        "initial_orbitals": None,
+    }
+
+    axial_state = diagonalize_full_angular(axial, **options)
+    tilted_state = diagonalize_full_angular(tilted, **options)
+
+    assert axial_state.converged
+    assert tilted_state.converged
+    assert axial_state.residual_norm < 1.0e-11
+    assert tilted_state.residual_norm < 1.0e-11
+    assert tilted_state.electronic_energy == pytest.approx(
+        axial_state.electronic_energy,
+        abs=2.0e-12,
+    )
+
+
 @pytest.mark.parametrize("angle", [np.pi / 6.0, np.pi / 4.0, np.pi / 2.0])
 def test_rotated_h2plus_state_is_exact_finite_basis_solution(angle):
     l_max = 2

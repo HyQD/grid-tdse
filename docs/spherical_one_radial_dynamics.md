@@ -158,6 +158,13 @@ does **not** normalize it.
 Consequently, absorber-induced norm loss and deliberately unnormalized input
 remain visible.
 
+For an orientation-dependent ground-state campaign, solve Davidson with the
+full-angular field-free Hamiltonian at each requested nuclear geometry. Do
+not silently obtain tilted initial states by rotating one axial solution.
+Rotation remains an exact finite-space covariance check when all magnetic
+channels and nuclear multipoles are present, but geometry-local stationary
+solves provide an independent preparation record for every dynamics run.
+
 The package-level interface accepts an array. Archive selection and loading
 are application policies; the H2+ example accepts NPY files and NPZ files
 containing `final_state`, `state`, or `initial_state`.
@@ -292,7 +299,9 @@ The real-time regression suite adds two complementary qualifications:
    discrepancies all decrease across `l_max=2,4,6,8`, by more than one order
    of magnitude from the first to the last cutoff. Separate radial and
    time-step cases ensure that those errors are controlled before the angular
-   trend is interpreted.
+   trend is interpreted. Full-angular orientation cases compute an
+   independent Davidson ground state from each geometry's Hamiltonian rather
+   than rotating an axial state.
 2. An independent prolate-spheroidal weak-pulse calculation is compared with
    the public spherical `OneElectronDiatomicTDSE` workflow for clamped H2+ at
    `R=2`. The pulse has `E0=0.01`, `omega=2`, one cycle, length gauge,
@@ -325,9 +334,10 @@ convergence mechanism; they are not recommendations. Scientific work should
 begin around `l_max=12` and test at least `16` and `20`, extending farther
 when the target observable requires it.
 
-The current implementation assumes an axial molecule, an axial field, and a
-single conserved `m`. General molecular orientations and transverse fields
-require multiple `m` sectors. See [Rotation covariance of the spherical
-one-radial representation](spherical_one_radial_rotation_covariance.md) for
-the equivalence and truncation requirements. Direct-force acceleration
-sampling for HHG is a later implementation step.
+The full-angular implementation supports an arbitrary clamped two-centre
+orientation with a laboratory-`z` field. The optimized fixed-`m` path remains
+restricted to an axial molecule. General field polarization is not yet
+supported. See [Rotation covariance of the spherical one-radial
+representation](spherical_one_radial_rotation_covariance.md) for the
+equivalence and truncation requirements. Direct-force acceleration sampling
+for HHG is a later implementation step.

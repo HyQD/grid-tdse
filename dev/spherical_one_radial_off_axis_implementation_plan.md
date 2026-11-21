@@ -40,7 +40,7 @@ spherical-harmonic rotation object supplies active rotations of complete
 complex `(l,m)` states. This plan therefore treats those operations as
 dependencies rather than reimplementing their angular algebra in grid-tdse.
 
-Steps 1--13 are complete on the development branch. The explicit-position
+Steps 1--14 are complete on the development branch. The explicit-position
 system model, arbitrary-position Coulomb construction, full-angular
 Hamiltonian utilities, matrix-free Davidson stationary solver, finite-basis
 rotation qualification, and analytic-versus-Poisson cross-check are
@@ -49,8 +49,10 @@ field interactions, projected gauge transformations, radial absorbers,
 time-dependent Hamiltonian actions, and raw vector observables are also
 implemented. Full-angular CN preconditioning, high-level calculation and
 persistence support, and local CN/SIL/SIA qualification are also complete.
-Steps 14--17 retain gauge-equivalence, physical-alignment, public-example,
-and performance qualification work.
+Off-axis length--velocity gauge equivalence is qualified across nine
+orientations and through angular, radial, and time-step refinement. Steps
+15--17 retain physical-alignment, public-example, and performance
+qualification work.
 
 ## 2. Relationship to existing work
 
@@ -774,12 +776,51 @@ Propagate the same tilted H2+ state and weak pulse in length and velocity
 gauge. Compare endpoints directly when `A_z = 0` and compare in-pulse states
 only after the projected gauge transformation.
 
+Use midpoint-centred H2+ at `R=2` bohr with the molecular axis in the
+laboratory `x`-`z` plane at
+
+```text
+theta = 0, 30, 45, 60, 90, 120, 135, 150, 180 degrees
+phi = 0
+```
+
+including the complete `m_max=l_max` state and
+`nuclear_L_max=nuclear_M_max=2*l_max` at every orientation, including the
+two axial endpoints. Use the matched one-cycle pulse
+
+```text
+SineSquareLaser(E0=0.05, omega=4.0, ncycles=1, phase=0)
+t_final = pi/2
+```
+
+and SIA propagation. At every orientation, angular cutoff, and radial grid,
+compute the initial ground state independently with full-angular Davidson
+using only that geometry's Hamiltonian and its generic diagonal-based initial
+guess. Do not construct the dynamics state by rotating an axial solution.
+Use `theta=45` degrees for the detailed `l_max=2,4,6,8` refinement, compare
+`dt=0.05` with `0.025`, and compare four, six, and eight radial points per
+element on nodes `[0,1,2,4,8]`.
+
 Acceptance gate:
 
 - each gauge is independently stable under radial and time-step refinement;
 - endpoint and transformed in-pulse discrepancies decrease with angular
   refinement;
 - all three dipole and momentum components show the same convergence trend.
+
+Status: complete. All nine orientations pass the complete-space gauge gate
+at `l_max=4`. At `theta=45` degrees, refining `l_max=2,4,6,8` reduces the
+phase-aligned endpoint-state discrepancy from `2.92e-4` to `6.06e-6`, the
+largest transformed in-pulse discrepancy from `2.92e-4` to `6.74e-6`, and
+the projected-transform norm defect from `2.96e-6` to `1.28e-9`. Endpoint
+dipole and momentum differences and the nonzero `x` and `z` trajectory
+differences fall by more than one order of magnitude. The reflection-odd
+`y` components remain at roundoff for the `x`-`z`-plane geometries. Separate
+radial- and time-step-refinement cases confirm that the angular trend is not
+an unresolved discretization artifact. The paired homonuclear orientations
+`0/180`, `30/150`, `45/135`, and `60/120` give matching gauge errors. Every
+dynamics run starts from an independently converged Davidson state for its
+own fixed geometry; no on-axis orbital is rotated into a dynamics run.
 
 ### Step 15: validate physical alignment behavior
 

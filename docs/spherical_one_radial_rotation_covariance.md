@@ -156,6 +156,54 @@ spectrum should be identical. The on-axis H2+ ground state lies in the
 body-axis `m=0` sector, so its energy should also equal the lowest eigenvalue
 of the off-axis full-`m` Hamiltonian.
 
+## Independent Davidson qualification
+
+The orientation invariance has also been checked without constructing or
+rotating an on-axis wavefunction. Each entry below comes from a separate
+full-angular Davidson calculation whose initial vector was selected only
+from the diagonal of that geometry's Hamiltonian. No orbital was shared
+between orientations.
+
+The qualification uses midpoint-centred H2+ at `R=2` bohr, radial element
+boundaries `[0,1,2,4,8]`, six FEM-DVR points per element,
+`m_max=l_max`, and
+`nuclear_L_max=nuclear_M_max=2*l_max`. The Davidson residual tolerance is
+`1e-11`. The tabulated values are electronic energies in hartree.
+
+| Angle | `l_max=2` | `l_max=4` | `l_max=6` | `l_max=8` |
+| ---: | ---: | ---: | ---: | ---: |
+| 0 degrees | -1.083680299764110 | -1.096433331454780 | -1.099946212738130 | -1.101226452239987 |
+| 30 degrees | -1.083680299764142 | -1.096433331454789 | -1.099946212738123 | -1.101226452240001 |
+| 45 degrees | -1.083680299764148 | -1.096433331454784 | -1.099946212738138 | -1.101226452239969 |
+| 60 degrees | -1.083680299764135 | -1.096433331454777 | -1.099946212738135 | -1.101226452240017 |
+| 90 degrees | -1.083680299764129 | -1.096433331454758 | -1.099946212738125 | -1.101226452239986 |
+| 120 degrees | -1.083680299764135 | -1.096433331454732 | -1.099946212738145 | -1.101226452239963 |
+| 135 degrees | -1.083680299764034 | -1.096433331454746 | -1.099946212738151 | -1.101226452239976 |
+| 150 degrees | -1.083680299764142 | -1.096433331454789 | -1.099946212738123 | -1.101226452240001 |
+| 180 degrees | -1.083680299764110 | -1.096433331454780 | -1.099946212738130 | -1.101226452239987 |
+
+The maximum orientation spreads for `l_max=2,4,6,8` are respectively
+`1.14e-13`, `5.75e-14`, `2.86e-14`, and `5.49e-14` hartree. Every residual
+is below `9.9e-12`. Add the clamped-nuclei repulsion `1/R=0.5` hartree to
+obtain the corresponding total energies.
+
+This agreement concerns the field-free spectrum. It does not make dynamics
+at different molecular alignments equivalent when the laser remains fixed
+along laboratory `z`.
+
+## Initial states for orientation-dependent dynamics
+
+For a dynamics calculation, compute the stationary initial state with the
+Hamiltonian at the exact requested nuclear geometry. The default workflow
+must not solve an axial problem and silently rotate that orbital. Thus every
+orientation receives an independent full-angular Davidson solve and records
+that geometry in its state and checkpoint metadata.
+
+Rotating an on-axis eigenstate remains a valuable covariance oracle: in the
+complete finite angular space it is mathematically the same eigenstate. It
+should nevertheless be an explicit validation or user-requested operation,
+not the state-preparation policy for an orientation-dependent campaign.
+
 ## Comparing excited states
 
 Care is required when comparing restricted and complete spectra. For the
@@ -244,8 +292,9 @@ probability sampling are also implemented and tested. The public real-time
 calculation object selects either the backward-compatible fixed-`m` path or
 the full-angular path explicitly. Full-angular CN preconditioning,
 checkpoints, exact restart, continuation, and CN/SIL/SIA propagation are
-locally qualified; gauge-equivalence and alignment studies remain later
-validation stages.
+locally qualified. Off-axis length--velocity gauge equivalence is qualified
+with independently converged Davidson ground states at each geometry;
+physical alignment studies remain the next validation stage.
 
 ## Recommended validation tests
 
