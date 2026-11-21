@@ -226,6 +226,163 @@ class SphericalOneRadialAxialVelocityGaugeInteraction:
     __call__ = apply
 
 
+class SphericalOneRadialFullAngularAxialLengthGaugeInteraction:
+    r"""Apply a laboratory-``z`` electric field to a full-angular state."""
+
+    def __init__(
+        self,
+        hamiltonian: OneElectronDiatomicHamiltonian,
+        *,
+        fields: Callable[[float], Real]
+        | Iterable[Callable[[float], Real]],
+        include_nuclear_scalar: bool = False,
+        origin=(0.0, 0.0, 0.0),
+    ) -> None:
+        if not isinstance(hamiltonian, OneElectronDiatomicHamiltonian):
+            raise TypeError(
+                "hamiltonian must be a OneElectronDiatomicHamiltonian"
+            )
+        if not isinstance(include_nuclear_scalar, (bool, np.bool_)):
+            raise TypeError("include_nuclear_scalar must be boolean")
+        self.hamiltonian = hamiltonian
+        self.system = hamiltonian.system
+        self.fields = _field_profiles(fields, gauge="length")
+        self.include_nuclear_scalar = bool(include_nuclear_scalar)
+        self.origin = _cartesian_origin(origin)
+
+    @property
+    def origin_z(self) -> float:
+        """Return the laboratory-``z`` component of the origin."""
+
+        return float(self.origin[2])
+
+    @property
+    def nuclear_dipole(self) -> np.ndarray:
+        """Return the static nuclear dipole about the configured origin."""
+
+        return self.system.nuclear_dipole_about(self.origin)
+
+    @property
+    def nuclear_dipole_z(self) -> float:
+        """Return the laboratory-``z`` nuclear dipole component."""
+
+        return float(self.nuclear_dipole[2])
+
+    def field_amplitude(self, time: float) -> float:
+        """Evaluate and sum the laboratory-``z`` electric fields."""
+
+        return _summed_field_amplitude(self.fields, time)
+
+    def spatial_action(self, state) -> np.ndarray:
+        r"""Return the field-independent factor ``V(t) / E_z(t)``."""
+
+        values = self.hamiltonian.validate_state(state)
+        result = -self.system.electron_charge * (
+            self.hamiltonian.apply_z(values) - self.origin_z * values
+        )
+        if self.include_nuclear_scalar and self.nuclear_dipole_z != 0.0:
+            result = result - self.nuclear_dipole_z * values
+        return result
+
+    def apply(self, state, time: float) -> np.ndarray:
+        """Return the complete time-dependent length-gauge action."""
+
+        values = self.hamiltonian.validate_state(state)
+        amplitude = self.field_amplitude(time)
+        if amplitude == 0.0:
+            return np.zeros_like(values)
+        return amplitude * self.spatial_action(values)
+
+    def archive_metadata(self) -> dict:
+        """Return JSON-compatible laboratory-frame coupling metadata."""
+
+        nuclear_scalar = -self.nuclear_dipole_z
+        return {
+            "angular_representation": "full",
+            "gauge": "length",
+            "field_direction": "laboratory_z",
+            "temporal_amplitude": "E_z(t)",
+            "origin": self.origin.tolist(),
+            "electronic_coordinate": "z - origin[2]",
+            "spatial_operator": "-electron_charge * (z - origin[2])",
+            "electron_charge": self.system.electron_charge,
+            "nuclear_dipole": self.nuclear_dipole.tolist(),
+            "nuclear_scalar_coefficient": nuclear_scalar,
+            "include_nuclear_scalar": self.include_nuclear_scalar,
+            "omitted_nuclear_scalar_coefficient": (
+                0.0 if self.include_nuclear_scalar else nuclear_scalar
+            ),
+            "nuclear_scalar_is_global_phase": True,
+        }
+
+    __call__ = apply
+
+
+class SphericalOneRadialFullAngularAxialVelocityGaugeInteraction:
+    r"""Apply a laboratory-``z`` vector potential to a full state."""
+
+    def __init__(
+        self,
+        hamiltonian: OneElectronDiatomicHamiltonian,
+        *,
+        fields: Callable[[float], Real]
+        | Iterable[Callable[[float], Real]],
+    ) -> None:
+        if not isinstance(hamiltonian, OneElectronDiatomicHamiltonian):
+            raise TypeError(
+                "hamiltonian must be a OneElectronDiatomicHamiltonian"
+            )
+        self.hamiltonian = hamiltonian
+        self.system = hamiltonian.system
+        self.fields = _field_profiles(fields, gauge="velocity")
+
+    @property
+    def momentum_coupling(self) -> float:
+        """Return the charge-to-mass factor ``q_e / mu``."""
+
+        return float(
+            self.system.electron_charge / self.system.particle_mass
+        )
+
+    def field_amplitude(self, time: float) -> float:
+        """Evaluate and sum the laboratory-``z`` vector potentials."""
+
+        return _summed_field_amplitude(self.fields, time)
+
+    def spatial_action(self, state) -> np.ndarray:
+        r"""Return the field-independent factor ``V(t) / A_z(t)``."""
+
+        values = self.hamiltonian.validate_state(state)
+        return -self.momentum_coupling * self.hamiltonian.apply_pz(values)
+
+    def apply(self, state, time: float) -> np.ndarray:
+        """Return the complete linear velocity-gauge action."""
+
+        values = self.hamiltonian.validate_state(state)
+        amplitude = self.field_amplitude(time)
+        if amplitude == 0.0:
+            return np.zeros_like(values)
+        return amplitude * self.spatial_action(values)
+
+    def archive_metadata(self) -> dict:
+        """Return JSON-compatible laboratory-frame coupling metadata."""
+
+        return {
+            "angular_representation": "full",
+            "gauge": "velocity",
+            "field_direction": "laboratory_z",
+            "temporal_amplitude": "A_z(t)",
+            "spatial_operator": "-(electron_charge / particle_mass) * p_z",
+            "electron_charge": self.system.electron_charge,
+            "particle_mass": self.system.particle_mass,
+            "momentum_coupling": self.momentum_coupling,
+            "diamagnetic_a_squared_term_included": False,
+            "diamagnetic_a_squared_term_is_global_phase": True,
+        }
+
+    __call__ = apply
+
+
 def _field_profiles(fields, *, gauge: str) -> tuple[Callable, ...]:
     if callable(fields):
         profiles = (fields,)
@@ -269,3 +426,16 @@ def _real_expectation(value, name: str) -> float:
     if abs(value.imag) > 1.0e-12 * scale:
         raise ValueError(f"{name} has a significant imaginary part")
     return float(value.real)
+
+
+def _cartesian_origin(value) -> np.ndarray:
+    raw = np.asarray(value)
+    if not np.issubdtype(raw.dtype, np.number) or np.iscomplexobj(raw):
+        raise TypeError("origin must contain real numbers")
+    origin = np.array(raw, dtype=float, copy=True)
+    if origin.shape != (3,):
+        raise ValueError("origin must have shape (3,)")
+    if not np.all(np.isfinite(origin)):
+        raise ValueError("origin must contain finite values")
+    origin.setflags(write=False)
+    return origin

@@ -119,6 +119,26 @@ class SphericalOneRadialAbsorbingBoundaries:
             )
         return values * _radial_broadcast(self._cap_values, values.ndim)
 
+    def apply_mask_full(self, state, time: float) -> np.ndarray:
+        """Apply the configured mask to a full-angular state."""
+
+        del time
+        values = self.hamiltonian.validate_state(state)
+        if self._mask_values is None:
+            return values.copy()
+        return values * _radial_broadcast(self._mask_values, values.ndim)
+
+    def cap_action_full(self, state) -> np.ndarray:
+        """Return the CAP action on a full-angular state."""
+
+        values = self.hamiltonian.validate_state(state)
+        if self._cap_values is None:
+            return np.zeros_like(
+                values,
+                dtype=np.result_type(values.dtype, complex),
+            )
+        return values * _radial_broadcast(self._cap_values, values.ndim)
+
     def validate_integrator(self, integrator: str) -> None:
         """Enforce the initial non-Hermitian propagation contract."""
 

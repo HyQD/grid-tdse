@@ -2,10 +2,11 @@
 
 `grid_tdse.spherical.one_radial.OneElectronDiatomicTDSE` is the public
 high-level interface for real-time, clamped-nuclei, one-electron diatomic
-calculations in spherical coordinates. The initial implementation targets
-H2+ on the laboratory `z` axis in a linearly polarized axial field. It also
-supports unequal nuclear charges and a user-selected particle mass, subject
-to the same axial-geometry assumptions.
+calculations in spherical coordinates. The backward-compatible `"fixed_m"`
+representation targets a molecule on laboratory `z`. The `"full"`
+representation accepts explicit Cartesian nuclear positions and retains all
+configured complex `(l,m)` channels for a linearly polarized laboratory-`z`
+field. Both paths support unequal charges and a user-selected particle mass.
 
 The interface prepares the spatial Hamiltonian, field interaction, absorber,
 integrator, observables, progress reporting, and checkpoint policy. It accepts
@@ -14,7 +15,7 @@ choice, not a requirement of the time-dependent implementation.
 
 ## Representation and field-free Hamiltonian
 
-The nuclei are fixed at
+For `angular_representation="fixed_m"`, the nuclei are fixed at
 
 ```math
 \mathbf R_1=(0,0,-R/2),
@@ -44,6 +45,21 @@ N(t)
 ```
 
 where `w_i` are the FEM-DVR radial weights.
+
+For `angular_representation="full"`, the state is
+
+```math
+\Psi(\mathbf r,t)
+=
+\frac{1}{r}
+\sum_{l=0}^{l_{\max}}
+\sum_{m=-\min(l,m_{\max})}^{\min(l,m_{\max})}
+u_{lm}(r,t)Y_{lm}(\hat{\mathbf r}),
+```
+
+with shape `(n_r, n_lm)` in the public grid-lib channel ordering. The
+rotation-complete default is `m_max=l_max`. An off-axis geometry requires
+this full representation; the fixed-`m` path rejects it explicitly.
 
 The electronic field-free Hamiltonian is
 
@@ -124,8 +140,10 @@ The public `transform_axial_gauge_state()` helper uses
 \exp[-i q_e A_z(t)z]\Psi_V(\mathbf r,t)
 ```
 
-and projects the transformed state back into the finite fixed-`m` angular
-space. At finite `l_max`, that space is not closed under the exact phase.
+and projects the transformed state back into the finite angular space. The
+`transform_full_angular_axial_gauge_state()` variant applies the same
+projection independently in every signed-`m` block. At finite `l_max`, the
+retained space is not closed under the exact phase.
 The resulting norm defect and length--velocity difference are therefore
 useful angular-convergence diagnostics, not evidence that the transform
 silently preserves information.
@@ -134,10 +152,18 @@ silently preserves information.
 
 `initial_state` may be a stationary state, an excited state, a coherent
 superposition, or a compatible state prepared elsewhere. The high-level
-interface requires the exact fixed-`m` state shape, finite numeric values,
-and a positive finite norm. It copies the state but does **not** normalize it.
+interface requires the exact state shape for the selected representation,
+finite numeric values, and a positive finite norm. It copies the state but
+does **not** normalize it.
 Consequently, absorber-induced norm loss and deliberately unnormalized input
 remain visible.
+
+For an orientation-dependent ground-state campaign, solve Davidson with the
+full-angular field-free Hamiltonian at each requested nuclear geometry. Do
+not silently obtain tilted initial states by rotating one axial solution.
+Rotation remains an exact finite-space covariance check when all magnetic
+channels and nuclear multipoles are present, but geometry-local stationary
+solves provide an independent preparation record for every dynamics run.
 
 The package-level interface accepts an array. Archive selection and loading
 are application policies; the H2+ example accepts NPY files and NPZ files
@@ -190,6 +216,11 @@ reference populations are raw squared overlaps with normalized references:
 - `state_populations`, the raw squared overlaps when normalized reference
   states are supplied.
 
+In the full representation, the electronic, nuclear, total, induced-dipole,
+and canonical-momentum samplers return Cartesian vectors ordered `(x,y,z)`.
+The velocity-gauge mechanical momentum is also a Cartesian vector; only its
+laboratory-`z` component receives the `-q_e A_z(t) N(t)` correction.
+
 Conditional expectation values and conditional reference populations can be
 recovered in postprocessing by dividing the raw value by `norm`. This
 convention is essential when a mask or CAP removes probability.
@@ -197,7 +228,7 @@ convention is essential when a mask or CAP removes probability.
 The radial distribution is
 
 ```math
-P(r_i,t)=\sum_l |u_{lm}(r_i,t)|^2,
+P(r_i,t)=\sum_{lm} |u_{lm}(r_i,t)|^2,
 ```
 
 and satisfies `sum_i w_i P(r_i,t)=N(t)`. It is stored separately at the
@@ -207,7 +238,8 @@ disable radial-distribution storage.
 
 ## Persistence and continuation
 
-The calculation records the system, grid, particle mass, fixed-`m` sector,
+The calculation records the system, geometry, Cartesian origin, grid,
+particle mass, angular representation, channel ordering, angular cutoffs,
 field and gauge, absorber, integrator, preconditioner, initial-state identity,
 and observable policy in checkpoint metadata.
 
@@ -222,21 +254,44 @@ for the underlying checkpoint semantics.
 
 ## Public-interface example
 
-The compact development calculation is
+The public full-angular development calculation is
 
 ```bash
 python examples/spherical/one_radial/h2plus_laser_dynamics.py
 ```
 
-Its defaults are smoke-test inputs, not convergence recommendations. For an
-illustrative velocity-gauge calculation with an absorber:
+By default, the midpoint-centred H2+ axis lies along laboratory `z`, and a
+three-cycle `SineSquareLaser` with `E0=0.05`, phase zero, and wavelength
+`400` nm is converted to `omega=0.113908381322799` a.u. using CODATA 2018.
+The pulse duration is approximately `165.47997349` a.u. These are development
+inputs, not convergence recommendations.
+
+Specify a midpoint-centred orientation with `--bond-length`, `--theta-deg`,
+and `--phi-deg`. For example, this places the molecular axis at polar angle
+45 degrees and azimuth 30 degrees while the field remains polarized along
+laboratory `z`:
+
+```bash
+python examples/spherical/one_radial/h2plus_laser_dynamics.py \
+    --bond-length 2 \
+    --theta-deg 45 \
+    --phi-deg 30
+```
+
+Alternatively, provide both `--nuclear-position-1 X1 Y1 Z1` and
+`--nuclear-position-2 X2 Y2 Z2`. Cartesian positions and orientation options
+are mutually exclusive. The radial mesh retains every distinct nuclear
+radius as an element boundary. This is particularly important when the
+spherical expansion origin is not the bond midpoint.
+
+For an illustrative velocity-gauge calculation with an absorber:
 
 ```bash
 python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --gauge velocity \
     --integrator sia \
     --absorber cap \
-    --wavelength-nm 800 \
+    --wavelength-nm 400 \
     --field-strength 0.05 \
     --r-max 64 \
     --l-max 12 \
@@ -245,11 +300,20 @@ python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --cap-eta 1.0
 ```
 
-The example uses only public `grid-tdse` interfaces. It computes a projected
-ground state unless `--initial-state` is supplied, prints the effective
-setup, and writes a JSON summary plus a compressed NPZ archive containing the
-final state, raw observables, integrator diagnostics, and sampled radial
-distributions. Use `--help` for all controls.
+The example uses only public `grid-tdse` interfaces and always uses the
+rotation-complete full-angular representation with `m_max=l_max` and
+`nuclear_L_max=nuclear_M_max=2*l_max`. At every geometry it independently
+computes a full-angular Davidson ground state unless `--initial-state` is
+supplied; it never rotates an axial state into place. The program prints the
+effective setup and writes a JSON summary plus a compressed NPZ archive
+containing the final state, raw Cartesian vector observables, integrator
+diagnostics, and sampled radial distributions.
+
+The metadata records both Cartesian nuclear positions, their midpoint and
+bond axis, the spherical expansion origin, channel `(l,m)` ordering, angular
+and Coulomb cutoffs, wavelength-to-frequency convention, gauge, absorber,
+and propagation settings. `--wavelength-nm` and `--frequency` are mutually
+exclusive. Use `--help` for all controls.
 
 ## Qualification
 
@@ -259,7 +323,7 @@ qualified separately in
 That validation includes high-precision H2+ references and an independent
 prolate-spheroidal comparison.
 
-The real-time regression suite adds two complementary qualifications:
+The real-time regression suite adds three complementary qualifications:
 
 1. Paired length- and velocity-gauge H2+ calculations use a one-cycle
    `SineSquareLaser` with `E0=0.05` and `omega=4`. Endpoint state, dipole,
@@ -267,7 +331,9 @@ The real-time regression suite adds two complementary qualifications:
    discrepancies all decrease across `l_max=2,4,6,8`, by more than one order
    of magnitude from the first to the last cutoff. Separate radial and
    time-step cases ensure that those errors are controlled before the angular
-   trend is interpreted.
+   trend is interpreted. Full-angular orientation cases compute an
+   independent Davidson ground state from each geometry's Hamiltonian rather
+   than rotating an axial state.
 2. An independent prolate-spheroidal weak-pulse calculation is compared with
    the public spherical `OneElectronDiatomicTDSE` workflow for clamped H2+ at
    `R=2`. The pulse has `E0=0.01`, `omega=2`, one cycle, length gauge,
@@ -278,6 +344,14 @@ The real-time regression suite adds two complementary qualifications:
    ground-state energies within `2e-3` hartree, final norms within `2e-11` of
    unity, survival probabilities within `5e-8`, and full dipole histories
    within `2e-5` atomic units.
+3. A full-angular H2+ alignment sweep uses polar angles `0`, `30`, `45`,
+   `60`, `90`, `120`, `135`, `150`, and `180` degrees relative to the fixed
+   laboratory-`z` field. The dynamics are physically different across
+   inequivalent alignments. Reflection forces the `y` dipole and momentum to
+   roundoff in the `x`-`z` plane, homonuclear mirrored-axis pairs transform
+   consistently, and an independent `phi=60` degrees calculation verifies
+   that azimuthal rotation preserves scalar and longitudinal observables
+   while rotating transverse vectors.
 
 These are compact implementation regressions. They do not establish
 production convergence.
@@ -300,9 +374,10 @@ convergence mechanism; they are not recommendations. Scientific work should
 begin around `l_max=12` and test at least `16` and `20`, extending farther
 when the target observable requires it.
 
-The current implementation assumes an axial molecule, an axial field, and a
-single conserved `m`. General molecular orientations and transverse fields
-require multiple `m` sectors. See [Rotation covariance of the spherical
-one-radial representation](spherical_one_radial_rotation_covariance.md) for
-the equivalence and truncation requirements. Direct-force acceleration
-sampling for HHG is a later implementation step.
+The full-angular implementation supports an arbitrary clamped two-centre
+orientation with a laboratory-`z` field. The optimized fixed-`m` path remains
+restricted to an axial molecule. General field polarization is not yet
+supported. See [Rotation covariance of the spherical one-radial
+representation](spherical_one_radial_rotation_covariance.md) for the
+equivalence and truncation requirements. Direct-force acceleration sampling
+for HHG is a later implementation step.

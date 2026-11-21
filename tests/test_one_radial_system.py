@@ -49,6 +49,75 @@ def test_heteronuclear_effective_charges_mass_and_nuclear_dipole():
     )
 
 
+def test_explicit_nuclear_positions_define_general_geometry():
+    system = OneElectronDiatomicSystem.from_nuclear_positions(
+        1.5,
+        2.25,
+        [-0.6, 0.2, -0.8],
+        [1.0, 0.2, 0.4],
+        particle_mass=0.8,
+        name="tilted",
+    )
+
+    np.testing.assert_array_equal(
+        system.nuclear_positions,
+        [[-0.6, 0.2, -0.8], [1.0, 0.2, 0.4]],
+    )
+    np.testing.assert_allclose(system.nuclear_midpoint, [0.2, 0.2, -0.2])
+    np.testing.assert_allclose(system.bond_axis, [0.8, 0.0, 0.6])
+    assert system.internuclear_distance == pytest.approx(2.0)
+    assert system.half_bond_length == pytest.approx(1.0)
+    assert system.nuclear_repulsion_energy == pytest.approx(1.6875)
+    assert not system.is_midpoint_centered
+    assert not system.is_z_axis_aligned
+    assert not system.is_canonical_axial_geometry
+    np.testing.assert_allclose(
+        system.nuclear_dipole,
+        1.5 * np.array([-0.6, 0.2, -0.8])
+        + 2.25 * np.array([1.0, 0.2, 0.4]),
+    )
+
+
+def test_explicit_axial_positions_match_legacy_system():
+    legacy = OneElectronDiatomicSystem(1.0, 2.0, 0.7, name="test")
+    explicit = OneElectronDiatomicSystem.from_nuclear_positions(
+        1.0,
+        2.0,
+        [0.0, 0.0, -0.7],
+        [0.0, 0.0, 0.7],
+        name="test",
+    )
+
+    assert explicit == legacy
+    assert hash(explicit) == hash(legacy)
+    assert explicit.is_midpoint_centered
+    assert explicit.is_z_axis_aligned
+    assert explicit.is_canonical_axial_geometry
+
+
+@pytest.mark.parametrize(
+    ("position1", "position2", "error"),
+    [
+        ([0.0, 0.0], [0.0, 0.0, 1.0], ValueError),
+        ([0.0, 0.0, 0.0], [0.0, 0.0, np.inf], ValueError),
+        ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0j], TypeError),
+        ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], ValueError),
+    ],
+)
+def test_explicit_nuclear_positions_are_validated(
+    position1,
+    position2,
+    error,
+):
+    with pytest.raises(error):
+        OneElectronDiatomicSystem.from_nuclear_positions(
+            1.0,
+            1.0,
+            position1,
+            position2,
+        )
+
+
 def test_returned_nuclear_arrays_are_read_only():
     system = OneElectronDiatomicSystem(1.0, 2.0, 0.5)
 

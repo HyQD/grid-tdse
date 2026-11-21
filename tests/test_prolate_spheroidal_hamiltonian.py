@@ -104,3 +104,20 @@ def test_public_matrix_copy_cannot_mutate_cached_actions(hamiltonian):
 
     np.testing.assert_allclose(hamiltonian.apply_fixed_m(state), expected)
     assert hamiltonian.fixed_m_matrix(0, representation="strong").nnz > 0
+
+
+def test_prolate_hamiltonian_rejects_noncanonical_nuclear_positions():
+    system = OneElectronDiatomicSystem.from_nuclear_positions(
+        1.0,
+        1.0,
+        [-1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+    )
+
+    with pytest.raises(ValueError, match="prolate-spheroidal coordinates"):
+        ProlateSpheroidalOneElectronHamiltonian(
+            system,
+            xi_boundaries=[1.0, 2.0, 4.0],
+            xi_points_per_element=4,
+            eta_degree=4,
+        )

@@ -82,6 +82,55 @@ def transform_axial_gauge_state(
     return np.einsum("rij,...rj->...ri", matrices, values, optimize=True)
 
 
+def transform_full_angular_axial_gauge_state(
+    hamiltonian: OneElectronDiatomicHamiltonian,
+    state,
+    vector_potential: Real,
+    *,
+    source_gauge: FieldGauge,
+    target_gauge: FieldGauge,
+    quadrature_order: int | None = None,
+) -> np.ndarray:
+    r"""Project an axial gauge transformation in a full angular space.
+
+    The laboratory-``z`` phase preserves laboratory ``m``. Each complete
+    retained signed-``m`` block is therefore projected independently before
+    being restored to the common grid-lib channel ordering.
+    """
+
+    if not isinstance(hamiltonian, OneElectronDiatomicHamiltonian):
+        raise TypeError(
+            "hamiltonian must be a OneElectronDiatomicHamiltonian"
+        )
+    values = hamiltonian.validate_state(state)
+    source = _gauge(source_gauge, "source_gauge")
+    target = _gauge(target_gauge, "target_gauge")
+    amplitude = _finite_real(vector_potential, "vector_potential")
+    dtype = np.result_type(values.dtype, complex)
+    if source == target or amplitude == 0.0:
+        return np.array(values, dtype=dtype, copy=True)
+
+    result = np.zeros(values.shape, dtype=dtype)
+    for m_value in range(-hamiltonian.m_max, hamiltonian.m_max + 1):
+        indices = [
+            index
+            for index, (_, magnetic) in enumerate(hamiltonian.orbital_lm)
+            if magnetic == m_value
+        ]
+        if not indices:
+            continue
+        result[..., indices] = transform_axial_gauge_state(
+            hamiltonian,
+            values[..., indices],
+            amplitude,
+            m=m_value,
+            source_gauge=source,
+            target_gauge=target,
+            quadrature_order=quadrature_order,
+        )
+    return result
+
+
 def _gauge(value, name: str) -> FieldGauge:
     if value not in {"length", "velocity"}:
         raise ValueError(f"{name} must be 'length' or 'velocity'")
@@ -127,4 +176,7 @@ def _normalized_associated_legendre(cosine, m_abs: int, l_max: int):
     )
 
 
-__all__ = ["transform_axial_gauge_state"]
+__all__ = [
+    "transform_axial_gauge_state",
+    "transform_full_angular_axial_gauge_state",
+]
