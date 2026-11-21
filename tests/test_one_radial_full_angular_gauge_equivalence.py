@@ -23,33 +23,34 @@ ANGLES_DEGREES = (0, 30, 45, 60, 90, 120, 135, 150, 180)
 NODES = (0.0, 1.0, 2.0, 4.0, 8.0)
 
 
-def _rotation_y(angle):
-    cosine = np.cos(angle)
-    sine = np.sin(angle)
-    return np.array(
+def _system(polar_angle, azimuth=0.0):
+    axis = np.array(
         [
-            [cosine, 0.0, sine],
-            [0.0, 1.0, 0.0],
-            [-sine, 0.0, cosine],
+            np.sin(polar_angle) * np.cos(azimuth),
+            np.sin(polar_angle) * np.sin(azimuth),
+            np.cos(polar_angle),
         ]
     )
-
-
-def _system(angle):
-    positions = np.array([[0.0, 0.0, -1.0], [0.0, 0.0, 1.0]])
-    positions = positions @ _rotation_y(angle).T
     return OneElectronDiatomicSystem.from_nuclear_positions(
         1.0,
         1.0,
-        positions[0],
-        positions[1],
+        -axis,
+        axis,
         name="oriented H2+ gauge qualification",
     )
 
 
 @lru_cache(maxsize=None)
-def _independent_ground_state(angle_degrees, l_max, n_points):
-    system = _system(np.deg2rad(angle_degrees))
+def _independent_ground_state(
+    angle_degrees,
+    azimuth_degrees,
+    l_max,
+    n_points,
+):
+    system = _system(
+        np.deg2rad(angle_degrees),
+        np.deg2rad(azimuth_degrees),
+    )
     hamiltonian = OneElectronDiatomicHamiltonian(
         system,
         nodes=NODES,
@@ -88,12 +89,15 @@ def _run_pair(
     l_max,
     time_step=0.05,
     points_per_element=6,
+    azimuth_degrees=0,
 ):
     angle = np.deg2rad(angle_degrees)
-    system = _system(angle)
+    azimuth = np.deg2rad(azimuth_degrees)
+    system = _system(angle, azimuth)
     n_points = (points_per_element,) * (len(NODES) - 1)
     ground_state = _independent_ground_state(
         angle_degrees,
+        azimuth_degrees,
         l_max,
         n_points,
     )
@@ -181,6 +185,7 @@ def _run_pair(
 
     return {
         "angle_degrees": angle_degrees,
+        "azimuth_degrees": azimuth_degrees,
         "l_max": l_max,
         "ground_energy": ground_state.electronic_energy,
         "ground_residual": ground_state.residual_norm,
@@ -243,6 +248,11 @@ def gauge_cases():
             time_step=0.025,
             points_per_element=points_per_element,
         )
+    cases[("azimuth", 45, 60, 4, 0.05)] = _run_pair(
+        45,
+        l_max=4,
+        azimuth_degrees=60,
+    )
     return cases
 
 
@@ -347,3 +357,110 @@ def test_homonuclear_paired_orientations_have_matching_gauge_errors(
                 rel=5.0e-5,
                 abs=2.0e-12,
             )
+
+
+def test_xz_plane_reflection_forbids_y_response(gauge_cases):
+    for angle in ANGLES_DEGREES:
+        case = gauge_cases[(angle, 4, 0.05)]
+        for gauge in ("length", "velocity"):
+            result = case[gauge]
+            dipole_y = result.samples["total_dipole_numerator"][:, 1]
+            momentum_y = result.samples["canonical_momentum_numerator"][:, 1]
+            assert np.max(np.abs(dipole_y)) < 2.0e-15
+            assert np.max(np.abs(momentum_y)) < 2.0e-15
+
+
+def test_parallel_intermediate_and_perpendicular_responses_differ(gauge_cases):
+    parallel = gauge_cases[(0, 4, 0.05)]["length"]
+    intermediate = gauge_cases[(45, 4, 0.05)]["length"]
+    perpendicular = gauge_cases[(90, 4, 0.05)]["length"]
+
+    parallel_dipole = parallel.samples["induced_dipole_numerator"]
+    intermediate_dipole = intermediate.samples["induced_dipole_numerator"]
+    perpendicular_dipole = perpendicular.samples["induced_dipole_numerator"]
+    assert np.max(np.abs(parallel_dipole[:, 0])) < 2.0e-15
+    assert np.max(np.abs(perpendicular_dipole[:, 0])) < 2.0e-15
+    assert np.max(np.abs(intermediate_dipole[:, 0])) > 5.0e-4
+    assert np.max(
+        np.abs(parallel_dipole[:, 2] - perpendicular_dipole[:, 2])
+    ) > 5.0e-4
+
+    parallel_population = parallel.samples["state_populations"][:, 0]
+    perpendicular_population = perpendicular.samples["state_populations"][:, 0]
+    assert np.max(
+        np.abs(parallel_population - perpendicular_population)
+    ) > 5.0e-5
+
+
+def test_homonuclear_mirrored_axes_rotate_vector_responses(gauge_cases):
+    reflection = np.diag([-1.0, -1.0, 1.0])
+    for left_angle, right_angle in (
+        (0, 180),
+        (30, 150),
+        (45, 135),
+        (60, 120),
+    ):
+        left = gauge_cases[(left_angle, 4, 0.05)]["length"]
+        right = gauge_cases[(right_angle, 4, 0.05)]["length"]
+        np.testing.assert_allclose(
+            right.samples["field_free_energy_numerator"],
+            left.samples["field_free_energy_numerator"],
+            atol=3.0e-12,
+            rtol=3.0e-12,
+        )
+        np.testing.assert_allclose(
+            right.samples["state_populations"],
+            left.samples["state_populations"],
+            atol=3.0e-12,
+            rtol=3.0e-12,
+        )
+        for name in (
+            "induced_dipole_numerator",
+            "canonical_momentum_numerator",
+        ):
+            np.testing.assert_allclose(
+                right.samples[name],
+                left.samples[name] @ reflection.T,
+                atol=3.0e-12,
+                rtol=3.0e-12,
+            )
+
+
+def test_azimuth_rotation_preserves_scalars_and_rotates_vectors(gauge_cases):
+    reference = gauge_cases[(45, 4, 0.05)]["length"]
+    rotated_case = gauge_cases[("azimuth", 45, 60, 4, 0.05)]
+    rotated = rotated_case["length"]
+    angle = np.deg2rad(rotated_case["azimuth_degrees"])
+    rotation = np.array(
+        [
+            [np.cos(angle), -np.sin(angle), 0.0],
+            [np.sin(angle), np.cos(angle), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+
+    assert rotated_case["ground_energy"] == pytest.approx(
+        gauge_cases[(45, 4, 0.05)]["ground_energy"],
+        abs=2.0e-12,
+    )
+    for name in (
+        "norm",
+        "field_free_energy_numerator",
+        "state_populations",
+    ):
+        np.testing.assert_allclose(
+            rotated.samples[name],
+            reference.samples[name],
+            atol=3.0e-12,
+            rtol=3.0e-12,
+        )
+    for name in (
+        "induced_dipole_numerator",
+        "canonical_momentum_numerator",
+    ):
+        np.testing.assert_allclose(
+            rotated.samples[name],
+            reference.samples[name] @ rotation.T,
+            atol=3.0e-12,
+            rtol=3.0e-12,
+        )

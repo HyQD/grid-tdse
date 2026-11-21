@@ -291,7 +291,7 @@ qualified separately in
 That validation includes high-precision H2+ references and an independent
 prolate-spheroidal comparison.
 
-The real-time regression suite adds two complementary qualifications:
+The real-time regression suite adds three complementary qualifications:
 
 1. Paired length- and velocity-gauge H2+ calculations use a one-cycle
    `SineSquareLaser` with `E0=0.05` and `omega=4`. Endpoint state, dipole,
@@ -312,6 +312,14 @@ The real-time regression suite adds two complementary qualifications:
    ground-state energies within `2e-3` hartree, final norms within `2e-11` of
    unity, survival probabilities within `5e-8`, and full dipole histories
    within `2e-5` atomic units.
+3. A full-angular H2+ alignment sweep uses polar angles `0`, `30`, `45`,
+   `60`, `90`, `120`, `135`, `150`, and `180` degrees relative to the fixed
+   laboratory-`z` field. The dynamics are physically different across
+   inequivalent alignments. Reflection forces the `y` dipole and momentum to
+   roundoff in the `x`-`z` plane, homonuclear mirrored-axis pairs transform
+   consistently, and an independent `phi=60` degrees calculation verifies
+   that azimuthal rotation preserves scalar and longitudinal observables
+   while rotating transverse vectors.
 
 These are compact implementation regressions. They do not establish
 production convergence.

@@ -40,7 +40,7 @@ spherical-harmonic rotation object supplies active rotations of complete
 complex `(l,m)` states. This plan therefore treats those operations as
 dependencies rather than reimplementing their angular algebra in grid-tdse.
 
-Steps 1--14 are complete on the development branch. The explicit-position
+Steps 1--15 are complete on the development branch. The explicit-position
 system model, arbitrary-position Coulomb construction, full-angular
 Hamiltonian utilities, matrix-free Davidson stationary solver, finite-basis
 rotation qualification, and analytic-versus-Poisson cross-check are
@@ -49,9 +49,9 @@ field interactions, projected gauge transformations, radial absorbers,
 time-dependent Hamiltonian actions, and raw vector observables are also
 implemented. Full-angular CN preconditioning, high-level calculation and
 persistence support, and local CN/SIL/SIA qualification are also complete.
-Off-axis length--velocity gauge equivalence is qualified across nine
-orientations and through angular, radial, and time-step refinement. Steps
-15--17 retain physical-alignment, public-example, and performance
+Off-axis length--velocity gauge equivalence and physical alignment behavior
+are qualified across nine orientations and through angular, radial, and
+time-step refinement. Steps 16--17 retain public-example and performance
 qualification work.
 
 ## 2. Relationship to existing work
@@ -837,6 +837,32 @@ Acceptance gate:
 - simultaneous rigid rotation of molecule, state, and a future vector field
   is identified as the stronger covariance test, but is not required until
   arbitrary field polarization is implemented.
+
+Use the same independently converged, geometry-local Davidson states,
+one-cycle pulse, radial grid, `l_max=4`, complete magnetic space, and SIA
+settings as the orientation sweep in Step 14. The `x`-`z`-plane sweep uses
+all nine polar angles from `0` through `180` degrees. Add a `theta=45`,
+`phi=60` degrees case for the azimuthal covariance gate.
+
+Status: complete. The `y` components of dipole and canonical momentum remain
+below `2e-15` in both gauges for every `x`-`z`-plane orientation. The final
+length-gauge induced dipoles for the parallel, `45`-degree, and perpendicular
+cases are respectively
+
+```text
+theta=0:   (-1.64e-16,  0.00e+00, 6.6656e-3)
+theta=45:  ( 6.04e-4, -1.66e-19, 6.0620e-3)
+theta=90:  ( 1.34e-19,  0.00e+00, 5.4584e-3)
+```
+
+Their dipole histories and ground-state survival histories are distinct, as
+required for different alignments relative to the fixed laboratory field.
+The homonuclear `0/180`, `30/150`, `45/135`, and `60/120` pairs preserve
+scalar histories while their transverse vectors transform by the appropriate
+azimuthal half-turn. At fixed `theta=45`, changing `phi` from `0` to `60`
+degrees leaves norms, field-free energies, populations, and longitudinal
+components unchanged while rotating the transverse dipole and momentum
+histories by `60` degrees.
 
 ### Step 16: add a public example and documentation
 

@@ -292,9 +292,11 @@ probability sampling are also implemented and tested. The public real-time
 calculation object selects either the backward-compatible fixed-`m` path or
 the full-angular path explicitly. Full-angular CN preconditioning,
 checkpoints, exact restart, continuation, and CN/SIL/SIA propagation are
-locally qualified. Off-axis length--velocity gauge equivalence is qualified
-with independently converged Davidson ground states at each geometry;
-physical alignment studies remain the next validation stage.
+locally qualified. Off-axis length--velocity gauge equivalence and physical
+alignment behavior are qualified with independently converged Davidson
+ground states at each geometry. The alignment sweep verifies reflection,
+homonuclear mirrored-axis, and laboratory-`z` azimuthal covariance while
+retaining physically distinct responses at inequivalent polar alignments.
 
 ## Recommended validation tests
 
