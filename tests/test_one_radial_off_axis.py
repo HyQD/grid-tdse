@@ -414,7 +414,11 @@ def test_analytic_and_poisson_tilted_energies_converge_radially():
             )
         )
 
-    assert energy_errors[1] < energy_errors[0]
+    # Once both eigenspectra agree at roundoff, LAPACK/BLAS differences can
+    # reverse the ordering of these tiny errors across platforms.  Require
+    # monotonic convergence only while the comparison is above that floor.
+    energy_at_roundoff = max(energy_errors) < 1.0e-12
+    assert energy_errors[1] < energy_errors[0] or energy_at_roundoff
     assert action_errors[1] < action_errors[0]
     assert coefficient_errors[1] < coefficient_errors[0]
     assert energy_errors[1] < 1.0e-6
