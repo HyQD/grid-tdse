@@ -323,10 +323,36 @@ def test_masked_cn_uses_public_preconditioner_and_persists_metadata(
     assert metadata["particle_mass"] == pytest.approx(1.25)
 
 
-@pytest.mark.parametrize("integrator", ["crank-nicolson", "sil"])
-def test_high_level_interface_rejects_cap_for_unvalidated_integrators(
+def test_high_level_cn_supports_cap_and_preconditioner(
     prepared_state,
-    integrator,
+    tmp_path,
+):
+    system, state = prepared_state
+    path = tmp_path / "cn-cap.chkpt"
+    calculation = _calculation(
+        system,
+        state,
+        "crank-nicolson",
+        cap=CubicCAP(alpha=0.5, eta=0.25),
+        checkpoint_path=path,
+    )
+
+    result = calculation.run(progress=False)
+    checkpoint = load_real_time_checkpoint(path)
+
+    assert result.norm <= result.initial_norm
+    assert np.all(np.diff(result.norm_history) <= 1.0e-13)
+    assert np.all(result.linear_iterations > 0)
+    assert calculation.preconditioner.applications > 0
+    dynamics = checkpoint.latest_segment.dynamics
+    assert dynamics["preconditioner"]["name"] == "kinetic-channel-lu"
+    assert dynamics["absorbing_boundaries"]["cap"]["eta"] == pytest.approx(
+        0.25
+    )
+
+
+def test_high_level_interface_rejects_cap_for_sil(
+    prepared_state,
 ):
     system, state = prepared_state
 
@@ -334,7 +360,7 @@ def test_high_level_interface_rejects_cap_for_unvalidated_integrators(
         _calculation(
             system,
             state,
-            integrator,
+            "sil",
             cap=CubicCAP(alpha=0.5, eta=0.25),
         )
 

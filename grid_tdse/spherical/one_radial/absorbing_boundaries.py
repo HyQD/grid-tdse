@@ -140,12 +140,16 @@ class SphericalOneRadialAbsorbingBoundaries:
         return values * _radial_broadcast(self._cap_values, values.ndim)
 
     def validate_integrator(self, integrator: str) -> None:
-        """Enforce the initial non-Hermitian propagation contract."""
+        """Require a propagator that supports the non-Hermitian CAP."""
 
-        if self.has_cap and integrator not in {"sia", "cf4-sia"}:
+        if self.has_cap and integrator not in {
+            "crank-nicolson",
+            "sia",
+            "cf4-sia",
+        }:
             raise ValueError(
                 "a spherical one-radial cubic CAP requires integrator "
-                "'sia' or 'cf4-sia'"
+                "'crank-nicolson', 'sia', or 'cf4-sia'"
             )
 
     def _evaluate_mask(

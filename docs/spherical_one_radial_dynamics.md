@@ -300,6 +300,12 @@ python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --cap-eta 1.0
 ```
 
+The cubic CAP is supported by both `--integrator sia` and
+`--integrator crank-nicolson`. The CN path retains the CAP in every
+Hamiltonian action and uses the kinetic-channel preconditioner as an
+approximate inverse. SIL requires a Hermitian Hamiltonian and is therefore
+incompatible with a CAP.
+
 The example uses only public `grid-tdse` interfaces and always uses the
 rotation-complete full-angular representation with `m_max=l_max` and
 `nuclear_L_max=nuclear_M_max=2*l_max`. At every geometry it independently

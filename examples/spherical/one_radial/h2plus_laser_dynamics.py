@@ -437,8 +437,8 @@ def main(argv=None):
         arguments.radial_probability_interval,
         "radial_probability_interval",
     )
-    if arguments.absorber == "cap" and arguments.integrator != "sia":
-        raise ValueError("the cubic CAP currently requires --integrator sia")
+    if arguments.absorber == "cap" and arguments.integrator == "sil":
+        raise ValueError("the cubic CAP is incompatible with --integrator sil")
 
     omega, wavelength_nm = _frequency(arguments)
     system, geometry_specification = _system(arguments, particle_mass)

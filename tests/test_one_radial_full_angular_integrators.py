@@ -214,11 +214,24 @@ def test_full_angular_mask_and_cap_contract(development_problem):
             cap=CubicCAP(alpha=0.5, eta=0.25),
         ),
     )
-    cap_result = cap_dynamics.propagate(
-        _propagator("sia", 0.005, final_time=0.02),
-        state,
+    cap_results = {
+        integrator: cap_dynamics.propagate(
+            _propagator(integrator, 0.005, final_time=0.02),
+            state,
+        )
+        for integrator in ("crank-nicolson", "sia")
+    }
+    for result in cap_results.values():
+        assert result.norm < result.initial_norm
+        assert np.all(np.diff(result.norm_history) <= 1.0e-13)
+    assert (
+        _distance(
+            hamiltonian,
+            cap_results["crank-nicolson"].state,
+            cap_results["sia"].state,
+        )
+        < 3.0e-5
     )
-    assert np.all(np.diff(cap_result.norm_history) <= 1.0e-13)
     with pytest.raises(ValueError, match="requires integrator"):
         cap_dynamics.propagate(
             _propagator("sil", 0.005, final_time=0.01),

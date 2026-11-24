@@ -26,6 +26,11 @@ python examples/spherical/one_radial/h2plus_laser_dynamics.py \
     --cap-eta 1.0
 ```
 
+The cubic CAP is supported with either `--integrator sia` or
+`--integrator crank-nicolson`; SIL remains restricted to Hermitian
+Hamiltonians. The CN path uses the kinetic-channel preconditioner while
+retaining the CAP in the propagated Hamiltonian.
+
 Add `--theta-deg 45 --phi-deg 30` to orient the bond, or supply both Cartesian
 nuclear positions with `--nuclear-position-1` and `--nuclear-position-2`.
 The program independently computes a full-angular Davidson state for the

@@ -261,18 +261,19 @@ Mask and CAP configuration are mutually exclusive. An absent absorber must
 be represented explicitly in metadata rather than inferred from missing
 fields.
 
-The initial compatibility contract is:
+The compatibility contract is:
 
 | Integrator | No absorber | Radial mask | Cubic CAP |
 | --- | ---: | ---: | ---: |
-| Crank--Nicolson | yes | yes | deferred |
+| Crank--Nicolson | yes | yes | yes |
 | SIL | yes | yes | no |
 | SIA | yes | yes | yes |
 
 SIL must reject a CAP because Lanczos propagation assumes a Hermitian
-generator. CN can in principle propagate a non-Hermitian CAP Hamiltonian, but
-CN+CAP is deferred until the iterative solver and preconditioner have a
-dedicated validation. The first guaranteed CAP path is SIA.
+generator. CN and SIA both support the non-Hermitian CAP Hamiltonian. The CN
+linear solve may use the kinetic-channel preconditioner; the CAP is omitted
+from that approximate inverse but remains present in the propagated
+Hamiltonian.
 
 The mask is supplied to `RealTimePropagator` as a post-step transformation.
 It is applied after each accepted step and before norm, samples, and
@@ -561,7 +562,7 @@ Acceptance gate:
 
 - all three integrators agree within their documented numerical tolerances
   without an absorber and with a mask;
-- SIA+CAP gives controlled monotonic outer-region loss;
+- CN+CAP and SIA+CAP give controlled monotonic outer-region loss;
 - SIL+CAP is rejected.
 
 Status: complete. The regression problem is H2+ at `R = 2` bohr on element
@@ -578,22 +579,21 @@ the final-state physical-norm distance from that oracle is required to be
 below `3e-6`, and the raw axial-position numerator must agree within `3e-8`.
 Each of CN, SIL, and SIA must improve its final-state error when the step is
 halved from `0.02` to `0.01`. A separate outer-region state verifies agreement
-with a radial mask, monotonic SIA+CAP norm loss, and pre-propagation rejection
-of SIL+CAP. These are implementation regressions, not physical convergence
-claims.
+with a radial mask, mutually consistent CN+CAP and SIA+CAP states, monotonic
+CAP norm loss, and pre-propagation rejection of SIL+CAP. These are
+implementation regressions, not physical convergence claims.
 
 ### Step 9: complete practical CN support
 
 Measure unpreconditioned iteration counts, implement or adapt a compatible
-preconditioner, and validate GMRES and BiCGSTAB behavior. Treat CN+CAP as a
-separate later gate.
+preconditioner, and validate GMRES and BiCGSTAB behavior, including CN+CAP.
 
 Acceptance gate:
 
 - mask-based CN completes the development pulse reliably with recorded
   iteration diagnostics.
 
-Status: complete for Hermitian and mask-based CN. The public
+Status: complete. The public
 `SphericalOneRadialKineticCrankNicolsonPreconditioner` factorizes the radial
 kinetic-plus-centrifugal CN block independently for each retained `l` channel.
 It uses the configured particle mass and radial-first fixed-`m` layout, while
@@ -602,7 +602,9 @@ metadata records those choices. Both GMRES and BiCGSTAB are regression-tested
 on the masked development pulse; accepted-step iteration and residual
 diagnostics are retained by `RealTimePropagationResult`, and the
 preconditioned solve must use fewer total iterations than its unpreconditioned
-counterpart. CN+CAP remains outside this completed gate.
+counterpart. CN+CAP is validated in both fixed-`m` and full-angular paths;
+its non-Hermitian CAP remains in the CN system while the reusable
+kinetic-channel preconditioner omits it.
 
 ### Step 10: add the high-level preparation interface
 
@@ -709,8 +711,8 @@ Hamiltonian, stationary solver, and `OneElectronDiatomicTDSE` interfaces. It
 computes the projected ground state by default or loads a compatible NPY/NPZ
 state, constructs a gauge-consistent electromagnetic-fields pulse, and
 exposes all required physical and numerical controls.
-Mask, CAP, and no-absorber paths are explicit; the CLI rejects the currently
-unsupported CAP/CN and CAP/SIL combinations before propagation.
+Mask, CAP, and no-absorber paths are explicit; the CLI accepts CAP with CN or
+SIA and rejects CAP/SIL before propagation.
 
 The example writes a JSON summary and compressed NPZ archive containing the
 final state, raw observables, integrator diagnostics, and cadence-controlled
@@ -838,7 +840,7 @@ The complete validation matrix must include:
 6. explicit-matrix small-grid propagation;
 7. CN, SIL, and SIA time-step convergence;
 8. mask behavior with all three integrators;
-9. SIA+CAP norm loss and reflection reduction;
+9. CN+CAP and SIA+CAP norm loss and reflection reduction;
 10. invalid SIL+CAP rejection;
 11. length-versus-velocity gauge equivalence;
 12. midpoint H2+ nuclear-scalar cancellation;
@@ -902,7 +904,7 @@ The initial axial implementation should deliver:
 10. length-versus-velocity and spherical-versus-prolate validation evidence;
 11. user documentation and explicit convergence responsibilities.
 
-CN+CAP, arbitrary nuclear orientation, full-`m` dynamics, non-axial field
+Arbitrary nuclear orientation, full-`m` dynamics, non-axial field
 polarization, moving nuclei, and non-Born--Oppenheimer dynamics are later
 milestones. The existing spherical two-radial implementation remains the
 appropriate representation for quantum nuclear motion.

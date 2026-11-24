@@ -341,14 +341,13 @@ Preserve the established compatibility table:
 
 | Integrator | No absorber | Radial mask | Cubic CAP |
 | --- | ---: | ---: | ---: |
-| Crank--Nicolson | yes | yes | deferred |
+| Crank--Nicolson | yes | yes | yes |
 | SIL | yes | yes | no |
 | SIA | yes | yes | yes |
 
-SIL must reject a CAP because the generator is non-Hermitian. CN+CAP remains
-deferred until separately qualified. The CAP is excluded from sampled
-physical energy, while mask or CAP loss remains visible in all raw
-observables.
+SIL must reject a CAP because the generator is non-Hermitian. CN and SIA
+support the CAP. The CAP is excluded from sampled physical energy, while mask
+or CAP loss remains visible in all raw observables.
 
 The full-angular CN preconditioner should retain radial kinetic and
 centrifugal blocks independently for every `(l,m)` channel. Since the
@@ -678,14 +677,15 @@ Acceptance gate:
 - field-free eigenstate propagation preserves norm and phase without an
   absorber;
 - the radial mask acts identically on every angular channel;
-- SIA+CAP produces controlled norm loss and SIL+CAP is rejected before
+- CN+CAP and SIA+CAP produce controlled norm loss and SIL+CAP is rejected before
   propagation.
 
 Status: complete. Masks and CAPs broadcast over every full-angular channel,
 and the dedicated full-angular time-dependent Hamiltonian combines the
 field-free, field, and absorber actions. A full-angular field-free
-eigenstate retains its phase and norm under SIA, a CAP produces norm loss,
-and incompatible SIL+CAP propagation is rejected before the first step.
+eigenstate retains its phase and norm under SIA, a CAP produces norm loss
+under CN and SIA, and incompatible SIL+CAP propagation is rejected before the
+first step.
 
 ### Step 10: add vector observables
 
@@ -719,15 +719,15 @@ Acceptance gate:
 - preconditioned and unpreconditioned CN agree on a short full-angular
   propagation;
 - the preconditioner reduces total iterations on the development problem;
-- mask-based CN is reliable and CN+CAP remains rejected.
+- mask- and CAP-based CN are reliable.
 
 Status: complete. The full-angular kinetic-channel LU preconditioner reuses
 one radial factorization for every common `l` while applying it in the
 public `(l,m)` channel order. Preconditioned and unpreconditioned full-state
 CN agree, the preconditioner reduces GMRES iterations on the tilted
-development problem, masks remain supported, and CN+CAP is rejected before
-propagation. Linear iterations and residuals continue to use the common
-real-time diagnostics and checkpoint machinery.
+development problem, and both masks and CAPs remain supported. Linear
+iterations and residuals continue to use the common real-time diagnostics
+and checkpoint machinery.
 
 ### Step 12: extend the high-level interface and persistence
 
@@ -767,8 +767,8 @@ Status: complete for the local development problem. CN, SIL, and SIA retain
 the field-free norm and energy and reproduce the appropriate eigenstate
 phase. Under a short weak laboratory-`z` pulse, time-step refinement moves
 all three methods toward the same fine-step SIA state, dipole vector, and
-canonical-momentum vector. All three methods support the radial mask; SIA
-shows monotonic CAP norm loss and SIL+CAP remains rejected.
+canonical-momentum vector. All three methods support the radial mask; CN and
+SIA show monotonic CAP norm loss and SIL+CAP remains rejected.
 
 ### Step 14: establish off-axis gauge equivalence
 
