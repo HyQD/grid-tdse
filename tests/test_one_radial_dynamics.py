@@ -165,9 +165,7 @@ def test_mask_is_installed_as_post_step_transformation(stationary_problem):
         )
 
 
-@pytest.mark.parametrize(
-    "integrator", ["sil", "cf4-sil", "crank-nicolson"]
-)
+@pytest.mark.parametrize("integrator", ["sil", "cf4-sil"])
 def test_invalid_cap_integrators_fail_before_propagation(
     stationary_problem, integrator
 ):

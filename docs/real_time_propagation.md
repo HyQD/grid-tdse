@@ -325,9 +325,10 @@ observables, and checkpoint are recorded. It is not applied to the initial
 state. A CAP is instead included as a diagonal, non-Hermitian term in every
 real-time Hamiltonian action. CAP terms are excluded from ground-state
 construction and from the current separable CN preconditioner. The latter
-remains an approximation to the Hermitian one-coordinate part of the
-Crank--Nicolson system. A CAP also makes SIL inapplicable; select SIA or CN
-instead.
+remains a valid approximate inverse built from the Hermitian
+kinetic-plus-centrifugal part of the Crank--Nicolson system; the CAP is still
+included in every CN Hamiltonian action. Both CN and SIA therefore support a
+CAP. A CAP makes SIL inapplicable.
 
 Neither absorber renormalizes the state. Consequently, norm loss represents
 absorbed probability and all recorded expectation values remain unnormalized.

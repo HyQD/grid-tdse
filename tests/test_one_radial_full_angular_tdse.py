@@ -200,23 +200,20 @@ def test_full_cn_preconditioner_reduces_iterations_and_preserves_state(
         checkpoint.latest_segment.dynamics["preconditioner"]
         == preconditioner.metadata
     )
-    with pytest.raises(ValueError, match="requires integrator"):
-        cap = SphericalOneRadialFullAngularTimeDependentHamiltonian(
+    cap = SphericalOneRadialFullAngularTimeDependentHamiltonian(
+        hamiltonian,
+        absorbing_boundaries=SphericalOneRadialAbsorbingBoundaries(
             hamiltonian,
-            absorbing_boundaries=SphericalOneRadialAbsorbingBoundaries(
-                hamiltonian,
-                cap=CubicCAP(alpha=0.5),
-            ),
-        )
-        cap.propagate(
-            RealTimePropagator(
-                final_time=0.01,
-                time_step=0.01,
-                integrator="crank-nicolson",
-                progress_interval=None,
-            ),
-            states.orbital,
-        )
+            cap=CubicCAP(alpha=0.5),
+        ),
+    )
+    cap_result = cap.propagate(
+        propagator,
+        states.orbital,
+        preconditioner=preconditioner,
+    )
+    assert cap_result.norm <= cap_result.initial_norm
+    assert np.all(np.diff(cap_result.norm_history) <= 1.0e-13)
 
 
 def test_high_level_representation_selection_and_vector_samples(full_problem):

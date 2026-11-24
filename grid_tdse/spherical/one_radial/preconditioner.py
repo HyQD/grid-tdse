@@ -29,9 +29,9 @@ class SphericalOneRadialKineticCrankNicolsonPreconditioner:
     The nuclear potential, laser interaction, and absorber are omitted.  The
     approximation therefore preserves the current radial-first fixed-``m``
     representation while avoiding a dense factorization across all angular
-    channels.  It is intended for Hermitian CN propagation, optionally
-    followed by a radial mask; CN with a CAP remains a separate validation
-    gate.
+    channels.  The omitted absorber may be a post-step radial mask or a CAP
+    in the CN Hamiltonian; in the latter case it affects convergence but not
+    the validity of the preconditioner.
     """
 
     name = "kinetic-channel-lu"

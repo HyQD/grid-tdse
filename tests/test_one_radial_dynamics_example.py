@@ -189,14 +189,14 @@ def test_example_runs_public_interface_and_writes_outputs(
     assert archived_metadata == metadata
 
 
-def test_example_rejects_cap_with_unsupported_integrator(example_module):
+def test_example_rejects_cap_with_sil(example_module):
     with pytest.raises(ValueError, match="cubic CAP"):
         example_module.main(
             [
                 "--absorber",
                 "cap",
                 "--integrator",
-                "crank-nicolson",
+                "sil",
                 "--progress",
                 "none",
             ]

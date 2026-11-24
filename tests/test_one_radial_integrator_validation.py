@@ -161,7 +161,7 @@ def test_all_integrators_agree_with_radial_mask(development_problem):
         )
 
 
-def test_sia_cap_loss_is_monotonic_and_sil_is_rejected(
+def test_cn_and_sia_cap_loss_are_monotonic_and_sil_is_rejected(
     development_problem,
 ):
     hamiltonian, _ = development_problem
@@ -176,10 +176,24 @@ def test_sia_cap_loss_is_monotonic_and_sil_is_rejected(
     initial[-3:, 0] = 1.0
     initial /= np.sqrt(hamiltonian.inner_product(initial, initial).real)
 
-    result = dynamics.propagate(_propagator("sia", 0.005), initial)
+    results = {
+        integrator: dynamics.propagate(
+            _propagator(integrator, 0.005), initial
+        )
+        for integrator in ("crank-nicolson", "sia")
+    }
 
-    assert result.norm < result.initial_norm
-    assert np.all(np.diff(result.norm_history) <= 1.0e-13)
+    for result in results.values():
+        assert result.norm < result.initial_norm
+        assert np.all(np.diff(result.norm_history) <= 1.0e-13)
+    assert (
+        _state_distance(
+            hamiltonian,
+            results["crank-nicolson"].state,
+            results["sia"].state,
+        )
+        < 3.0e-4
+    )
     with pytest.raises(ValueError, match="requires integrator"):
         dynamics.propagate(_propagator("sil", 0.005), initial)
 

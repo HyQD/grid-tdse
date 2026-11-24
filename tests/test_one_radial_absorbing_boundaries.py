@@ -129,9 +129,10 @@ def test_absorber_configuration_and_integrator_policy(hamiltonian):
     cap = SphericalOneRadialAbsorbingBoundaries(
         hamiltonian, cap=CubicCAP(alpha=0.5)
     )
+    cap.validate_integrator("crank-nicolson")
     cap.validate_integrator("sia")
     cap.validate_integrator("cf4-sia")
-    for integrator in ("sil", "cf4-sil", "crank-nicolson"):
+    for integrator in ("sil", "cf4-sil"):
         with pytest.raises(ValueError, match="requires integrator"):
             cap.validate_integrator(integrator)
 
